@@ -6,7 +6,7 @@ const ctx = canvas.getContext("2d");
 
 const mapImage = new Image();
 let mapLoaded = false;
-mapImage.src = "assets/usa_sil.png"; // cesta k silhouetě USA
+mapImage.src = "/static/assets/usa_sil.png"; // cesta k silhouetě USA
 
 mapImage.addEventListener("load", () => {
   mapLoaded = true;
@@ -37,6 +37,9 @@ document.getElementById("mapSize").textContent =
 
 const fogSpreadSpeed = 0.001; // rychlost šíření mlhy
 let fogTiles = new Set();     // tile indexy mlhy
+
+// vlakové linky z backendu
+let trainLines = []; // naplní se v init()
 
 // Pomocná funkce pro index tile
 function tileIndex(x, y) {
@@ -70,6 +73,10 @@ const cities = CITIES.map((c) => {
 
   return { ...c, px, py, x, y };
 });
+
+// rychlé lookupy podle názvu města
+const cityByName = new Map(cities.map((c) => [c.name, c]));
+
 
 // Šíření mlhy
 function spreadFog() {
@@ -115,48 +122,34 @@ function getCityAt(x, y) {
   return cities.find((c) => c.x === x && c.y === y);
 }
 
-// ----------------------------------------
-// Vlakové trasy mezi městy
-// ----------------------------------------
-
-const trainLines = [
-  ["Seattle", "Portland"],
-  ["Portland", "San Francisco"],
-  ["San Francisco", "Los Angeles"],
-  ["Los Angeles", "San Diego"],
-
-  ["Los Angeles", "Las Vegas"],
-  ["Las Vegas", "Salt Lake City"], // POZOR: pokud Salt Lake City nebude v CITIES, trasa se prostě nevykreslí
-  ["Salt Lake City", "Denver"],
-
-  ["Denver", "Chicago"],
-  ["Chicago", "St. Louis"],
-  ["St. Louis", "Dallas"],
-  ["Dallas", "Houston"],
-  ["Houston", "San Antonio"],
-
-  ["Chicago", "Minneapolis"],
-  ["Chicago", "Atlanta"],
-  
-  ["Atlanta", "Miami"],
-  ["Atlanta", "Washington"],
-
-  ["Washington", "Philadelphia"],
-  ["Philadelphia", "New York"],
-  ["New York", "Boston"]
-];
-
 // Najde všechny sousední města, na která vede vlak z daného města
+// trainLines pochází z /api/trainlines a má tvar:
+// { from: { name, px, py, ... }, to: { name, px, py, ... }, ... }
 function getConnections(cityName) {
-  const connectedNames = trainLines
-    .filter(
-      (line) => line[0] === cityName || line[1] === cityName
-    )
-    .map((line) => (line[0] === cityName ? line[1] : line[0]));
+  if (!trainLines || trainLines.length === 0) {
+    console.log("Train lines not loaded yet.");
+    return [];
+  }
 
-  return connectedNames
-    .map((name) => cities.find((c) => c.name === name))
-    .filter(Boolean);
+  // najdeme všechny linky, kde je current jako from/to
+  const connectedEndpoints = [];
+  for (const line of trainLines) {
+    const { from, to } = line;
+    if (from.name === cityName) {
+      connectedEndpoints.push(to);
+    } else if (to.name === cityName) {
+      connectedEndpoints.push(from);
+    }
+  }
+
+  // mapujeme na lokální objekty cities (kvůli x,y,px,py)
+  const result = [];
+  for (const endpoint of connectedEndpoints) {
+    const city = cities.find((c) => c.name === endpoint.name);
+    if (city) result.push(city);
+  }
+
+  return result;
 }
 
 // Čištění města agentem
@@ -204,7 +197,7 @@ function moveAgent(dx, dy) {
   if (newX >= 0 && newX < GRID_COLS && newY >= 0 && newY < GRID_ROWS) {
     agent.x = newX;
     agent.y = newY;
-    document.getElementById("agentPos").textContent = `${agent.x},${agent.y}`;
+    updateSidebar();
   }
 }
 
@@ -276,7 +269,7 @@ function travelFromCurrentCity() {
   agent.x = destination.x;
   agent.y = destination.y;
 
-  document.getElementById("agentPos").textContent = `${agent.x},${agent.y}`;
+  updateSidebar();
   console.log(`Přesun vlakem do: ${destination.name}`);
 }
 
@@ -286,11 +279,16 @@ function travelFromCurrentCity() {
 
 function drawCities(ctx) {
   cities.forEach((city) => {
-    // bod města
+    // fill
     ctx.fillStyle = isCityInFog(city) ? "#DC2626" : "#22c55e";
     ctx.beginPath();
     ctx.arc(city.px, city.py, 3, 0, Math.PI * 2);
     ctx.fill();
+
+    // outline – tmavá šedá
+    ctx.strokeStyle = "#0f172a";   // slate-900
+    ctx.lineWidth = 1;
+    ctx.stroke();
   });
 
   // popisky
@@ -306,7 +304,7 @@ function drawCities(ctx) {
     const paddingY = 2;
     const textWidth = ctx.measureText(label).width;
 
-    ctx.fillStyle = "rgba(15, 23, 42, 0.85)";
+    ctx.fillStyle = "rgba(15, 23, 42, 0.6)";
     ctx.fillRect(
       px - paddingX,
       py - 6 - paddingY,
@@ -323,28 +321,76 @@ function drawCities(ctx) {
 // Vykreslení vlakových tras
 // ----------------------------------------
 
-function drawTrainLines(ctx) {
-  ctx.strokeStyle = "#94a3b8";
-  ctx.lineWidth = 2;
+async function fetchTrainLines() {
+  try {
+    const res = await fetch("/api/trainlines");
+    if (!res.ok) {
+      console.error("Failed to load trainlines");
+      return [];
+    }
+    const data = await res.json();
+    console.log(`Načteno ${data.length} vlakových linek.`);
+    return data;
+  } catch (err) {
+    console.error("Error loading trainlines:", err);
+    return [];
+  }
+}
 
-  trainLines.forEach((line) => {
-    const a = cities.find((c) => c.name === line[0]);
-    const b = cities.find((c) => c.name === line[1]);
+function drawTrainLines(ctx, trainLines) {
+  if (!Array.isArray(trainLines) || trainLines.length === 0) return;
 
-    // pokud některé město v CITIES není (třeba Salt Lake City), trasu přeskočíme
-    if (!a || !b) return;
+  ctx.save();
+  ctx.globalCompositeOperation = "source-over";
+  ctx.lineCap = "round";
+
+  for (const line of trainLines) {
+    // snažíme se získat jméno města z různých možných formátů
+    const fromName =
+      line.from?.name ||
+      line.from_name ||
+      line.fromCityName ||
+      line.from; // fallback
+
+    const toName =
+      line.to?.name ||
+      line.to_name ||
+      line.toCityName ||
+      line.to; // fallback
+
+    const fromCity = cityByName.get(fromName);
+    const toCity = cityByName.get(toName);
+
+    if (!fromCity || !toCity) {
+      // když backend pošle něco, co nespárujeme, přeskočíme
+      continue;
+    }
+
+    const isExpress = line.line_type === "express";
+    const isRare = line.frequency_minutes >= 90;
+
+    // 🔹 Styl: všechno šedé, ale trochu odlišné
+    if (isExpress) {
+      // výraznější express linky
+      ctx.strokeStyle = "rgba(148, 163, 184, 0.9)"; // slate-400
+      ctx.lineWidth = 2;
+    } else if (isRare) {
+      // zřídkavé linky = tenké a tmavší
+      ctx.strokeStyle = "rgba(75, 85, 99, 0.4)"; // slate-600
+      ctx.lineWidth = 1;
+    } else {
+      // běžné regionální linky
+      ctx.strokeStyle = "rgba(107, 114, 128, 0.6)"; // slate-500
+      ctx.lineWidth = 1.3;
+    }
 
     ctx.beginPath();
-    ctx.moveTo(
-      a.x * TILE_SIZE + TILE_SIZE / 2,
-      a.y * TILE_SIZE + TILE_SIZE / 2
-    );
-    ctx.lineTo(
-      b.x * TILE_SIZE + TILE_SIZE / 2,
-      b.y * TILE_SIZE + TILE_SIZE / 2
-    );
+    ctx.moveTo(fromCity.px, fromCity.py);
+    ctx.lineTo(toCity.px, toCity.py);
     ctx.stroke();
-  });
+  }
+
+  ctx.restore();
 }
 
 // ----------------------------------------
@@ -365,29 +411,23 @@ function drawGrid() {
   if (mapLoaded) {
     ctx.save();
 
-    // 1) Nejprve vyplníme celé plátno emerald barvou
-    ctx.fillStyle = "rgba(16, 185, 129, 0.45)"; // emerald, průhledný
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    // 2) Pomocí silhouety USA necháme emerald jen tam, kde je mapa
-    ctx.globalCompositeOperation = "destination-in";
-    ctx.drawImage(mapImage, 0, 0, canvas.width, canvas.height);
-
-    // 3) Tmavé pozadí pod mapu
-    ctx.globalCompositeOperation = "destination-over";
+    // nejdřív tmavé pozadí
     ctx.fillStyle = "#020617";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+    // potom přímo obrázek mapy tak, jak je
+    ctx.globalCompositeOperation = "source-over";
+    ctx.drawImage(mapImage, 0, 0, canvas.width, canvas.height);
+
     ctx.restore();
   } else {
-    // fallback – když se mapa ještě nenačetla
     ctx.fillStyle = "#020617";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
   }
 
   // Grid
-  ctx.strokeStyle = "#1f2933";
-  ctx.lineWidth = 1;
+  ctx.strokeStyle = "rgba(31, 41, 51, 0.3)";  // slabší viditelnost
+  ctx.lineWidth = 0.4;
 
   for (let x = 0; x <= GRID_COLS; x++) {
     ctx.beginPath();
@@ -428,21 +468,74 @@ function drawGrid() {
     );
   });
 
+  // VLAKOVÉ TRASY (pod městy, nad mlhou)
+  drawTrainLines(ctx, trainLines);
+
   // MĚSTA + POPISKY
   drawCities(ctx);
 
-  // VLAKOVÉ TRASY
-  drawTrainLines(ctx);
+  // AGENT
+  ctx.save();
+  ctx.globalCompositeOperation = "source-over";
 
-  // Agent
+  const agentSize = 6; // viditelná velikost agenta v px
+  const agentScreenX = agent.x * TILE_SIZE + (TILE_SIZE - agentSize) / 2;
+  const agentScreenY = agent.y * TILE_SIZE + (TILE_SIZE - agentSize) / 2;
+
+  // vnitřní barva agenta
   ctx.fillStyle = agent.color;
-  ctx.fillRect(
-    agent.x * TILE_SIZE + 4,
-    agent.y * TILE_SIZE + 4,
-    TILE_SIZE - 8,
-    TILE_SIZE - 8
-  );
+  ctx.fillRect(agentScreenX, agentScreenY, agentSize, agentSize);
+
+  // bílý rámeček
+  ctx.strokeStyle = "#ffffff";
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(agentScreenX, agentScreenY, agentSize, agentSize);
+
+  ctx.restore();
 }
+
+// Ovládací panel
+function updateSidebar() {
+  const posEl = document.getElementById("agentPos");
+  const cityNameEl = document.getElementById("currentCityName");
+  const listEl = document.getElementById("connectionsList");
+  const noteEl = document.getElementById("noConnectionsNote");
+
+  if (!posEl || !cityNameEl || !listEl || !noteEl) return;
+
+  // souřadnice agenta
+  posEl.textContent = `${agent.x},${agent.y}`;
+
+  // zjistíme, jestli stojí ve městě
+  const city = getCityAt(agent.x, agent.y);
+
+  // vyčistíme seznam spojů
+  listEl.innerHTML = "";
+  noteEl.textContent = "";
+
+  if (!city) {
+    cityNameEl.textContent = "-";
+    noteEl.textContent = "Agent nestojí ve městě.";
+    return;
+  }
+
+  cityNameEl.textContent = city.name;
+
+  const connections = getConnections(city.name);
+
+  if (!connections || connections.length === 0) {
+    noteEl.textContent = "Z tohoto města nevedou žádné vlakové spoje.";
+    return;
+  }
+
+  connections.forEach((c) => {
+    const li = document.createElement("li");
+    li.textContent = c.name;
+    listEl.appendChild(li);
+  });
+}
+
+
 
 // HERNI SMYČKA
 function gameLoop() {
@@ -452,7 +545,12 @@ function gameLoop() {
   requestAnimationFrame(gameLoop);
 }
 
-// Start
-initFog();
-document.getElementById("agentPos").textContent = `${agent.x},${agent.y}`;
-gameLoop();
+// Start – načtení mlhy, vlakových linek a pak teprve loop
+async function init() {
+  initFog();
+  trainLines = await fetchTrainLines();
+  updateSidebar();
+  gameLoop();
+}
+
+init();
