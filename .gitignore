@@ -1,0 +1,44 @@
+# ========== PYTHON ==========
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pdb
+*.pdb
+*.pys
+*.pyd
+*$py.class
+
+# ========== ENV / SETTINGS ==========
+venv/
+.venv/
+env/
+.env
+.env.*
+
+# ========== DATABASE ==========
+*.db
+*.sqlite
+*.sqlite3
+
+# ========== MIGRATIONS ==========
+migrations/versions/*.pyc
+migrations/versions/*.pyo
+migrations/versions/__pycache__/
+
+# (volitelné – pokud nechceš verzovat migrace)
+# migrations/
+
+# ========== LOGS ==========
+*.log
+
+# ========== EDITOR FILES ==========
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# ========== CACHE ==========
+.cache/
+.python-cache/
+pip-wheel-metadata/
