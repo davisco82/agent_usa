@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8" />
+    <title>Agent Game – Skeleton</title>
+    <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+    <div class="layout">
+        <div class="game-wrapper">
+            <canvas id="gameCanvas" width="1024" height="576"></canvas>
+        </div>
+
+        <div class="sidebar">
+            <h1>Agent Game</h1>
+            <p>Šipky ← ↑ ↓ → pro pohyb agenta.</p>
+            <p>Mezerník = čistit město, C = cestovat vlakem.</p>
+
+            <div class="panel">
+                <h2>Info</h2>
+                <p><strong>Pozice agenta:</strong> <span id="agentPos">0,0</span></p>
+                <p><strong>Velikost mapy:</strong> <span id="mapSize"></span></p>
+            </div>
+
+            <div class="panel">
+                <h2>Budoucí funkce</h2>
+                <ul>
+                    <li>Města a vlaky / lety</li>
+                    <li>Šíření „hrozby“</li>
+                    <li>Inventář agenta</li>
+                    <li>Mise a úkoly</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="game.js"></script>
+
+</body>
+</html>
