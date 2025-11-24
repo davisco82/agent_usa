@@ -36,6 +36,7 @@ let fogTiles = new Set();     // tile indexy mlhy
 
 // vlakové linky z backendu
 let trainLines = []; // naplní se v init()
+let connectionsByCityName = new Map();
 
 // Pomocná funkce pro index tile
 function tileIndex(x, y) {
@@ -117,35 +118,68 @@ function getCityAt(x, y) {
   return cities.find((c) => c.x === x && c.y === y);
 }
 
-// Najde všechny sousední města, na která vede vlak z daného města
-// trainLines pochází z /api/trainlines a má tvar:
-// { from: { name, px, py, ... }, to: { name, px, py, ... }, ... }
-function getConnections(cityName) {
-  if (!trainLines || trainLines.length === 0) {
-    console.log("Train lines not loaded yet.");
-    return [];
+// Postaví mapu spojů: název města -> pole cílových měst (lokální objekty z cities)
+function buildConnectionsMap() {
+  connectionsByCityName = new Map();
+
+  if (!Array.isArray(trainLines) || trainLines.length === 0) {
+    return;
   }
 
-  // najdeme všechny linky, kde je current jako from/to
-  const connectedEndpoints = [];
   for (const line of trainLines) {
-    const { from, to } = line;
-    if (from.name === cityName) {
-      connectedEndpoints.push(to);
-    } else if (to.name === cityName) {
-      connectedEndpoints.push(from);
+    // ❗ Stejná logika jako v drawTrainLines
+    const fromName =
+      line.from?.name ||
+      line.from_name ||
+      line.fromCityName ||
+      line.from_city?.name ||
+      line.from_city_name ||
+      line.from;
+
+    const toName =
+      line.to?.name ||
+      line.to_name ||
+      line.toCityName ||
+      line.to_city?.name ||
+      line.to_city_name ||
+      line.to;
+
+    if (!fromName || !toName) continue;
+
+    const fromCity = cityByName.get(fromName);
+    const toCity   = cityByName.get(toName);
+    if (!fromCity || !toCity) continue;
+
+    // obousměrné spojení
+    if (!connectionsByCityName.has(fromCity.name)) {
+      connectionsByCityName.set(fromCity.name, []);
     }
+    if (!connectionsByCityName.has(toCity.name)) {
+      connectionsByCityName.set(toCity.name, []);
+    }
+
+    connectionsByCityName.get(fromCity.name).push(toCity);
+    connectionsByCityName.get(toCity.name).push(fromCity);
   }
 
-  // mapujeme na lokální objekty cities (kvůli x,y,px,py)
-  const result = [];
-  for (const endpoint of connectedEndpoints) {
-    const city = cities.find((c) => c.name === endpoint.name);
-    if (city) result.push(city);
+  // Odstranění duplicit (kdyby byla linka tam i zpět)
+  for (const [name, arr] of connectionsByCityName.entries()) {
+    const seen = new Set();
+    const unique = [];
+    for (const c of arr) {
+      if (seen.has(c.name)) continue;
+      seen.add(c.name);
+      unique.push(c);
+    }
+    connectionsByCityName.set(name, unique);
   }
-
-  return result;
 }
+
+// Vrátí pole měst, na která vede spoj z daného města
+function getConnections(cityName) {
+  return connectionsByCityName.get(cityName) || [];
+}
+
 
 // Čištění města agentem
 function cleanCity() {
@@ -534,9 +568,19 @@ function updateSidebar() {
     return;
   }
 
-  connections.forEach((c) => {
+  // 🔹 Vytvoříme klikatelné položky – klik = přesun agenta do města
+  connections.forEach((targetCity) => {
     const li = document.createElement("li");
-    li.textContent = c.name;
+    li.textContent = targetCity.name;
+    li.style.cursor = "pointer";
+
+    li.addEventListener("click", () => {
+      agent.x = targetCity.x;
+      agent.y = targetCity.y;
+      updateSidebar();
+      console.log(`Přesun vlakem do: ${targetCity.name}`);
+    });
+
     listEl.appendChild(li);
   });
 }
@@ -556,13 +600,33 @@ async function init() {
   initFog();
 
   // 1) načteme města z backendu
-  cities = await fetchCities();
+  let rawCities = await fetchCities();
 
-  // 2) vytvoříme mapu podle jména
+  // 2) dopočítáme x,y z px,py podle TILE_SIZE
+  cities = rawCities.map((c) => {
+    const px = c.px;
+    const py = c.py;
+
+    const x = Math.round(px / TILE_SIZE);
+    const y = Math.round(py / TILE_SIZE);
+
+    return {
+      ...c,
+      px,
+      py,
+      x,
+      y,
+    };
+  });
+
+  // 3) vytvoříme mapu podle jména
   cityByName = new Map(cities.map((c) => [c.name, c]));
 
-  // 3) načteme vlakové trasy
+  // 4) načteme vlakové trasy
   trainLines = await fetchTrainLines();
+
+  // 5) postavíme mapu spojů podle názvu města
+  buildConnectionsMap();
 
   updateSidebar();
   gameLoop();
