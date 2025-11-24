@@ -1,6 +1,4 @@
-import { CITIES } from "./cities.js";
 
-// ZÁKLADNÍ NASTAVENÍ MAPY
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
@@ -22,11 +20,9 @@ const LAND_MAX_X = 941;
 const LAND_MIN_Y = 53;
 const LAND_MAX_Y = 568;
 
-// extrémy z tvého seznamu měst
-const MIN_LON = -122.675;   // západ (Portland)
-const MAX_LON = -71.0589;   // východ (Boston)
-const MIN_LAT = 25.7617;    // jih (Miami)
-const MAX_LAT = 47.6062;    // sever (Seattle)
+let cities = [];
+let cityByName = new Map();
+
 
 document.getElementById("mapSize").textContent =
   `${GRID_COLS} × ${GRID_ROWS} polí`;
@@ -55,27 +51,26 @@ function initFog() {
   }
 }
 
-function projectToPixel(lat, lon) {
-  const xNorm = (lon - MIN_LON) / (MAX_LON - MIN_LON);
-  const yNorm = 1 - (lat - MIN_LAT) / (MAX_LAT - MIN_LAT);
+// Města – používáme přímo px/py z cities.js
+// const cities = CITIES.map((c) => {
+//   const px = c.px;
+//   const py = c.py;
 
-  const px = LAND_MIN_X + xNorm * (LAND_MAX_X - LAND_MIN_X);
-  const py = LAND_MIN_Y + yNorm * (LAND_MAX_Y - LAND_MIN_Y);
+//   // x,y dopočítáme z px/py, aby vždy seděly s TILE_SIZE
+//   const x = Math.round(px / TILE_SIZE);
+//   const y = Math.round(py / TILE_SIZE);
 
-  return { px, py };
-}
-
-const cities = CITIES.map((c) => {
-  const { px, py } = projectToPixel(c.lat, c.lon);
-
-  const x = Math.round(px / TILE_SIZE);
-  const y = Math.round(py / TILE_SIZE);
-
-  return { ...c, px, py, x, y };
-});
+//   return {
+//     ...c,
+//     px,
+//     py,
+//     x,
+//     y,
+//   };
+// });
 
 // rychlé lookupy podle názvu města
-const cityByName = new Map(cities.map((c) => [c.name, c]));
+// const cityByName = new Map(cities.map((c) => [c.name, c]));
 
 
 // Šíření mlhy
@@ -317,6 +312,17 @@ function drawCities(ctx) {
   });
 }
 
+// Vykreslení měst načtených z backendu
+
+async function fetchCities() {
+  const res = await fetch("/api/cities");
+  if (!res.ok) {
+    console.error("Nepodařilo se načíst města.");
+    return [];
+  }
+  return await res.json();
+}
+
 // ----------------------------------------
 // Vykreslení vlakových tras
 // ----------------------------------------
@@ -548,9 +554,19 @@ function gameLoop() {
 // Start – načtení mlhy, vlakových linek a pak teprve loop
 async function init() {
   initFog();
+
+  // 1) načteme města z backendu
+  cities = await fetchCities();
+
+  // 2) vytvoříme mapu podle jména
+  cityByName = new Map(cities.map((c) => [c.name, c]));
+
+  // 3) načteme vlakové trasy
   trainLines = await fetchTrainLines();
+
   updateSidebar();
   gameLoop();
 }
+
 
 init();

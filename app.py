@@ -25,6 +25,29 @@ def create_app():
         # načte templates/index.html
         return render_template("index.html")
     
+    @app.get("/api/cities")
+    def api_cities():
+        """Vrátí všechna města jako JSON pro canvas."""
+        cities = City.query.all()
+
+        data = []
+        for c in cities:
+            data.append({
+                "id": c.id,
+                "name": c.name,
+                "region": c.region.code if c.region else None,
+                "importance": c.importance,
+                "lat": c.lat,
+                "lon": c.lon,
+                "px": c.px,
+                "py": c.py,
+                "grid_x": c.grid_x,
+                "grid_y": c.grid_y,
+            })
+
+        return jsonify(data)
+
+    
     @app.get("/api/trainlines")
     def api_trainlines():
         """Vrátí všechny vlakové linky jako JSON pro canvas."""
