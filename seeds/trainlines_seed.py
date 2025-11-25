@@ -7,7 +7,7 @@ from models.region import Region
 from models.train_line import TrainLine
 
 
-MIN_NEIGHBORS = 3  # minimální počet sousedních měst pro každé město (změň na 2, když chceš míň)
+MIN_NEIGHBORS = 4  # minimální počet sousedních měst pro každé město (změň na 2, když chceš míň)
 HUB_NEIGHBORS_ACROSS_REGIONS = 3  # kolik nejbližších hubů v jiných regionech
 
 
@@ -19,15 +19,16 @@ def _compute_distance(city_a: City, city_b: City) -> float:
 
 def _compute_frequency(imp_a: int, imp_b: int) -> int:
     """
-    Frekvence podle nejdůležitějšího města z dvojice.
-    1 → 15 min
-    2 → 30 min
-    3 → 90 min
+    Frekvence podle MÉNĚ důležitého města z dvojice.
+    1 → 15 min  (1–1)
+    2 → 30 min  (1–2, 2–2)
+    3 → 90 min  (cokoli s 3)
     """
-    highest = min(imp_a, imp_b)  # 1 je top
-    if highest == 1:
+    lowest = max(imp_a, imp_b)  # 3 = nejméně důležité
+
+    if lowest == 1:
         return 15
-    if highest == 2:
+    if lowest == 2:
         return 30
     return 90
 

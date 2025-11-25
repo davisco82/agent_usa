@@ -1,11 +1,14 @@
 # app.py
-from flask import Flask, jsonify, render_template
+from flask import Flask, jsonify, render_template, request
 from flask_migrate import Migrate
 from models import db
 from models.train_line import TrainLine
 from models.city import City
 from seeds.cities_seed import register_city_seed_commands
 from seeds.trainlines_seed import register_trainlines_commands  
+from services.timetable_service import compute_next_departures, compute_travel_minutes
+
+
 
 def create_app():
     app = Flask(__name__)
@@ -78,6 +81,48 @@ def create_app():
 
         return jsonify(data)
 
+    @app.get("/api/timetable")
+    def api_timetable():
+        city_id = request.args.get("city_id", type=int)
+        current_minutes = request.args.get("minutes", type=int)
+
+        if city_id is None or current_minutes is None:
+            return jsonify({"error": "city_id and minutes are required"}), 400
+
+        city = City.query.get_or_404(city_id)
+
+        departures = compute_next_departures(city, current_minutes, limit=5)
+
+        def to_dict(d):
+            line = d["line"]
+
+            # 👇 vezmu travel_minutes, a když tam není nebo je None,
+            # dopočítám ho podle line + importance obou měst
+            travel = d.get("travel_minutes")
+            if travel is None:
+                travel = compute_travel_minutes(
+                    line,
+                    line.from_city.importance,
+                    line.to_city.importance,
+                )
+
+            return {
+                "departure_minutes": d["departure_minutes"],
+                "from_city": {
+                    "id": d["from_city"].id,
+                    "name": d["from_city"].name,
+                },
+                "to_city": {
+                    "id": d["to_city"].id,
+                    "name": d["to_city"].name,
+                },
+                "line_type": line.line_type,
+                "frequency_minutes": line.frequency_minutes,
+                "distance_units": line.distance_units,
+                "travel_minutes": travel,
+            }
+
+        return jsonify([to_dict(dep) for dep in departures])
 
 
     return app

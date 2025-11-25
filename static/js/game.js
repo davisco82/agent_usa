@@ -15,6 +15,12 @@ const TILE_SIZE = 8;
 const GRID_COLS = 128; // 1024 / 8
 const GRID_ROWS = 72;  // 576 / 8
 
+const MINUTES_PER_DAY = 24 * 60;
+const MINUTES_PER_WEEK = MINUTES_PER_DAY * 7;
+
+// Po 08:00 = start
+let gameMinutes = 8 * 60; // 8:00 první den (Po)
+
 const LAND_MIN_X = 3;
 const LAND_MAX_X = 941;
 const LAND_MIN_Y = 53;
@@ -22,6 +28,21 @@ const LAND_MAX_Y = 568;
 
 let cities = [];
 let cityByName = new Map();
+
+function formatGameTime(totalMinutes) {
+  const dayNames = ["Po", "Út", "St", "Čt", "Pá", "So", "Ne"];
+  const minutesNorm = ((totalMinutes % MINUTES_PER_WEEK) + MINUTES_PER_WEEK) % MINUTES_PER_WEEK;
+
+  const dayIndex = Math.floor(minutesNorm / MINUTES_PER_DAY);
+  const minuteOfDay = minutesNorm % MINUTES_PER_DAY;
+  const hours = Math.floor(minuteOfDay / 60);
+  const minutes = minuteOfDay % 60;
+
+  const hh = String(hours).padStart(2, "0");
+  const mm = String(minutes).padStart(2, "0");
+
+  return `${dayNames[dayIndex]} ${hh}:${mm}`;
+}
 
 
 document.getElementById("mapSize").textContent =
@@ -175,6 +196,70 @@ function buildConnectionsMap() {
   }
 }
 
+// Spočítá nejbližší odjezdy vlaků z daného města
+function computeNextDeparturesFromCity(city, limit = 5) {
+  if (!city || !Array.isArray(trainLines) || trainLines.length === 0) {
+    return [];
+  }
+
+  const departures = [];
+
+  for (const line of trainLines) {
+    const fromName =
+      line.from?.name ||
+      line.from_name ||
+      line.fromCityName ||
+      line.from;
+
+    const toName =
+      line.to?.name ||
+      line.to_name ||
+      line.toCityName ||
+      line.to;
+
+    if (!fromName || !toName) continue;
+
+    let originName = null;
+    let destName = null;
+
+    if (fromName === city.name) {
+      originName = fromName;
+      destName = toName;
+    } else if (toName === city.name) {
+      originName = toName;
+      destName = fromName;
+    } else {
+      continue; // tato linka z aktuálního města nevede
+    }
+
+    const destCity = cityByName.get(destName);
+    if (!destCity) continue;
+
+    const freq = line.frequency_minutes || 60;
+
+    // první odjezd >= aktuální čas
+    const base = Math.ceil(gameMinutes / freq) * freq;
+
+    // vygenerujeme pár dalších odjezdů dopředu
+    for (let i = 0; i < 5; i++) {
+      const depMinutes = base + i * freq;
+      departures.push({
+        departureMinutes: depMinutes,
+        fromCity: city,
+        toCity: destCity,
+        line,
+      });
+    }
+  }
+
+  // seřadíme podle nejbližšího odjezdu
+  departures.sort((a, b) => a.departureMinutes - b.departureMinutes);
+
+  // vezmeme jen prvních N
+  return departures.slice(0, limit);
+}
+
+
 // Vrátí pole měst, na která vede spoj z daného města
 function getConnections(cityName) {
   return connectionsByCityName.get(cityName) || [];
@@ -227,7 +312,8 @@ function moveAgent(dx, dy) {
     agent.x = newX;
     agent.y = newY;
     updateSidebar();
-  }
+    updateTimetable();
+  } 
 }
 
 // ----------------------------------------
@@ -298,7 +384,10 @@ function travelFromCurrentCity() {
   agent.x = destination.x;
   agent.y = destination.y;
 
+  // tady bychom časově mohli posunout gameMinutes na depature/time travel,
+  // zatím necháme jen „teleport“, ať to nezkomplikuju
   updateSidebar();
+  updateTimetable();
   console.log(`Přesun vlakem do: ${destination.name}`);
 }
 
@@ -431,6 +520,20 @@ function drawTrainLines(ctx, trainLines) {
   }
 
   ctx.restore();
+}
+
+async function fetchTimetableForCurrentCity() {
+  const city = getCityAt(agent.x, agent.y);
+  if (!city) {
+    return null;
+  }
+
+  const res = await fetch(`/api/timetable?city_id=${city.id}&minutes=${gameMinutes}`);
+  if (!res.ok) {
+    console.error("Nepodařilo se načíst jízdní řád.");
+    return null;
+  }
+  return await res.json();
 }
 
 // ----------------------------------------
@@ -585,6 +688,85 @@ function updateSidebar() {
   });
 }
 
+async function updateTimetable() {
+  const timeEl = document.getElementById("currentTimeLabel");
+  const tbody = document.getElementById("timetableBody");
+  if (!timeEl || !tbody) return;
+
+  // Aktualizace zobrazeného času
+  timeEl.textContent = formatGameTime(gameMinutes);
+  tbody.innerHTML = "";
+
+  const city = getCityAt(agent.x, agent.y);
+
+  // Pokud agent nestojí ve městě
+  if (!city) {
+    const tr = document.createElement("tr");
+    const td = document.createElement("td");
+    td.colSpan = 6;
+    td.textContent = "Agent nestojí ve městě.";
+    tr.appendChild(td);
+    tbody.appendChild(tr);
+    return;
+  }
+
+  // Načteme odjezdy z backendu
+  const departures = await fetchTimetableForCurrentCity();
+
+  if (!departures || departures.length === 0) {
+    const tr = document.createElement("tr");
+    const td = document.createElement("td");
+    td.colSpan = 6;
+    td.textContent = "Z tohoto města nejedou žádné vlaky.";
+    tr.appendChild(td);
+    tbody.appendChild(tr);
+    return;
+  }
+
+  // Vykreslení výsledků
+  departures.forEach((dep) => {
+    const tr = document.createElement("tr");
+
+    // Odjezd
+    const timeTd = document.createElement("td");
+    timeTd.textContent = formatGameTime(dep.departure_minutes);
+
+    // Z
+    const fromTd = document.createElement("td");
+    fromTd.textContent = dep.from_city.name;
+
+    // Do
+    const toTd = document.createElement("td");
+    toTd.textContent = dep.to_city.name;
+
+    // Typ linky
+    const typeTd = document.createElement("td");
+    typeTd.textContent = dep.line_type;
+
+    // Vzdálenost
+    const distTd = document.createElement("td");
+    distTd.textContent = dep.distance_units !== undefined
+      ? dep.distance_units.toFixed(1) + " u"
+      : "-";
+
+    // Doba cestování
+    const travelTd = document.createElement("td");
+    travelTd.textContent = dep.travel_minutes !== undefined
+      ? dep.travel_minutes + " min"
+      : "-";
+
+    // Append do řádku
+    tr.appendChild(timeTd);
+    tr.appendChild(fromTd);
+    tr.appendChild(toTd);
+    tr.appendChild(typeTd);
+    tr.appendChild(distTd);
+    tr.appendChild(travelTd);
+
+    tbody.appendChild(tr);
+  });
+}
+
 
 
 // HERNI SMYČKA
@@ -622,15 +804,32 @@ async function init() {
   // 3) vytvoříme mapu podle jména
   cityByName = new Map(cities.map((c) => [c.name, c]));
 
-  // 4) načteme vlakové trasy
+  // 4) vybereme startovní město importance 3
+  const importantCities = cities.filter((c) => c.importance === 3);
+  const startCity =
+    importantCities.length > 0
+      ? importantCities[Math.floor(Math.random() * importantCities.length)]
+      : cities[Math.floor(Math.random() * cities.length)];
+
+  if (startCity) {
+    agent.x = startCity.x;
+    agent.y = startCity.y;
+    console.log("Startovní město:", startCity.name);
+  }
+
+  // 5) načteme vlakové trasy
   trainLines = await fetchTrainLines();
 
-  // 5) postavíme mapu spojů podle názvu města
+  // 6) postavíme mapu spojů podle názvu města
   buildConnectionsMap();
 
+  // 7) UI – sidebar + tabulka
   updateSidebar();
+  await updateTimetable();
+
   gameLoop();
 }
+
 
 
 init();
