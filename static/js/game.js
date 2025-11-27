@@ -45,8 +45,10 @@ function formatGameTime(totalMinutes) {
 }
 
 
-document.getElementById("mapSize").textContent =
-  `${GRID_COLS} × ${GRID_ROWS} polí`;
+const mapSizeLabel = document.getElementById("mapSize");
+if (mapSizeLabel) {
+  mapSizeLabel.textContent = `${GRID_COLS} × ${GRID_ROWS} polí`;
+}
 
 // ----------------------------------------
 // POST-APO MLHA – základní systém
@@ -438,12 +440,17 @@ function drawCities(ctx) {
 // Vykreslení měst načtených z backendu
 
 async function fetchCities() {
-  const res = await fetch("/api/cities");
-  if (!res.ok) {
-    console.error("Nepodařilo se načíst města.");
+  try {
+    const res = await fetch("/api/cities");
+    if (!res.ok) {
+      console.error("Nepodařilo se načíst města.");
+      return [];
+    }
+    return await res.json();
+  } catch (err) {
+    console.error("Chyba při načítání měst:", err);
     return [];
   }
-  return await res.json();
 }
 
 // ----------------------------------------
@@ -809,12 +816,16 @@ async function init() {
   const startCity =
     importantCities.length > 0
       ? importantCities[Math.floor(Math.random() * importantCities.length)]
-      : cities[Math.floor(Math.random() * cities.length)];
+      : cities.length > 0
+        ? cities[0]
+        : null;
 
   if (startCity) {
     agent.x = startCity.x;
     agent.y = startCity.y;
     console.log("Startovní město:", startCity.name);
+  } else {
+    console.error("Nebyla nalezena žádná města – hra se spustí s výchozí pozicí agenta.");
   }
 
   // 5) načteme vlakové trasy
