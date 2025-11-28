@@ -838,11 +838,11 @@ function drawTrainLines(ctx, trainLines) {
 function renderTravelOverlay(progress, currentMinutes) {
   if (!travelOverlayEl || !travelProgressBar) return;
   if (!travelAnimation) {
-    travelOverlayEl.classList.remove("visible");
+    travelOverlayEl.classList.add("hidden");
     return;
   }
 
-  travelOverlayEl.classList.add("visible");
+  travelOverlayEl.classList.remove("hidden");
 
   const p = Math.min(1, Math.max(0, progress));
   travelProgressBar.style.width = `${p * 100}%`;
@@ -942,7 +942,7 @@ function finishTravelAnimation() {
   travelAnimation = null;
 
   renderTravelOverlay(1, gameMinutes);
-  travelOverlayEl?.classList.remove("visible");
+  travelOverlayEl?.classList.add("hidden");
 
   // po dojetí resetni koupený ticket – v nové destinaci nedává smysl
   purchasedTicketKey = null;
@@ -1091,50 +1091,39 @@ function drawGrid() {
 
 // Ovládací panel
 function updateSidebar() {
-  const posEl = document.getElementById("agentPos");
   const cityNameEl = document.getElementById("currentCityName");
-  const listEl = document.getElementById("connectionsList");
-  const noteEl = document.getElementById("noConnectionsNote");
+  const cityDescEl = document.getElementById("currentCityDescription");
+  const cityStateEl = document.getElementById("currentCityState");
+  const posEl = document.getElementById("agentPos"); // může, ale nemusí existovat
 
-  if (!posEl || !cityNameEl || !listEl || !noteEl) return;
+  if (!cityNameEl) return;
 
-  // souřadnice agenta
-  posEl.textContent = `${agent.x},${agent.y}`;
-
-  // zjistíme, jestli stojí ve městě
   const city = getCityAt(agent.x, agent.y);
 
-  // vyčistíme seznam spojů
-  listEl.innerHTML = "";
-  noteEl.textContent = "";
+  if (posEl) {
+    posEl.textContent = `${agent.x},${agent.y}`;
+  }
 
   if (!city) {
     cityNameEl.textContent = "-";
-    noteEl.textContent = "Agent nestojí ve městě.";
+    if (cityStateEl) cityStateEl.textContent = "-";
+    if (cityDescEl) {
+      cityDescEl.textContent = "Agent nestojí ve městě.";
+    }
     return;
   }
 
   cityNameEl.textContent = city.name;
-
-  const connections = getConnections(city.name);
-
-  if (!connections || connections.length === 0) {
-    noteEl.textContent = "Z tohoto města nevedou žádné vlakové spoje.";
-    return;
+  if (cityStateEl) {
+    const stateText = city.state ? `${city.state}${city.state_shortcut ? " (" + city.state_shortcut + ")" : ""}` : "-";
+    cityStateEl.textContent = stateText;
   }
-
-  // 🔹 Vytvoříme klikatelné položky – klik = přesun agenta do města
-  connections.forEach((targetCity) => {
-    const li = document.createElement("li");
-    li.textContent = targetCity.name;
-    li.style.cursor = "pointer";
-
-    li.addEventListener("click", () => {
-      travelUsingTimetable(targetCity);
-    });
-
-    listEl.appendChild(li);
-  });
+  if (cityDescEl) {
+    const regionText = city.region ? `Region: ${city.region}` : "";
+    const descText = city.description || "";
+    const parts = [regionText, descText].filter(Boolean);
+    cityDescEl.textContent = parts.join(" \u2022 ");
+  }
 }
 
 function renderTimetablePage() {

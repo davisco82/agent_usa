@@ -3,377 +3,139 @@
   <head>
     <meta charset="utf-8" />
     <title>Agent USA – mapa</title>
-
-    <!-- TailwindCSS CDN (latest) pro utility třídy -->
     <script src="https://cdn.tailwindcss.com"></script>
-
-    <style>
-      body {
-        margin: 0;
-        background: #0f172a; /* hlubší temná modrá */
-        color: #e5e7eb;
-        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      }
-
-      .layout {
-        display: flex;
-        flex-direction: row;
-        align-items: flex-start;
-        justify-content: center;
-        gap: 20px;
-        padding: 20px;
-      }
-
-      /* ---------------------------------------
-         LEVÝ sloupec: mapa a jízdní řády
-      ---------------------------------------- */
-      .map-column {
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-        width: 1024px;
-      }
-
-      .top-bar {
-        font-size: 14px;
-        color: #94a3b8;
-        padding-left: 4px;
-      }
-
-      canvas {
-        border-radius: 10px;
-        border: 1px solid #1e293b;
-        background: #020617;
-        image-rendering: pixelated;
-        box-shadow: 0 4px 16px rgba(0,0,0,0.4);
-      }
-
-      /* CARD – styl pro blok pod mapou */
-      .card {
-        background: #1e293b;
-        border: 1px solid #334155;
-        padding: 12px 14px;
-        border-radius: 12px;
-        box-shadow: 0 8px 32px rgba(0,0,0,0.4);
-      }
-
-      .card-title {
-        font-size: 14px;
-        font-weight: 600;
-        margin-bottom: 6px;
-        color: #f1f5f9;
-      }
-
-      /* ---------------------------------------
-         TABULKA JÍZDNÍHO ŘÁDU
-      ---------------------------------------- */
-
-      #timetableTable {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 12px;
-        border: 1px solid #334155;
-        border-radius: 8px;
-        overflow: hidden;
-      }
-
-      #timetableTable th {
-        background: #0f172a;
-        padding: 6px 8px;
-        border-bottom: 1px solid #334155;
-        text-align: left;
-        color: #e2e8f0;
-        font-weight: 600;
-      }
-
-      #timetableTable td {
-        padding: 6px 8px;
-        border-bottom: 1px solid #1e293b;
-        color: #cbd5e1;
-      }
-
-      #timetableTable tr:hover {
-        background: rgba(51, 65, 85, 0.35);
-      }
-
-      /* ---------------------------------------
-         PRAVÝ PANEL – info
-      ---------------------------------------- */
-      .sidebar {
-        width: 280px;
-        padding: 16px;
-        border-radius: 14px;
-        background: #1e293b;
-        border: 1px solid #334155;
-        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-      }
-
-      .sidebar h2 {
-        margin: 0;
-        font-size: 17px;
-        font-weight: 600;
-        color: #f1f5f9;
-      }
-
-      .info-row {
-        display: flex;
-        justify-content: space-between;
-        font-size: 13px;
-        color: #cbd5e1;
-      }
-
-      .info-row span:last-child {
-        font-weight: 600;
-        color: #f8fafc;
-      }
-
-      .info-block-title {
-        font-size: 13px;
-        font-weight: 600;
-        margin-bottom: 4px;
-        color: #e2e8f0;
-      }
-
-      #connectionsList {
-        margin: 0;
-        padding-left: 16px;
-        list-style: none;
-        font-size: 13px;
-        color: #e5e7eb;
-      }
-
-      #connectionsList li {
-        margin-bottom: 4px;
-        padding: 4px 6px;
-        background: #334155;
-        border-radius: 6px;
-        cursor: pointer;
-        transition: 0.15s;
-      }
-
-      #connectionsList li:hover {
-        background: #475569;
-      }
-
-      #noConnectionsNote {
-        font-size: 12px;
-        color: #94a3b8;
-        margin-top: 4px;
-      }
-
-      /* Overlay pro animaci přesunu */
-      .travel-overlay {
-        position: fixed;
-        inset: 0;
-        background: radial-gradient(circle at 20% 20%, rgba(59,130,246,0.08), rgba(0,0,0,0.75)),
-                    radial-gradient(circle at 80% 60%, rgba(16,185,129,0.08), rgba(0,0,0,0.8)),
-                    rgba(2,6,23,0.92);
-        color: #e2e8f0;
-        display: none;
-        align-items: center;
-        justify-content: center;
-        z-index: 1000;
-      }
-      .travel-overlay.visible {
-        display: flex;
-      }
-.travel-card {
-  background: rgba(15,23,42,0.8);
-  border: 1px solid rgba(148,163,184,0.35);
-  border-radius: 12px;
-  padding: 90px 24px 28px;
-  width: min(720px, 90vw);
-  box-shadow: 0 25px 60px rgba(0,0,0,0.45);
-  position: relative;
-  overflow: visible; /* dovol vlakům přesahovat ven */
-}
-      .travel-title {
-        font-size: 18px;
-        margin: 0 0 12px;
-        color: #e0f2fe;
-      }
-      .travel-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-        gap: 12px 16px;
-        margin-bottom: 16px;
-      }
-      .travel-label {
-        font-size: 12px;
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-        color: #94a3b8;
-      }
-.travel-value {
-  font-size: 16px;
-  font-weight: 600;
-  color: #e2e8f0;
-}
-.travel-heading {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  gap: 12px;
-}
-.travel-progress {
-  height: 10px;
-  background: rgba(148,163,184,0.2);
-  border-radius: 999px;
-  overflow: hidden;
-  margin-top: 12px;
-}
-.travel-progress-bar {
-  height: 100%;
-  background: linear-gradient(90deg, #38bdf8, #a855f7);
-  width: 0%;
-  transition: width 0.08s linear;
-}
-.travel-clock {
-  font-size: 48px;
-  font-weight: 700;
-  margin: 18px 0 12px;
-  color: #e0f2fe;
-  line-height: 1.05;
-  text-align: center;
-}
-      .travel-progress-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        font-size: 14px;
-        color: #cbd5e1;
-        margin-top: 10px;
-      }
-.travel-train-wrap {
-  position: absolute;
-  top: -60px;
-  right: 12px;
-  transform: rotate(-2deg);
-  pointer-events: none;
-  opacity: 0.95;
-}
-.travel-train-wrap img {
-  max-width: 420px;
-  filter:
-    drop-shadow(0 18px 22px rgba(0,0,0,0.55))
-    drop-shadow(0 6px 12px rgba(0,0,0,0.35));
-}
-.travel-top-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-}
-.travel-top-info {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.travel-top-type {
-  font-size: 18px;
-  font-weight: 700;
-  color: #f1f5f9;
-}
-.travel-top-speed {
-  font-size: 14px;
-  color: #cbd5e1;
-}
-    </style>
   </head>
-
-  <body>
-    <div class="layout">
-      <!-- LEVÁ STRANA -->
-      <div class="map-column">
-
-        <canvas id="gameCanvas" width="1024" height="576"></canvas>
-
-        <!-- CARD: Jízdní řád -->
-        <div class="card">
-          <div class="card-title">
-            ⏱️ Aktuální čas: <span id="currentTimeLabel">Po 08:00</span>
+  <body class="bg-slate-950 text-slate-100 min-h-screen">
+    <div class="max-w-screen-xl mx-auto px-4 py-6 flex flex-col gap-4">
+      <!-- Horní bar -->
+      <div class="flex items-center justify-between bg-slate-900/70 border border-slate-800 rounded-lg px-4 py-3 shadow-lg shadow-blue-900/30">
+        <div class="flex items-center gap-3">
+          <div class="h-10 w-10 rounded-full bg-gradient-to-br from-blue-500 via-slate-100 to-red-500 shadow-md shadow-blue-500/30"></div>
+          <div>
+            <p class="text-xs uppercase tracking-[0.25em] text-slate-400">Agent USA</p>
+            <p class="font-semibold text-slate-100">Mapa & jízdní řád</p>
           </div>
-
-          <table id="timetableTable">
-            <thead>
-              <tr>
-                <th>🕒 Odjezd</th>
-                <th>📍 Z</th>
-                <th>➡️ Do</th>
-                <th>🚆 Typ</th>
-                <th>📏 Vzdál.</th>
-                <th>⏳ Čas jízdy</th>
-                <th>🏁 Příjezd</th>
-                <th>🎟️ Ticket</th>
-              </tr>
-            </thead>
-
-            <tbody id="timetableBody">
-              <!-- doplní JS -->
-            </tbody>
-          </table>
-          <div id="timetablePagination" style="display:flex; gap:8px; align-items:center; margin-top:8px;"></div>
+        </div>
+        <div class="text-sm text-slate-300">
+          Aktuální čas: <span id="currentTimeLabel" class="font-semibold text-sky-200">Po 08:00</span>
         </div>
       </div>
 
-      <!-- PRAVÁ STRANA -->
-      <aside class="sidebar">
-        <h2>🧭 Informace</h2>
+      <div class="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-4">
+        <!-- Levý blok: mapa + tabulka -->
+        <div class="space-y-4">
+          <div class="relative bg-slate-900/70 border border-slate-800 rounded-2xl shadow-2xl shadow-blue-900/40 p-3">
+            <canvas id="gameCanvas" width="1024" height="576" class="rounded-xl border border-slate-800 bg-slate-950 w-full"></canvas>
+          </div>
 
-        <div class="info-row">
-          <span>Pozice agenta:</span>
-          <span id="agentPos">-,-</span>
+          <div class="bg-slate-900/70 border border-slate-800 rounded-2xl shadow-2xl shadow-red-900/30 p-4">
+            <div class="flex items-center justify-between mb-3">
+              <h2 class="text-base font-semibold text-slate-100 flex items-center gap-2">
+                <span class="text-sky-300">🚉</span> Jízdní řád
+              </h2>
+              <div id="timetablePagination" class="flex items-center gap-2 text-sm text-slate-300"></div>
+            </div>
+
+            <div class="overflow-x-auto rounded-xl border border-slate-800">
+              <table id="timetableTable" class="min-w-full text-xs bg-slate-950/80">
+                <thead class="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-slate-200">
+                  <tr>
+                    <th class="px-3 py-2 text-left font-semibold">🕒 Odjezd</th>
+                    <th class="px-3 py-2 text-left font-semibold">📍 Z</th>
+                    <th class="px-3 py-2 text-left font-semibold">➡️ Do</th>
+                    <th class="px-3 py-2 text-left font-semibold">🚆 Typ</th>
+                    <th class="px-3 py-2 text-left font-semibold">📏 Vzdál.</th>
+                    <th class="px-3 py-2 text-left font-semibold">⏳ Čas jízdy</th>
+                    <th class="px-3 py-2 text-left font-semibold">🏁 Příjezd</th>
+                    <th class="px-3 py-2 text-left font-semibold">🎟️ Ticket</th>
+                  </tr>
+                </thead>
+                <tbody id="timetableBody" class="divide-y divide-slate-800 text-slate-200">
+                  <!-- plní JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
 
-        <div class="info-row">
-          <span>Aktuální město:</span>
-          <span id="currentCityName">-</span>
-        </div>
+        <!-- Pravý panel -->
+        <aside class="bg-slate-900/70 border border-slate-800 rounded-2xl shadow-2xl shadow-blue-900/40 p-5 space-y-6">
+          <div>
+            <div class="flex items-center gap-2 mb-2">
+              <span class="text-red-300 text-xl">🏙️</span>
+              <h3 id="currentCityName" class="text-xl font-bold text-slate-100">-</h3>
+            </div>
+            <p class="text-sm text-slate-300">
+              <span id="currentCityState" class="font-semibold">-</span>
+            </p>
+            <p id="currentCityDescription" class="mt-1 text-slate-400 text-sm">
+              Krátký popis místa (doplním z databáze).
+            </p>
+          </div>
 
-        <div class="info-block">
-          <div class="info-block-title">Možné spoje z města:</div>
-          <ul id="connectionsList"></ul>
-          <div id="noConnectionsNote"></div>
-        </div>
-      </aside>
+          <div class="space-y-3">
+            <h4 class="text-sm font-semibold text-slate-100">Rychlá navigace</h4>
+            <div class="grid grid-cols-1 gap-2 px-5">
+              <button class="relative w-full pl-20 pr-4 py-4 rounded-xl bg-slate-800/80 border border-slate-700 text-slate-100 hover:border-sky-400 transition flex items-center justify-end overflow-visible">
+                <img src="/static/assets/train_station.png" alt="" class="absolute -left-4 top-1/2 -translate-y-1/2 h-16 w-16 drop-shadow-[0_10px_20px_rgba(0,0,0,0.45)]" />
+                <span class="font-semibold text-right w-full pr-2">Nádraží</span>
+              </button>
+              <button class="relative w-full pl-20 pr-4 py-4 rounded-xl bg-slate-800/80 border border-slate-700 text-slate-100 hover:border-sky-400 transition flex items-center justify-end overflow-visible">
+                <img src="/static/assets/bank.png" alt="" class="absolute -left-4 top-1/2 -translate-y-1/2 h-16 w-16 drop-shadow-[0_10px_20px_rgba(0,0,0,0.45)]" />
+                <span class="font-semibold text-right w-full pr-2">Banka</span>
+              </button>
+              <button class="relative w-full pl-20 pr-4 py-4 rounded-xl bg-slate-800/80 border border-slate-700 text-slate-100 hover:border-sky-400 transition flex items-center justify-end overflow-visible">
+                <img src="/static/assets/town_office.png" alt="" class="absolute -left-4 top-1/2 -translate-y-1/2 h-16 w-16 drop-shadow-[0_10px_20px_rgba(0,0,0,0.45)]" />
+                <span class="font-semibold text-right w-full pr-2">Radnice</span>
+              </button>
+              <button class="relative w-full pl-20 pr-4 py-4 rounded-xl bg-slate-800/80 border border-slate-700 text-slate-100 hover:border-sky-400 transition flex items-center justify-end overflow-visible">
+                <img src="/static/assets/fog_centrum.png" alt="" class="absolute -left-4 top-1/2 -translate-y-1/2 h-16 w-16 drop-shadow-[0_10px_20px_rgba(0,0,0,0.45)]" />
+                <span class="font-semibold text-right w-full pr-2">Mediální centrum</span>
+              </button>
+              <button class="relative w-full pl-20 pr-4 py-4 rounded-xl bg-slate-800/80 border border-slate-700 text-slate-100 hover:border-sky-400 transition flex items-center justify-end overflow-visible">
+                <img src="/static/assets/laboratory.png" alt="" class="absolute -left-4 top-1/2 -translate-y-1/2 h-16 w-16 drop-shadow-[0_10px_20px_rgba(0,0,0,0.45)]" />
+                <span class="font-semibold text-right w-full pr-2">Laboratoř</span>
+              </button>
+              <button class="relative w-full pl-20 pr-4 py-4 rounded-xl bg-slate-800/80 border border-slate-700 text-slate-100 hover:border-sky-400 transition flex items-center justify-end overflow-visible">
+                <img src="/static/assets/market.png" alt="" class="absolute -left-4 top-1/2 -translate-y-1/2 h-16 w-16 drop-shadow-[0_10px_20px_rgba(0,0,0,0.45)]" />
+                <span class="font-semibold text-right w-full pr-2">Trh</span>
+              </button>
+            </div>
+          </div>
+        </aside>
+      </div>
     </div>
 
     <!-- Overlay pro animaci přesunu -->
-    <div id="travelOverlay" class="travel-overlay">
-      <div class="travel-card">
-        <div class="travel-top-row">
-          <div class="travel-top-info">
-            <div class="travel-top-type" id="travelTopType">-</div>
-            <div class="travel-top-speed" id="travelTopSpeed">-</div>
+    <div id="travelOverlay" class="fixed inset-0 bg-slate-950/90 backdrop-blur-sm hidden z-50 flex items-center justify-center px-4">
+      <div class="travel-card bg-slate-900/80 border border-slate-800 rounded-2xl shadow-[0_20px_80px_rgba(0,0,0,0.6)] relative overflow-visible w-[min(720px,90vw)] px-6 pt-24 pb-6">
+        <div class="travel-top-row flex justify-between items-end">
+          <div class="travel-top-info flex flex-col gap-1">
+            <div class="travel-top-type text-lg font-bold text-slate-100" id="travelTopType">-</div>
+            <div class="travel-top-speed text-sm text-slate-300" id="travelTopSpeed">-</div>
           </div>
-          <div class="travel-train-wrap">
-            <img id="travelTrainImg" src="/static/assets/train_1.png" alt="Train" />
+          <div class="travel-train-wrap pointer-events-none absolute -top-16 right-2 opacity-95 rotate-[-2deg]">
+            <img id="travelTrainImg" src="/static/assets/train_1.png" alt="Train" class="max-w-[440px] drop-shadow-[0_18px_22px_rgba(0,0,0,0.55)]" />
           </div>
         </div>
 
-        <div class="travel-clock" id="travelClockLabel">-</div>
-        <div class="travel-progress-header">
+        <div class="travel-clock text-center text-5xl font-extrabold text-sky-100 mt-6 mb-3 leading-tight" id="travelClockLabel">-</div>
+        <div class="travel-progress-header flex justify-between text-sm text-slate-300">
           <div id="travelProgressFrom">-</div>
           <div id="travelProgressTo">-</div>
         </div>
-        <div class="travel-progress">
-          <div id="travelProgressBar" class="travel-progress-bar"></div>
+        <div class="travel-progress h-3 bg-slate-800 rounded-full overflow-hidden mt-2">
+          <div id="travelProgressBar" class="travel-progress-bar h-full bg-gradient-to-r from-sky-400 via-slate-100 to-red-400 w-0"></div>
         </div>
 
-        <div class="travel-heading" style="margin-top: 24px;">
-          <h3 class="travel-title" style="margin:0;">Probíhá přesun vlakem</h3>
-        </div>
-
-        <div class="travel-grid" style="margin-top: 10px;">
+        <div class="mt-6 grid grid-cols-2 gap-4 text-sm text-slate-200">
           <div>
-            <div class="travel-label">Vzdálenost</div>
-            <div class="travel-value" id="travelDistanceLabel">-</div>
+            <div class="travel-label text-xs uppercase tracking-[0.12em] text-slate-400">Vzdálenost</div>
+            <div class="travel-value text-base font-semibold" id="travelDistanceLabel">-</div>
           </div>
           <div>
-            <div class="travel-label">Čas jízdy</div>
-            <div class="travel-value" id="travelDurationLabel">-</div>
+            <div class="travel-label text-xs uppercase tracking-[0.12em] text-slate-400">Čas jízdy</div>
+            <div class="travel-value text-base font-semibold" id="travelDurationLabel">-</div>
           </div>
         </div>
       </div>
