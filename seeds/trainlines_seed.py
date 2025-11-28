@@ -58,12 +58,17 @@ def _compute_frequency(imp_a: int, imp_b: int) -> int:
 def _compute_line_type(imp_a: int, imp_b: int) -> str:
     """
     express: 1–1 nebo 1–2
-    regional: všechno ostatní
+    regional: 1–3, 2–2
+    local: cokoliv s importance 3 (kromě 1–3, které bereme jako regional)
     """
-    if imp_a == 1 and imp_b == 1:
+    low = max(imp_a, imp_b)
+    high = min(imp_a, imp_b)
+
+    if high == 1 and low in (1, 2):
         return "express"
-    if min(imp_a, imp_b) == 1 and max(imp_a, imp_b) == 2:
-        return "express"
+    if low == 3:
+        # 1–3 nebo 2–3 považuj za local
+        return "local"
     return "regional"
 
 

@@ -4,6 +4,9 @@
     <meta charset="utf-8" />
     <title>Agent USA – mapa</title>
 
+    <!-- TailwindCSS CDN (latest) pro utility třídy -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
     <style>
       body {
         margin: 0;
@@ -177,14 +180,16 @@
       .travel-overlay.visible {
         display: flex;
       }
-      .travel-card {
-        background: rgba(15,23,42,0.8);
-        border: 1px solid rgba(148,163,184,0.35);
-        border-radius: 12px;
-        padding: 20px 24px;
-        width: min(720px, 90vw);
-        box-shadow: 0 25px 60px rgba(0,0,0,0.45);
-      }
+.travel-card {
+  background: rgba(15,23,42,0.8);
+  border: 1px solid rgba(148,163,184,0.35);
+  border-radius: 12px;
+  padding: 90px 24px 28px;
+  width: min(720px, 90vw);
+  box-shadow: 0 25px 60px rgba(0,0,0,0.45);
+  position: relative;
+  overflow: visible; /* dovol vlakům přesahovat ven */
+}
       .travel-title {
         font-size: 18px;
         margin: 0 0 12px;
@@ -202,38 +207,79 @@
         letter-spacing: 0.08em;
         color: #94a3b8;
       }
-      .travel-value {
-        font-size: 16px;
-        font-weight: 600;
-        color: #e2e8f0;
-      }
-      .travel-progress {
-        height: 10px;
-        background: rgba(148,163,184,0.2);
-        border-radius: 999px;
-        overflow: hidden;
-        margin-top: 12px;
-      }
-      .travel-progress-bar {
-        height: 100%;
-        background: linear-gradient(90deg, #38bdf8, #a855f7);
-        width: 0%;
-        transition: width 0.08s linear;
-      }
-      .travel-clock {
-        font-size: 24px;
-        font-weight: 700;
-        margin: 6px 0 10px;
-        color: #e0f2fe;
-      }
+.travel-value {
+  font-size: 16px;
+  font-weight: 600;
+  color: #e2e8f0;
+}
+.travel-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 12px;
+}
+.travel-progress {
+  height: 10px;
+  background: rgba(148,163,184,0.2);
+  border-radius: 999px;
+  overflow: hidden;
+  margin-top: 12px;
+}
+.travel-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #38bdf8, #a855f7);
+  width: 0%;
+  transition: width 0.08s linear;
+}
+.travel-clock {
+  font-size: 48px;
+  font-weight: 700;
+  margin: 18px 0 12px;
+  color: #e0f2fe;
+  line-height: 1.05;
+  text-align: center;
+}
       .travel-progress-header {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        font-size: 13px;
+        font-size: 14px;
         color: #cbd5e1;
         margin-top: 10px;
       }
+.travel-train-wrap {
+  position: absolute;
+  top: -60px;
+  right: 12px;
+  transform: rotate(-2deg);
+  pointer-events: none;
+  opacity: 0.95;
+}
+.travel-train-wrap img {
+  max-width: 420px;
+  filter:
+    drop-shadow(0 18px 22px rgba(0,0,0,0.55))
+    drop-shadow(0 6px 12px rgba(0,0,0,0.35));
+}
+.travel-top-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+.travel-top-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.travel-top-type {
+  font-size: 18px;
+  font-weight: 700;
+  color: #f1f5f9;
+}
+.travel-top-speed {
+  font-size: 14px;
+  color: #cbd5e1;
+}
     </style>
   </head>
 
@@ -297,33 +343,16 @@
     <!-- Overlay pro animaci přesunu -->
     <div id="travelOverlay" class="travel-overlay">
       <div class="travel-card">
-        <h3 class="travel-title">Probíhá přesun vlakem</h3>
-        <div class="travel-grid">
-          <div>
-            <div class="travel-label">Z</div>
-            <div class="travel-value" id="travelFromLabel">-</div>
+        <div class="travel-top-row">
+          <div class="travel-top-info">
+            <div class="travel-top-type" id="travelTopType">-</div>
+            <div class="travel-top-speed" id="travelTopSpeed">-</div>
           </div>
-          <div>
-            <div class="travel-label">Do</div>
-            <div class="travel-value" id="travelToLabel">-</div>
-          </div>
-          <div>
-            <div class="travel-label">Vlak</div>
-            <div class="travel-value" id="travelLineLabel">-</div>
-          </div>
-          <div>
-            <div class="travel-label">Vzdálenost</div>
-            <div class="travel-value" id="travelDistanceLabel">-</div>
-          </div>
-          <div>
-            <div class="travel-label">Čas odjezdu</div>
-            <div class="travel-value" id="travelDepartLabel">-</div>
-          </div>
-          <div>
-            <div class="travel-label">Čas příjezdu</div>
-            <div class="travel-value" id="travelArriveLabel">-</div>
+          <div class="travel-train-wrap">
+            <img id="travelTrainImg" src="/static/assets/train_1.png" alt="Train" />
           </div>
         </div>
+
         <div class="travel-clock" id="travelClockLabel">-</div>
         <div class="travel-progress-header">
           <div id="travelProgressFrom">-</div>
@@ -331,6 +360,21 @@
         </div>
         <div class="travel-progress">
           <div id="travelProgressBar" class="travel-progress-bar"></div>
+        </div>
+
+        <div class="travel-heading" style="margin-top: 24px;">
+          <h3 class="travel-title" style="margin:0;">Probíhá přesun vlakem</h3>
+        </div>
+
+        <div class="travel-grid" style="margin-top: 10px;">
+          <div>
+            <div class="travel-label">Vzdálenost</div>
+            <div class="travel-value" id="travelDistanceLabel">-</div>
+          </div>
+          <div>
+            <div class="travel-label">Čas jízdy</div>
+            <div class="travel-value" id="travelDurationLabel">-</div>
+          </div>
         </div>
       </div>
     </div>

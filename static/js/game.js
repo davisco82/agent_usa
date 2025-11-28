@@ -69,6 +69,26 @@ function formatTravelDuration(totalMinutes) {
   return `${hours} h ${minutes} min`;
 }
 
+function formatLineTypeLabel(lineType) {
+  const t = (lineType || "").toLowerCase();
+  if (t === "express") return "Express";
+  if (t === "intercity" || t === "ic" || t === "regional") return "Regional";
+  return "Local";
+}
+
+function getTrainLevel(lineType) {
+  const t = (lineType || "").toLowerCase();
+  if (t === "express") return 1;
+  if (t === "intercity" || t === "ic" || t === "regional") return 2;
+  return 3;
+}
+
+function getTrainSpeedMph(level) {
+  if (level === 1) return 190;
+  if (level === 2) return 100;
+  return 60;
+}
+
 
 // update size label only if element exists (not present on the current page)
 const mapSizeEl = document.getElementById("mapSize");
@@ -87,6 +107,10 @@ const travelClockLabel = document.getElementById("travelClockLabel");
 const travelProgressBar = document.getElementById("travelProgressBar");
 const travelProgressFrom = document.getElementById("travelProgressFrom");
 const travelProgressTo = document.getElementById("travelProgressTo");
+const travelTrainImg = document.getElementById("travelTrainImg");
+const travelTopType = document.getElementById("travelTopType");
+const travelTopSpeed = document.getElementById("travelTopSpeed");
+const travelDurationLabel = document.getElementById("travelDurationLabel");
 
 if (canvas) {
   canvas.addEventListener("mousemove", (e) => {
@@ -105,8 +129,9 @@ if (canvas) {
 // POST-APO MLHA – základní systém
 // ----------------------------------------
 
-const fogSpreadSpeed = 0.001; // rychlost šíření mlhy
+const fogSpreadSpeed = 0.001; // základní rychlost šíření mlhy
 let fogTiles = new Set();     // tile indexy mlhy
+let fogFrontier = [];         // fronta okrajových tileů pro nerovnoměrné šíření
 
 // vlakové linky z backendu
 let trainLines = []; // naplní se v init()
@@ -123,10 +148,15 @@ function tileIndex(x, y) {
 
 // Inicializace – mlha začíná náhodně
 function initFog() {
-  for (let i = 0; i < 15; i++) {
+  fogTiles.clear();
+  fogFrontier = [];
+  const seeds = 3;
+  for (let i = 0; i < seeds; i++) {
     const x = Math.floor(Math.random() * GRID_COLS);
     const y = Math.floor(Math.random() * GRID_ROWS);
-    fogTiles.add(tileIndex(x, y));
+    const idx = tileIndex(x, y);
+    fogTiles.add(idx);
+    fogFrontier.push({ x, y });
   }
 }
 
@@ -158,16 +188,20 @@ function spreadFog() {
   if (Math.random() > fogSpreadSpeed) return;
 
   const newFog = new Set(fogTiles);
+  const newFrontier = [];
 
-  fogTiles.forEach((index) => {
-    const x = index % GRID_COLS;
-    const y = Math.floor(index / GRID_COLS);
+  // mírně náhodný výběr z frontier, aby bylo šíření nerovnoměrné
+  const samples = Math.max(1, Math.floor(fogFrontier.length * 0.35));
+  for (let i = 0; i < samples; i++) {
+    if (fogFrontier.length === 0) break;
+    const idx = Math.floor(Math.random() * fogFrontier.length);
+    const cell = fogFrontier.splice(idx, 1)[0];
 
     const neighbors = [
-      { x: x + 1, y: y },
-      { x: x - 1, y: y },
-      { x: x,     y: y + 1 },
-      { x: x,     y: y - 1 },
+      { x: cell.x + 1, y: cell.y },
+      { x: cell.x - 1, y: cell.y },
+      { x: cell.x,     y: cell.y + 1 },
+      { x: cell.x,     y: cell.y - 1 },
     ];
 
     neighbors.forEach((n) => {
@@ -177,13 +211,20 @@ function spreadFog() {
         n.y >= 0 &&
         n.y < GRID_ROWS
       ) {
-        const idx = tileIndex(n.x, n.y);
-        newFog.add(idx);
+        const tidx = tileIndex(n.x, n.y);
+        if (!newFog.has(tidx)) {
+          // s menší pravděpodobností – nerovnoměrné rozšiřování
+          if (Math.random() < 0.6) {
+            newFog.add(tidx);
+            newFrontier.push({ x: n.x, y: n.y });
+          }
+        }
       }
     });
-  });
+  }
 
   fogTiles = newFog;
+  fogFrontier.push(...newFrontier);
 }
 
 // Kontrola, jestli je město pohlceno mlhou
@@ -865,9 +906,25 @@ function startTravelAnimation(travel) {
   // vyplnit overlay statické údaje
   if (travelFromLabel) travelFromLabel.textContent = travel.fromName || "-";
   if (travelToLabel) travelToLabel.textContent = travel.toName || "-";
-  if (travelLineLabel) travelLineLabel.textContent = travel.lineType || "-";
+  if (travelLineLabel) travelLineLabel.textContent = formatLineTypeLabel(travel.lineType);
+  if (travelTrainImg) {
+    const level = getTrainLevel(travel.lineType);
+    const speed = getTrainSpeedMph(level);
+    if (travelTopType) travelTopType.textContent = formatLineTypeLabel(travel.lineType);
+    if (travelTopSpeed) travelTopSpeed.textContent = `${speed} mph`;
+    if (level === 1) {
+      travelTrainImg.src = "/static/assets/train_1.png";
+    } else if (level === 2) {
+      travelTrainImg.src = "/static/assets/train_2.png";
+    } else {
+      travelTrainImg.src = "/static/assets/train_3.png";
+    }
+  }
   if (travelDistanceLabel) {
     travelDistanceLabel.textContent = distance ? `${distance.toFixed(1)} mi` : "-";
+  }
+  if (travelDurationLabel) {
+    travelDurationLabel.textContent = formatTravelDuration(travel.travelMinutes);
   }
   if (travelDepartLabel) travelDepartLabel.textContent = travelAnimation.meta.departLabel;
   if (travelArriveLabel) travelArriveLabel.textContent = travelAnimation.meta.arriveLabel;
@@ -982,9 +1039,9 @@ function drawGrid() {
     ctx.fillRect(0, 0, canvas.width, canvas.height);
   }
 
-  // Grid
-  ctx.strokeStyle = "rgba(31, 41, 51, 0.3)";  // slabší viditelnost
-  ctx.lineWidth = 0.4;
+  // Grid – téměř neviditelný
+  ctx.strokeStyle = "rgba(31, 41, 51, 0.08)";
+  ctx.lineWidth = 0.3;
 
   for (let x = 0; x <= GRID_COLS; x++) {
     ctx.beginPath();
@@ -1016,7 +1073,7 @@ function drawGrid() {
     const x = index % GRID_COLS;
     const y = Math.floor(index / GRID_COLS);
 
-    ctx.fillStyle = "rgba(120, 30, 200, 0.35)"; // fialová mlha (post-apo vibe)
+    ctx.fillStyle = "rgba(200, 32, 32, 0.42)"; // temně červená mlha (nebezpečnější vibe)
     ctx.fillRect(
       x * TILE_SIZE,
       y * TILE_SIZE,
@@ -1146,7 +1203,7 @@ function renderTimetablePage() {
 
     // Typ linky
     const typeTd = document.createElement("td");
-    typeTd.textContent = dep.line_type;
+    typeTd.textContent = formatLineTypeLabel(dep.line_type);
 
     // Vzdálenost
     const distTd = document.createElement("td");
@@ -1175,7 +1232,7 @@ function renderTimetablePage() {
       tr.style.cursor = "pointer";
       tr.title = `Cestovat do ${destinationCity.name}`;
       tr.addEventListener("click", () => {
-        scheduleTravelFromDeparture(dep);
+    scheduleTravelFromDeparture(dep);
       });
       tr.addEventListener("mouseenter", () => {
         const key = `${dep.from_city?.name}__${dep.to_city?.name}`;
