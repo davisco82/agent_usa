@@ -20,6 +20,9 @@ const MINUTES_PER_WEEK = MINUTES_PER_DAY * 7;
 
 // Po 08:00 = start
 let gameMinutes = 8 * 60; // 8:00 první den (Po)
+const REAL_MS_PER_GAME_MINUTE = 3000; // 1 herní minuta = 3 reálné sekundy
+let lastFrameMs = performance.now();
+let timeAccumulatorMs = 0;
 
 const LAND_MIN_X = 3;
 const LAND_MAX_X = 941;
@@ -28,6 +31,7 @@ const LAND_MAX_Y = 568;
 
 let cities = [];
 let cityByName = new Map();
+let hoveredCity = null;
 
 function formatGameTime(totalMinutes) {
   const dayNames = ["Po", "Út", "St", "Čt", "Pá", "So", "Ne"];
@@ -65,6 +69,19 @@ function formatTravelDuration(totalMinutes) {
 const mapSizeEl = document.getElementById("mapSize");
 if (mapSizeEl) {
   mapSizeEl.textContent = `${GRID_COLS} × ${GRID_ROWS} polí`;
+}
+
+if (canvas) {
+  canvas.addEventListener("mousemove", (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    hoveredCity = findCityAtPixel(x, y);
+  });
+
+  canvas.addEventListener("mouseleave", () => {
+    hoveredCity = null;
+  });
 }
 
 // ----------------------------------------
@@ -160,6 +177,28 @@ function isCityInFog(city) {
 // Najde město na dané pozici v gridu
 function getCityAt(x, y) {
   return cities.find((c) => c.x === x && c.y === y);
+}
+
+// Najde město podle pixelů (pro hover)
+function findCityAtPixel(px, py) {
+  if (!Array.isArray(cities) || cities.length === 0) return null;
+
+  let nearest = null;
+  let nearestDist = Infinity;
+
+  for (const city of cities) {
+    const baseRadius = city.importance === 1 ? 4.5 : 3;
+    const hitRadius = baseRadius + 5; // trochu tolerance pro hover
+    const dx = px - city.px;
+    const dy = py - city.py;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist <= hitRadius && dist < nearestDist) {
+      nearest = city;
+      nearestDist = dist;
+    }
+  }
+
+  return nearest;
 }
 
 // Postaví mapu spojů: název města -> pole cílových měst (lokální objekty z cities)
@@ -291,7 +330,9 @@ function getConnections(cityName) {
 function findDepartureToCity(destinationName) {
   if (!destinationName || !Array.isArray(timetableDepartures)) return null;
   const matches = timetableDepartures.filter(
-    (dep) => dep?.to_city?.name === destinationName
+    (dep) =>
+      dep?.to_city?.name === destinationName &&
+      dep.departure_minutes > gameMinutes
   );
   if (matches.length === 0) return null;
   matches.sort((a, b) => a.departure_minutes - b.departure_minutes);
@@ -392,22 +433,6 @@ function travelToCity(targetCity, options = {}) {
 
 window.addEventListener("keydown", (e) => {
   switch (e.key) {
-    case "ArrowUp":
-      moveAgent(0, -1);
-      e.preventDefault();
-      break;
-    case "ArrowDown":
-      moveAgent(0, 1);
-      e.preventDefault();
-      break;
-    case "ArrowLeft":
-      moveAgent(-1, 0);
-      e.preventDefault();
-      break;
-    case "ArrowRight":
-      moveAgent(1, 0);
-      e.preventDefault();
-      break;
     case " ":
       // mezerník – čistit město
       cleanCity();
@@ -460,26 +485,65 @@ function travelFromCurrentCity() {
 // ----------------------------------------
 
 function drawCities(ctx) {
+  const currentCity = getCityAt(agent.x, agent.y);
+  const currentRegion = currentCity ? currentCity.region : null;
+  const reachableNames = new Set();
+  if (currentCity) {
+    reachableNames.add(currentCity.name);
+    const conns = getConnections(currentCity.name);
+    conns.forEach((c) => reachableNames.add(c.name));
+  }
+  const blinkPhase = Math.abs(Math.sin(performance.now() / 900)); // pomalejší pulz
+
   cities.forEach((city) => {
+    const isKeyCity = city.importance === 1;
+    const isHovered = hoveredCity && hoveredCity.name === city.name;
+    const baseRadius = isKeyCity ? 4.5 : 3;
+    const radius = isHovered ? baseRadius + 1 : baseRadius;
+
     // fill
     ctx.fillStyle = isCityInFog(city) ? "#DC2626" : "#22c55e";
     ctx.beginPath();
-    ctx.arc(city.px, city.py, 3, 0, Math.PI * 2);
+    ctx.arc(city.px, city.py, radius, 0, Math.PI * 2);
     ctx.fill();
 
     // outline – tmavá šedá
     ctx.strokeStyle = "#0f172a";   // slate-900
-    ctx.lineWidth = 1;
+    ctx.lineWidth = isKeyCity ? 1.2 : 1;
     ctx.stroke();
+
+    // zvýraznění agenta v aktuálním městě
+    if (currentCity && city.name === currentCity.name) {
+      ctx.beginPath();
+      const ringAlpha = 0.35 + 0.65 * blinkPhase;
+      ctx.strokeStyle = `rgba(255, 255, 255, ${ringAlpha.toFixed(2)})`;
+      ctx.lineWidth = 2.2;
+      ctx.arc(city.px, city.py, radius + 3, 0, Math.PI * 2);
+      ctx.stroke();
+    }
   });
 
   // popisky
+  // větší font pro nejdůležitější města
   ctx.font = "10px system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
   ctx.textAlign = "left";
   ctx.textBaseline = "middle";
 
   cities.forEach((city) => {
+    const isHovered = hoveredCity && hoveredCity.name === city.name;
+    const reachable = reachableNames.has(city.name);
+    const alwaysShow = city.importance === 1 || reachable;
+    const shouldShow = alwaysShow || isHovered;
+
+    if (!shouldShow) {
+      return; // skryj města mimo dostupné/hlavní, pokud nad nimi není kurzor
+    }
+
     const label = city.name;
+    const isKeyCity = city.importance === 1;
+    const fontSize = isKeyCity ? 12 : 10;
+    ctx.font = `${fontSize}px system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif`;
+
     const px = city.px + 8;
     const py = city.py;
     const paddingX = 3;
@@ -533,6 +597,12 @@ async function fetchTrainLines() {
 function drawTrainLines(ctx, trainLines) {
   if (!Array.isArray(trainLines) || trainLines.length === 0) return;
 
+  const currentCity = getCityAt(agent.x, agent.y);
+  const currentCityName = currentCity ? currentCity.name : null;
+  if (!currentCityName) {
+    return; // bez aktuálního města nevykresluj žádné trasy
+  }
+
   ctx.save();
   ctx.globalCompositeOperation = "source-over";
   ctx.lineCap = "round";
@@ -559,22 +629,24 @@ function drawTrainLines(ctx, trainLines) {
       continue;
     }
 
+    // Filtrace: zobraz pouze linky navázané na aktuální město
+    const isConnectedToAgent =
+      fromCity.name === currentCityName || toCity.name === currentCityName;
+    if (!isConnectedToAgent) {
+      continue;
+    }
+
+    // 🔹 Styl: zvýrazněné linky z aktuálního města (všechny bílé, lehce průhledné)
     const isExpress = line.line_type === "express";
     const isRare = line.frequency_minutes >= 90;
 
-    // 🔹 Styl: všechno šedé, ale trochu odlišné
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.72)";
     if (isExpress) {
-      // výraznější express linky
-      ctx.strokeStyle = "rgba(148, 163, 184, 0.9)"; // slate-400
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 2.2;
     } else if (isRare) {
-      // zřídkavé linky = tenké a tmavší
-      ctx.strokeStyle = "rgba(75, 85, 99, 0.4)"; // slate-600
-      ctx.lineWidth = 1;
+      ctx.lineWidth = 1.4;
     } else {
-      // běžné regionální linky
-      ctx.strokeStyle = "rgba(107, 114, 128, 0.6)"; // slate-500
-      ctx.lineWidth = 1.3;
+      ctx.lineWidth = 1.7;
     }
 
     ctx.beginPath();
@@ -605,7 +677,24 @@ async function fetchTimetableForCurrentCity(limit = TIMETABLE_LIMIT) {
 // ----------------------------------------
 
 function update() {
-  // Sem může časem přijít logika pro AI, eventy atd.
+  const now = performance.now();
+  const deltaMs = now - lastFrameMs;
+  lastFrameMs = now;
+
+  timeAccumulatorMs += deltaMs;
+
+  let advancedMinutes = 0;
+  while (timeAccumulatorMs >= REAL_MS_PER_GAME_MINUTE) {
+    timeAccumulatorMs -= REAL_MS_PER_GAME_MINUTE;
+    gameMinutes += 1;
+    advancedMinutes += 1;
+  }
+
+  if (advancedMinutes > 0) {
+    renderTimetablePage();
+    // průběžně aktualizujeme tabuli bez resetu stránky
+    updateTimetable(false);
+  }
 }
 
 // ----------------------------------------
@@ -680,25 +769,6 @@ function drawGrid() {
 
   // MĚSTA + POPISKY
   drawCities(ctx);
-
-  // AGENT
-  ctx.save();
-  ctx.globalCompositeOperation = "source-over";
-
-  const agentSize = 6; // viditelná velikost agenta v px
-  const agentScreenX = agent.x * TILE_SIZE + (TILE_SIZE - agentSize) / 2;
-  const agentScreenY = agent.y * TILE_SIZE + (TILE_SIZE - agentSize) / 2;
-
-  // vnitřní barva agenta
-  ctx.fillStyle = agent.color;
-  ctx.fillRect(agentScreenX, agentScreenY, agentSize, agentSize);
-
-  // bílý rámeček
-  ctx.strokeStyle = "#ffffff";
-  ctx.lineWidth = 1.5;
-  ctx.strokeRect(agentScreenX, agentScreenY, agentSize, agentSize);
-
-  ctx.restore();
 }
 
 // Ovládací panel
@@ -773,7 +843,9 @@ function renderTimetablePage() {
     return;
   }
 
-  const departures = timetableDepartures;
+  const departures = (timetableDepartures || []).filter(
+    (dep) => dep.departure_minutes > gameMinutes
+  );
 
   if (!departures || departures.length === 0) {
     const tr = document.createElement("tr");
@@ -886,11 +958,12 @@ function renderTimetablePage() {
   }
 }
 
-async function updateTimetable() {
+async function updateTimetable(resetPage = true) {
   const city = getCityAt(agent.x, agent.y);
 
-  // reset page on city change
-  timetablePage = 1;
+  if (resetPage) {
+    timetablePage = 1;
+  }
 
   // Načteme odjezdy z backendu
   timetableDepartures = await fetchTimetableForCurrentCity();
