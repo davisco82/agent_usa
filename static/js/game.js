@@ -834,16 +834,17 @@ function startTravelAnimation(travel) {
   const arrivalMinutes = startMinutes + durationMinutes;
   const distance = travel.distance || 0;
 
-  // 100 mil ~ 1 vteřina, s rozumným rozsahem
-  // 100 mil ~ 6 sekund (ještě zpomaleno)
-  const durationMsFromDistance = distance > 0 ? (distance / 100) * 6000 : 0;
-  const durationMs = Math.max(
-    1800,
-    Math.min(
-      15000,
-      durationMsFromDistance > 0 ? durationMsFromDistance : durationMinutes * 240
-    )
-  );
+  // Délka animace podle jízdní doby: 1 h ~ 5s, 7 h ~ 15s, min ~3s
+  const travelHours = durationMinutes / 60;
+  let durationMs;
+  if (travelHours <= 1) {
+    durationMs = 3000 + travelHours * (5000 - 3000); // 0–1 h => 3–5 s
+  } else {
+    const clamped = Math.min(travelHours, 7);
+    const extraHours = clamped - 1;
+    durationMs = 5000 + (extraHours / 6) * (15000 - 5000); // 1–7 h => 5–15 s
+  }
+  durationMs = Math.max(3000, Math.min(15000, durationMs));
 
   travelAnimation = {
     city: travel.city,

@@ -557,6 +557,17 @@ CITIES = [
         "grid_y": 50,
     },
     {
+        "name": "Augusta",
+        "region": "northeast",
+        "importance": 3,
+        "lat": 44.3106,
+        "lon": -69.7795,
+        "px": 900.0,
+        "py": 150.0,
+        "grid_x": 112,
+        "grid_y": 19,
+    },
+    {
         "name": "Montgomery",
         "region": "southeast",
         "importance": 3,
