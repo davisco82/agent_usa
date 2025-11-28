@@ -20,7 +20,7 @@ const MINUTES_PER_WEEK = MINUTES_PER_DAY * 7;
 
 // Po 08:00 = start
 let gameMinutes = 8 * 60; // 8:00 první den (Po)
-const REAL_MS_PER_GAME_MINUTE = 3000; // 1 herní minuta = 3 reálné sekundy
+const REAL_MS_PER_GAME_MINUTE = 1500; // 1 herní minuta = 1.5 reálné sekundy (rychlejší testování)
 let lastFrameMs = performance.now();
 let timeAccumulatorMs = 0;
 
@@ -33,7 +33,9 @@ let cities = [];
 let cityByName = new Map();
 let hoveredCity = null;
 let pendingTravel = null;
+let pendingTravelTimer = null;
 let purchasedTicketKey = null;
+let travelAnimation = null;
 
 function formatGameTime(totalMinutes) {
   const dayNames = ["Po", "Út", "St", "Čt", "Pá", "So", "Ne"];
@@ -72,6 +74,16 @@ const mapSizeEl = document.getElementById("mapSize");
 if (mapSizeEl) {
   mapSizeEl.textContent = `${GRID_COLS} × ${GRID_ROWS} polí`;
 }
+
+const travelOverlayEl = document.getElementById("travelOverlay");
+const travelFromLabel = document.getElementById("travelFromLabel");
+const travelToLabel = document.getElementById("travelToLabel");
+const travelLineLabel = document.getElementById("travelLineLabel");
+const travelDistanceLabel = document.getElementById("travelDistanceLabel");
+const travelDepartLabel = document.getElementById("travelDepartLabel");
+const travelArriveLabel = document.getElementById("travelArriveLabel");
+const travelClockLabel = document.getElementById("travelClockLabel");
+const travelProgressBar = document.getElementById("travelProgressBar");
 
 if (canvas) {
   canvas.addEventListener("mousemove", (e) => {
@@ -350,11 +362,40 @@ function makeDepartureKey(dep) {
   return `${from}__${to}__${time}`;
 }
 
+function scheduleTravelFromDeparture(dep) {
+  if (!dep) return;
+  const destinationName = dep.to_city?.name;
+  const destinationCity = destinationName ? cityByName.get(destinationName) : null;
+  if (!destinationCity) return;
+
+  scheduleTravel(
+    destinationCity,
+    dep.departure_minutes,
+    dep.travel_minutes,
+    {
+      fromName: dep.from_city?.name,
+      toName: dep.to_city?.name,
+      lineType: dep.line_type,
+      distance: dep.distance_units,
+    }
+  );
+}
+
 function travelUsingTimetable(targetCity) {
   if (!targetCity) return;
   const depInfo = findDepartureToCity(targetCity.name);
   if (depInfo && depInfo.travel_minutes !== undefined && depInfo.travel_minutes !== null) {
-    scheduleTravel(targetCity, depInfo.departure_minutes, depInfo.travel_minutes);
+    scheduleTravel(
+      targetCity,
+      depInfo.departure_minutes,
+      depInfo.travel_minutes,
+      {
+        fromName: depInfo.from_city?.name,
+        toName: depInfo.to_city?.name,
+        lineType: depInfo.line_type,
+        distance: depInfo.distance_units,
+      }
+    );
   } else {
     travelToCity(targetCity);
   }
@@ -421,17 +462,45 @@ function travelToCity(targetCity, options = {}) {
   console.log(`Přesun vlakem do: ${targetCity.name}`);
 }
 
-function scheduleTravel(targetCity, departureMinutes, travelMinutes) {
+function scheduleTravel(targetCity, departureMinutes, travelMinutes, meta = {}) {
+  const currentCity = getCityAt(agent.x, agent.y);
+  const fromName = meta.fromName || currentCity?.name || "Neznámé";
+  const toName = meta.toName || targetCity?.name || "Neznámé";
+  const lineType = meta.lineType || "-";
+  const distance = meta.distance || null;
+
   if (!targetCity || departureMinutes === undefined || departureMinutes === null) {
     return travelToCity(targetCity);
   }
-  pendingTravel = {
+  const travel = {
     city: targetCity,
     departureMinutes,
     travelMinutes: travelMinutes !== undefined && travelMinutes !== null ? travelMinutes : 0,
+    fromName,
+    toName,
+    lineType,
+    distance,
   };
+
+  // Pokud už je čas odjezdu, spustíme animaci hned
+  if (gameMinutes >= departureMinutes) {
+    startTravelAnimation(travel);
+    return;
+  }
+
+  pendingTravel = travel;
+  if (pendingTravelTimer) {
+    clearTimeout(pendingTravelTimer);
+    pendingTravelTimer = null;
+  }
+  const delayMs = Math.max(0, (departureMinutes - gameMinutes) * REAL_MS_PER_GAME_MINUTE);
+  pendingTravelTimer = setTimeout(() => {
+    startTravelAnimation(travel);
+    pendingTravel = null;
+    pendingTravelTimer = null;
+  }, delayMs);
   console.log(
-    `Naplánována cesta do ${targetCity.name} v ${formatGameTime(departureMinutes)} (doba ${travelMinutes} min)`
+    `Naplánována cesta do ${toName} v ${formatGameTime(departureMinutes)} (doba ${travelMinutes} min)`
   );
 }
 
@@ -666,6 +735,89 @@ function drawTrainLines(ctx, trainLines) {
   ctx.restore();
 }
 
+function renderTravelOverlay(progress, currentMinutes) {
+  if (!travelOverlayEl || !travelProgressBar) return;
+  if (!travelAnimation) {
+    travelOverlayEl.classList.remove("visible");
+    return;
+  }
+
+  travelOverlayEl.classList.add("visible");
+
+  const p = Math.min(1, Math.max(0, progress));
+  travelProgressBar.style.width = `${p * 100}%`;
+
+  if (travelClockLabel) {
+    travelClockLabel.textContent = `Čas: ${formatGameTime(currentMinutes)}`;
+  }
+}
+
+function startTravelAnimation(travel) {
+  if (!travel) return;
+  console.log("Start animace cestovani", travel);
+
+  // zajisti, že případný čekající timer nezůstane viset
+  if (pendingTravelTimer) {
+    clearTimeout(pendingTravelTimer);
+    pendingTravelTimer = null;
+  }
+
+  const startMinutes = Math.max(gameMinutes, travel.departureMinutes);
+  const durationMinutes = Math.max(0, travel.travelMinutes || 0);
+  const arrivalMinutes = startMinutes + durationMinutes;
+  const distance = travel.distance || 0;
+
+  // 100 mil ~ 1 vteřina, s rozumným rozsahem
+  const durationMsFromDistance = distance > 0 ? (distance / 100) * 1000 : 0;
+  const durationMs = Math.max(600, Math.min(6000,
+    durationMsFromDistance > 0 ? durationMsFromDistance : durationMinutes * 40
+  ));
+
+  travelAnimation = {
+    city: travel.city,
+    startMinutes,
+    arrivalMinutes,
+    startMs: performance.now(),
+    durationMs,
+    meta: {
+      fromName: travel.fromName,
+      toName: travel.toName,
+      lineType: travel.lineType,
+      distance: distance,
+      departLabel: formatGameTime(travel.departureMinutes),
+      arriveLabel: formatGameTime(arrivalMinutes),
+    },
+  };
+
+  // vyplnit overlay statické údaje
+  if (travelFromLabel) travelFromLabel.textContent = travel.fromName || "-";
+  if (travelToLabel) travelToLabel.textContent = travel.toName || "-";
+  if (travelLineLabel) travelLineLabel.textContent = travel.lineType || "-";
+  if (travelDistanceLabel) {
+    travelDistanceLabel.textContent = distance ? `${distance.toFixed(1)} mi` : "-";
+  }
+  if (travelDepartLabel) travelDepartLabel.textContent = travelAnimation.meta.departLabel;
+  if (travelArriveLabel) travelArriveLabel.textContent = travelAnimation.meta.arriveLabel;
+
+  renderTravelOverlay(0, startMinutes);
+}
+
+function finishTravelAnimation() {
+  if (!travelAnimation) return;
+  console.log("Dokonceni animace cestovani", travelAnimation);
+
+  // nastavit finální čas a provést přesun
+  gameMinutes = travelAnimation.arrivalMinutes;
+  const targetCity = travelAnimation.city;
+  travelAnimation = null;
+
+  renderTravelOverlay(1, gameMinutes);
+  travelOverlayEl?.classList.remove("visible");
+
+  travelToCity(targetCity);
+  renderTimetablePage();
+}
+
 async function fetchTimetableForCurrentCity(limit = TIMETABLE_LIMIT) {
   const city = getCityAt(agent.x, agent.y);
   if (!city) {
@@ -689,6 +841,21 @@ function update() {
   const deltaMs = now - lastFrameMs;
   lastFrameMs = now;
 
+  // Pokud zrovna probíhá animace přesunu, řídí čas animace
+  if (travelAnimation) {
+    const elapsed = now - travelAnimation.startMs;
+    const t = travelAnimation.durationMs > 0 ? Math.min(1, elapsed / travelAnimation.durationMs) : 1;
+    const eased = t; // lineární
+    gameMinutes = travelAnimation.startMinutes + (travelAnimation.arrivalMinutes - travelAnimation.startMinutes) * eased;
+
+    renderTravelOverlay(eased, gameMinutes);
+
+    if (t >= 1) {
+      finishTravelAnimation();
+    }
+    return;
+  }
+
   timeAccumulatorMs += deltaMs;
 
   let advancedMinutes = 0;
@@ -704,17 +871,14 @@ function update() {
     updateTimetable(false);
   }
 
-  // realizace naplánované cesty ve chvíli odjezdu
+  // realizace naplánované cesty ve chvíli odjezdu -> spustit animaci
   if (pendingTravel && gameMinutes >= pendingTravel.departureMinutes) {
-    const travel = pendingTravel;
+    if (pendingTravelTimer) {
+      clearTimeout(pendingTravelTimer);
+      pendingTravelTimer = null;
+    }
+    startTravelAnimation(pendingTravel);
     pendingTravel = null;
-
-    const start = Math.max(gameMinutes, travel.departureMinutes);
-    const duration = Math.max(0, travel.travelMinutes || 0);
-    gameMinutes = start + duration;
-
-    travelToCity(travel.city);
-    renderTimetablePage();
   }
 }
 
@@ -841,6 +1005,9 @@ function updateSidebar() {
 }
 
 function renderTimetablePage() {
+  // Nevykresluj tabulku během animace přesunu (čas se řídí animací)
+  if (travelAnimation) return;
+
   const timeEl = document.getElementById("currentTimeLabel");
   const tbody = document.getElementById("timetableBody");
   const paginationEl = document.getElementById("timetablePagination");
@@ -932,7 +1099,7 @@ function renderTimetablePage() {
       tr.style.cursor = "pointer";
       tr.title = `Cestovat do ${destinationCity.name}`;
       tr.addEventListener("click", () => {
-        scheduleTravel(destinationCity, dep.departure_minutes, dep.travel_minutes);
+        scheduleTravelFromDeparture(dep);
       });
     }
 
@@ -955,6 +1122,7 @@ function renderTimetablePage() {
         }
 
         purchasedTicketKey = depKey;
+        scheduleTravelFromDeparture(dep);
         renderTimetablePage();
       });
       ticketTd.appendChild(buyBtn);

@@ -160,6 +160,66 @@
         color: #94a3b8;
         margin-top: 4px;
       }
+
+      /* Overlay pro animaci přesunu */
+      .travel-overlay {
+        position: fixed;
+        inset: 0;
+        background: radial-gradient(circle at 20% 20%, rgba(59,130,246,0.08), rgba(0,0,0,0.75)),
+                    radial-gradient(circle at 80% 60%, rgba(16,185,129,0.08), rgba(0,0,0,0.8)),
+                    rgba(2,6,23,0.92);
+        color: #e2e8f0;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+      }
+      .travel-overlay.visible {
+        display: flex;
+      }
+      .travel-card {
+        background: rgba(15,23,42,0.8);
+        border: 1px solid rgba(148,163,184,0.35);
+        border-radius: 12px;
+        padding: 20px 24px;
+        width: min(720px, 90vw);
+        box-shadow: 0 25px 60px rgba(0,0,0,0.45);
+      }
+      .travel-title {
+        font-size: 18px;
+        margin: 0 0 12px;
+        color: #e0f2fe;
+      }
+      .travel-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 12px 16px;
+        margin-bottom: 16px;
+      }
+      .travel-label {
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: #94a3b8;
+      }
+      .travel-value {
+        font-size: 16px;
+        font-weight: 600;
+        color: #e2e8f0;
+      }
+      .travel-progress {
+        height: 10px;
+        background: rgba(148,163,184,0.2);
+        border-radius: 999px;
+        overflow: hidden;
+        margin-top: 12px;
+      }
+      .travel-progress-bar {
+        height: 100%;
+        background: linear-gradient(90deg, #38bdf8, #a855f7);
+        width: 0%;
+        transition: width 0.08s linear;
+      }
     </style>
   </head>
 
@@ -218,6 +278,43 @@
           <div id="noConnectionsNote"></div>
         </div>
       </aside>
+    </div>
+
+    <!-- Overlay pro animaci přesunu -->
+    <div id="travelOverlay" class="travel-overlay">
+      <div class="travel-card">
+        <h3 class="travel-title">Probíhá přesun vlakem</h3>
+        <div class="travel-grid">
+          <div>
+            <div class="travel-label">Z</div>
+            <div class="travel-value" id="travelFromLabel">-</div>
+          </div>
+          <div>
+            <div class="travel-label">Do</div>
+            <div class="travel-value" id="travelToLabel">-</div>
+          </div>
+          <div>
+            <div class="travel-label">Vlak</div>
+            <div class="travel-value" id="travelLineLabel">-</div>
+          </div>
+          <div>
+            <div class="travel-label">Vzdálenost</div>
+            <div class="travel-value" id="travelDistanceLabel">-</div>
+          </div>
+          <div>
+            <div class="travel-label">Čas odjezdu</div>
+            <div class="travel-value" id="travelDepartLabel">-</div>
+          </div>
+          <div>
+            <div class="travel-label">Čas příjezdu</div>
+            <div class="travel-value" id="travelArriveLabel">-</div>
+          </div>
+        </div>
+        <div class="travel-label" id="travelClockLabel">-</div>
+        <div class="travel-progress">
+          <div id="travelProgressBar" class="travel-progress-bar"></div>
+        </div>
+      </div>
     </div>
 
     <!-- JS modul – game logic -->
