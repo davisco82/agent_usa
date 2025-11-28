@@ -16,8 +16,8 @@
             <p class="font-semibold text-slate-100">Mapa & jízdní řád</p>
           </div>
         </div>
-        <div class="text-sm text-slate-300">
-          Aktuální čas: <span id="currentTimeLabel" class="font-semibold text-sky-200">Po 08:00</span>
+        <div class="text-2xl font-bold text-sky-200 tracking-tight">
+          <span id="currentTimeLabel">Po 08:00</span>
         </div>
       </div>
 
@@ -29,19 +29,17 @@
           </div>
 
           <div class="bg-slate-900/70 border border-slate-800 rounded-2xl shadow-2xl shadow-red-900/30 p-4">
-            <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center mb-3">
               <h2 class="text-base font-semibold text-slate-100 flex items-center gap-2">
                 <span class="text-sky-300">🚉</span> Jízdní řád
               </h2>
-              <div id="timetablePagination" class="flex items-center gap-2 text-sm text-slate-300"></div>
             </div>
 
             <div class="overflow-x-auto rounded-xl border border-slate-800">
-              <table id="timetableTable" class="min-w-full text-xs bg-slate-950/80">
+              <table id="timetableTable" class="min-w-full text-xs bg-slate-950/80 tabular-nums">
                 <thead class="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-slate-200">
                   <tr>
                     <th class="px-3 py-2 text-left font-semibold">🕒 Odjezd</th>
-                    <th class="px-3 py-2 text-left font-semibold">📍 Z</th>
                     <th class="px-3 py-2 text-left font-semibold">➡️ Do</th>
                     <th class="px-3 py-2 text-left font-semibold">🚆 Typ</th>
                     <th class="px-3 py-2 text-left font-semibold">📏 Vzdál.</th>
@@ -78,7 +76,7 @@
             <div class="grid grid-cols-1 gap-2 px-5">
               <button class="relative w-full pl-20 pr-4 py-4 rounded-xl bg-slate-800/80 border border-slate-700 text-slate-100 hover:border-sky-400 transition flex items-center justify-end overflow-visible">
                 <img src="/static/assets/train_station.png" alt="" class="absolute -left-4 top-1/2 -translate-y-1/2 h-16 w-16 drop-shadow-[0_10px_20px_rgba(0,0,0,0.45)]" />
-                <span class="font-semibold text-right w-full pr-2">Nádraží</span>
+                <span class="font-semibold text-right w-full pr-2">Nákup jízdenek</span>
               </button>
               <button class="relative w-full pl-20 pr-4 py-4 rounded-xl bg-slate-800/80 border border-slate-700 text-slate-100 hover:border-sky-400 transition flex items-center justify-end overflow-visible">
                 <img src="/static/assets/bank.png" alt="" class="absolute -left-4 top-1/2 -translate-y-1/2 h-16 w-16 drop-shadow-[0_10px_20px_rgba(0,0,0,0.45)]" />
@@ -120,9 +118,9 @@
         </div>
 
         <div class="travel-clock text-center text-5xl font-extrabold text-sky-100 mt-6 mb-3 leading-tight" id="travelClockLabel">-</div>
-        <div class="travel-progress-header flex justify-between text-sm text-slate-300">
-          <div id="travelProgressFrom">-</div>
-          <div id="travelProgressTo">-</div>
+        <div class="travel-progress-header flex justify-between text-2xl text-slate-100 font-bold tracking-tight">
+          <div id="travelProgressFrom" class="text-left">-</div>
+          <div id="travelProgressTo" class="text-right">-</div>
         </div>
         <div class="travel-progress h-3 bg-slate-800 rounded-full overflow-hidden mt-2">
           <div id="travelProgressBar" class="travel-progress-bar h-full bg-gradient-to-r from-sky-400 via-slate-100 to-red-400 w-0"></div>

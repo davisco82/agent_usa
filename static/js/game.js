@@ -53,6 +53,18 @@ function formatGameTime(totalMinutes) {
   return `${dayNames[dayIndex]} ${hh}:${mm}`;
 }
 
+function formatGameTimeHHMM(totalMinutes) {
+  const minutesNorm = ((totalMinutes % MINUTES_PER_WEEK) + MINUTES_PER_WEEK) % MINUTES_PER_WEEK;
+  const minuteOfDay = minutesNorm % MINUTES_PER_DAY;
+  const hours = Math.floor(minuteOfDay / 60);
+  const minutes = minuteOfDay % 60;
+
+  const hh = String(hours).padStart(2, "0");
+  const mm = String(minutes).padStart(2, "0");
+
+  return `${hh}:${mm}`;
+}
+
 function formatTravelDuration(totalMinutes) {
   if (totalMinutes === undefined || totalMinutes === null) {
     return "-";
@@ -74,6 +86,17 @@ function formatLineTypeLabel(lineType) {
   if (t === "express") return "Express";
   if (t === "intercity" || t === "ic" || t === "regional") return "Regional";
   return "Local";
+}
+
+function formatCityLabel(name) {
+  if (!name) return "-";
+  const city = cityByName.get(name);
+  if (city) {
+    const state = city.state_shortcut || city.state;
+    if (state) return `${city.name}, ${state}`;
+    return city.name;
+  }
+  return name;
 }
 
 function getTrainLevel(lineType) {
@@ -137,9 +160,7 @@ let fogFrontier = [];         // fronta okrajových tileů pro nerovnoměrné š
 let trainLines = []; // naplní se v init()
 let connectionsByCityName = new Map();
 let timetableDepartures = [];
-let timetablePage = 1;
-const TIMETABLE_PAGE_SIZE = 10;
-const TIMETABLE_LIMIT = 30;
+const TIMETABLE_LIMIT = 10;
 
 // Pomocná funkce pro index tile
 function tileIndex(x, y) {
@@ -437,19 +458,34 @@ function findDepartureToCity(destinationName) {
   if (!destinationName || !Array.isArray(timetableDepartures)) return null;
   const matches = timetableDepartures.filter(
     (dep) =>
-      dep?.to_city?.name === destinationName &&
-      dep.departure_minutes > gameMinutes
+      dep?.to_city?.name === destinationName
   );
   if (matches.length === 0) return null;
-  matches.sort((a, b) => a.departure_minutes - b.departure_minutes);
-  return matches[0];
+  matches.sort((a, b) => {
+    const aNext = normalizeDepartureMinutes(a.departure_minutes, gameMinutes);
+    const bNext = normalizeDepartureMinutes(b.departure_minutes, gameMinutes);
+    return aNext - bNext;
+  });
+  const first = matches[0];
+  const firstTime = normalizeDepartureMinutes(first?.departure_minutes, gameMinutes);
+  return firstTime ? { ...first, _next_departure: firstTime } : first;
 }
 
-function makeDepartureKey(dep) {
+function normalizeDepartureMinutes(baseMinutes, nowMinutes) {
+  if (baseMinutes === undefined || baseMinutes === null) return null;
+  let candidate = baseMinutes;
+  if (candidate <= nowMinutes) {
+    const daysAhead = Math.floor((nowMinutes - candidate) / MINUTES_PER_DAY) + 1;
+    candidate += daysAhead * MINUTES_PER_DAY;
+  }
+  return candidate;
+}
+
+function makeDepartureKey(dep, overrideDepartureMinutes) {
   if (!dep) return null;
   const from = dep.from_city?.name || dep.from || "";
   const to = dep.to_city?.name || dep.to || "";
-  const time = dep.departure_minutes;
+  const time = overrideDepartureMinutes !== undefined ? overrideDepartureMinutes : dep.departure_minutes;
   if (from === "" || to === "" || time === undefined || time === null) return null;
   return `${from}__${to}__${time}`;
 }
@@ -459,10 +495,12 @@ function scheduleTravelFromDeparture(dep) {
   const destinationName = dep.to_city?.name;
   const destinationCity = destinationName ? cityByName.get(destinationName) : null;
   if (!destinationCity) return;
+  const departureMinutes = dep._next_departure ?? normalizeDepartureMinutes(dep.departure_minutes, gameMinutes);
+  const effectiveDepMinutes = departureMinutes ?? dep.departure_minutes;
 
   scheduleTravel(
     destinationCity,
-    dep.departure_minutes,
+    effectiveDepMinutes,
     dep.travel_minutes,
     {
       fromName: dep.from_city?.name,
@@ -476,10 +514,11 @@ function scheduleTravelFromDeparture(dep) {
 function travelUsingTimetable(targetCity) {
   if (!targetCity) return;
   const depInfo = findDepartureToCity(targetCity.name);
-  if (depInfo && depInfo.travel_minutes !== undefined && depInfo.travel_minutes !== null) {
+  const depMinutes = depInfo?._next_departure || normalizeDepartureMinutes(depInfo?.departure_minutes, gameMinutes);
+  if (depInfo && depMinutes !== null && depInfo.travel_minutes !== undefined && depInfo.travel_minutes !== null) {
     scheduleTravel(
       targetCity,
-      depInfo.departure_minutes,
+      depMinutes,
       depInfo.travel_minutes,
       {
         fromName: depInfo.from_city?.name,
@@ -853,10 +892,10 @@ function renderTravelOverlay(progress, currentMinutes) {
   }
 
   if (travelProgressFrom) {
-    travelProgressFrom.textContent = travelAnimation.meta.fromName || "-";
+    travelProgressFrom.textContent = formatCityLabel(travelAnimation.meta.fromName);
   }
   if (travelProgressTo) {
-    travelProgressTo.textContent = travelAnimation.meta.toName || "-";
+    travelProgressTo.textContent = formatCityLabel(travelAnimation.meta.toName);
   }
 }
 
@@ -1000,8 +1039,8 @@ function update() {
 
   if (advancedMinutes > 0) {
     renderTimetablePage();
-    // průběžně aktualizujeme tabuli bez resetu stránky
-    updateTimetable(false);
+    // průběžně aktualizujeme tabuli
+    updateTimetable();
   }
 
   // realizace naplánované cesty ve chvíli odjezdu -> spustit animaci
@@ -1132,13 +1171,11 @@ function renderTimetablePage() {
 
   const timeEl = document.getElementById("currentTimeLabel");
   const tbody = document.getElementById("timetableBody");
-  const paginationEl = document.getElementById("timetablePagination");
   if (!timeEl || !tbody) return;
 
   // Aktualizace zobrazeného času
   timeEl.textContent = formatGameTime(gameMinutes);
   tbody.innerHTML = "";
-  if (paginationEl) paginationEl.innerHTML = "";
 
   const city = getCityAt(agent.x, agent.y);
 
@@ -1153,9 +1190,12 @@ function renderTimetablePage() {
     return;
   }
 
-  const departures = (timetableDepartures || []).filter(
-    (dep) => dep.departure_minutes > gameMinutes
-  );
+  const departures = (timetableDepartures || [])
+    .map((dep) => ({
+      ...dep,
+      _next_departure: normalizeDepartureMinutes(dep.departure_minutes, gameMinutes),
+    }))
+    .filter((dep) => dep._next_departure !== null && dep._next_departure > gameMinutes);
 
   if (!departures || departures.length === 0) {
     const tr = document.createElement("tr");
@@ -1167,28 +1207,26 @@ function renderTimetablePage() {
     return;
   }
 
-  const totalPages = Math.max(1, Math.ceil(departures.length / TIMETABLE_PAGE_SIZE));
-  if (timetablePage > totalPages) timetablePage = totalPages;
-
-  const start = (timetablePage - 1) * TIMETABLE_PAGE_SIZE;
-  const end = start + TIMETABLE_PAGE_SIZE;
-  const pageItems = departures.slice(start, end);
+  const pageItems = departures.slice(0, TIMETABLE_LIMIT);
 
   // Vykreslení výsledků
   pageItems.forEach((dep) => {
     const tr = document.createElement("tr");
+    tr.classList.add("tabular-nums");
+    const depMinutes = dep._next_departure ?? normalizeDepartureMinutes(dep.departure_minutes, gameMinutes);
 
     // Odjezd
     const timeTd = document.createElement("td");
-    timeTd.textContent = formatGameTime(dep.departure_minutes);
-
-    // Z
-    const fromTd = document.createElement("td");
-    fromTd.textContent = dep.from_city.name;
+    timeTd.innerHTML = `<span class="text-base font-semibold text-slate-100 tabular-nums">${formatGameTimeHHMM(depMinutes ?? dep.departure_minutes)}</span>`;
 
     // Do
     const toTd = document.createElement("td");
-    toTd.textContent = dep.to_city.name;
+    const toName = dep.to_city?.name || "-";
+    const cityMeta = cityByName.get(toName);
+    const toState = cityMeta?.state_shortcut || cityMeta?.state || dep.to_city?.state_shortcut || dep.to_city?.state;
+    const toLabel = `<span class="font-semibold text-sky-100 text-base lg:text-lg leading-tight">${toName}</span>`;
+    const stateLabel = toState ? `<span class="ml-1 text-xs text-slate-300 align-middle">(${toState})</span>` : "";
+    toTd.innerHTML = `${toLabel}${stateLabel}`;
 
     // Typ linky
     const typeTd = document.createElement("td");
@@ -1196,8 +1234,8 @@ function renderTimetablePage() {
 
     // Vzdálenost
     const distTd = document.createElement("td");
-    distTd.textContent = dep.distance_units !== undefined
-      ? dep.distance_units.toFixed(1) + " mi"
+    distTd.textContent = dep.distance_units !== undefined && dep.distance_units !== null
+      ? Math.round(dep.distance_units) + " mi"
       : "-";
 
     // Doba cestování
@@ -1207,14 +1245,15 @@ function renderTimetablePage() {
     // Příjezd
     const arrivalTd = document.createElement("td");
     if (dep.travel_minutes !== undefined && dep.travel_minutes !== null) {
-      arrivalTd.textContent = formatGameTime(dep.departure_minutes + dep.travel_minutes);
+      const arrivalMinutes = (depMinutes ?? dep.departure_minutes) + dep.travel_minutes;
+      arrivalTd.innerHTML = `<span class="font-semibold text-slate-100 text-base tabular-nums">${formatGameTime(arrivalMinutes)}</span>`;
     } else {
       arrivalTd.textContent = "-";
     }
 
     const destinationName = dep.to_city?.name;
     const destinationCity = destinationName ? cityByName.get(destinationName) : null;
-    const depKey = makeDepartureKey(dep);
+    const depKey = makeDepartureKey(dep, depMinutes ?? dep.departure_minutes);
     const hasTicket = depKey ? purchasedTicketKey === depKey : false;
 
     if (destinationCity) {
@@ -1235,10 +1274,13 @@ function renderTimetablePage() {
     // Ticket
     const ticketTd = document.createElement("td");
     if (hasTicket) {
-      ticketTd.textContent = "🎟️ Koupeno";
+      ticketTd.innerHTML = `<span class="inline-flex items-center gap-1 px-3 py-1.5 rounded-md bg-emerald-900/60 border border-emerald-500/60 text-emerald-100 text-xs font-semibold" title="Jízdenka koupena">✅ Ticket</span>`;
     } else {
       const buyBtn = document.createElement("button");
-      buyBtn.textContent = "Koupit ticket";
+      buyBtn.className = "inline-flex items-center gap-1 px-3 py-1.5 rounded-md bg-sky-900/40 border border-sky-500/60 text-sky-100 text-xs font-semibold hover:bg-sky-800/60 hover:border-sky-300 transition";
+      buyBtn.innerHTML = "🎟️ Koupit";
+      buyBtn.setAttribute("title", "Koupit ticket");
+      buyBtn.setAttribute("aria-label", "Koupit ticket");
       buyBtn.addEventListener("click", (e) => {
         e.stopPropagation();
         if (!depKey) return;
@@ -1259,7 +1301,6 @@ function renderTimetablePage() {
 
     // Append do řádku
     tr.appendChild(timeTd);
-    tr.appendChild(fromTd);
     tr.appendChild(toTd);
     tr.appendChild(typeTd);
     tr.appendChild(distTd);
@@ -1270,42 +1311,10 @@ function renderTimetablePage() {
     tbody.appendChild(tr);
   });
 
-  if (paginationEl) {
-    const info = document.createElement("span");
-    info.textContent = `Strana ${timetablePage}/${totalPages}`;
-
-    const prevBtn = document.createElement("button");
-    prevBtn.textContent = "←";
-    prevBtn.disabled = timetablePage <= 1;
-    prevBtn.addEventListener("click", () => {
-      if (timetablePage > 1) {
-        timetablePage -= 1;
-        renderTimetablePage();
-      }
-    });
-
-    const nextBtn = document.createElement("button");
-    nextBtn.textContent = "→";
-    nextBtn.disabled = timetablePage >= totalPages;
-    nextBtn.addEventListener("click", () => {
-      if (timetablePage < totalPages) {
-        timetablePage += 1;
-        renderTimetablePage();
-      }
-    });
-
-    paginationEl.appendChild(prevBtn);
-    paginationEl.appendChild(info);
-    paginationEl.appendChild(nextBtn);
-  }
 }
 
-async function updateTimetable(resetPage = true) {
+async function updateTimetable() {
   const city = getCityAt(agent.x, agent.y);
-
-  if (resetPage) {
-    timetablePage = 1;
-  }
 
   // Načteme odjezdy z backendu
   timetableDepartures = await fetchTimetableForCurrentCity();

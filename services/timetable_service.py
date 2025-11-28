@@ -47,7 +47,8 @@ def compute_line_distance_miles(line: TrainLine) -> float:
 
     return 0.0
 
-START_BASE_MINUTES = 8 * 60  # 8:00
+# První odjezdy dne začínají hned po půlnoci, ne až v 8:00
+START_BASE_MINUTES = 0
 
 def get_spacing_for_importance(importance: int) -> int:
     """Jak daleko od sebe starty linek z jednoho města."""
