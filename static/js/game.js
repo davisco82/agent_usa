@@ -32,6 +32,8 @@ const LAND_MAX_Y = 568;
 let cities = [];
 let cityByName = new Map();
 let hoveredCity = null;
+let pendingTravel = null;
+let purchasedTicketKey = null;
 
 function formatGameTime(totalMinutes) {
   const dayNames = ["Po", "Út", "St", "Čt", "Pá", "So", "Ne"];
@@ -339,14 +341,20 @@ function findDepartureToCity(destinationName) {
   return matches[0];
 }
 
+function makeDepartureKey(dep) {
+  if (!dep) return null;
+  const from = dep.from_city?.name || dep.from || "";
+  const to = dep.to_city?.name || dep.to || "";
+  const time = dep.departure_minutes;
+  if (from === "" || to === "" || time === undefined || time === null) return null;
+  return `${from}__${to}__${time}`;
+}
+
 function travelUsingTimetable(targetCity) {
   if (!targetCity) return;
   const depInfo = findDepartureToCity(targetCity.name);
   if (depInfo && depInfo.travel_minutes !== undefined && depInfo.travel_minutes !== null) {
-    travelToCity(targetCity, {
-      departureMinutes: depInfo.departure_minutes,
-      travelMinutes: depInfo.travel_minutes,
-    });
+    scheduleTravel(targetCity, depInfo.departure_minutes, depInfo.travel_minutes);
   } else {
     travelToCity(targetCity);
   }
@@ -406,25 +414,25 @@ function moveAgent(dx, dy) {
 function travelToCity(targetCity, options = {}) {
   if (!targetCity) return;
 
-  const departureMinutes = options.departureMinutes;
-  const travelMinutes = options.travelMinutes;
-
-  if (
-    departureMinutes !== undefined &&
-    departureMinutes !== null &&
-    travelMinutes !== undefined &&
-    travelMinutes !== null
-  ) {
-    const safeTravel = Math.max(0, travelMinutes);
-    const start = Math.max(gameMinutes, departureMinutes);
-    gameMinutes = start + safeTravel;
-  }
-
   agent.x = targetCity.x;
   agent.y = targetCity.y;
   updateSidebar();
   updateTimetable();
   console.log(`Přesun vlakem do: ${targetCity.name}`);
+}
+
+function scheduleTravel(targetCity, departureMinutes, travelMinutes) {
+  if (!targetCity || departureMinutes === undefined || departureMinutes === null) {
+    return travelToCity(targetCity);
+  }
+  pendingTravel = {
+    city: targetCity,
+    departureMinutes,
+    travelMinutes: travelMinutes !== undefined && travelMinutes !== null ? travelMinutes : 0,
+  };
+  console.log(
+    `Naplánována cesta do ${targetCity.name} v ${formatGameTime(departureMinutes)} (doba ${travelMinutes} min)`
+  );
 }
 
 // ----------------------------------------
@@ -695,6 +703,19 @@ function update() {
     // průběžně aktualizujeme tabuli bez resetu stránky
     updateTimetable(false);
   }
+
+  // realizace naplánované cesty ve chvíli odjezdu
+  if (pendingTravel && gameMinutes >= pendingTravel.departureMinutes) {
+    const travel = pendingTravel;
+    pendingTravel = null;
+
+    const start = Math.max(gameMinutes, travel.departureMinutes);
+    const duration = Math.max(0, travel.travelMinutes || 0);
+    gameMinutes = start + duration;
+
+    travelToCity(travel.city);
+    renderTimetablePage();
+  }
 }
 
 // ----------------------------------------
@@ -904,16 +925,39 @@ function renderTimetablePage() {
 
     const destinationName = dep.to_city?.name;
     const destinationCity = destinationName ? cityByName.get(destinationName) : null;
+    const depKey = makeDepartureKey(dep);
+    const hasTicket = depKey ? purchasedTicketKey === depKey : false;
 
     if (destinationCity) {
       tr.style.cursor = "pointer";
       tr.title = `Cestovat do ${destinationCity.name}`;
       tr.addEventListener("click", () => {
-        travelToCity(destinationCity, {
-          departureMinutes: dep.departure_minutes,
-          travelMinutes: dep.travel_minutes,
-        });
+        scheduleTravel(destinationCity, dep.departure_minutes, dep.travel_minutes);
       });
+    }
+
+    // Ticket
+    const ticketTd = document.createElement("td");
+    if (hasTicket) {
+      ticketTd.textContent = "🎟️ Koupeno";
+    } else {
+      const buyBtn = document.createElement("button");
+      buyBtn.textContent = "Koupit ticket";
+      buyBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (!depKey) return;
+
+        if (purchasedTicketKey && purchasedTicketKey !== depKey) {
+          const confirmNew = window.confirm("Opravdu chceš koupit jinou jízdenku? Původní se tímto stornuje.");
+          if (!confirmNew) {
+            return;
+          }
+        }
+
+        purchasedTicketKey = depKey;
+        renderTimetablePage();
+      });
+      ticketTd.appendChild(buyBtn);
     }
 
     // Append do řádku
@@ -924,6 +968,7 @@ function renderTimetablePage() {
     tr.appendChild(distTd);
     tr.appendChild(travelTd);
     tr.appendChild(arrivalTd);
+    tr.appendChild(ticketTd);
 
     tbody.appendChild(tr);
   });
