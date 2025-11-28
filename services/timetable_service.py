@@ -1,10 +1,51 @@
 # services/timetable_service.py
 
 import math
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from models import db
 from models.city import City
 from models.train_line import TrainLine
+
+EARTH_RADIUS_MI = 3958.8
+# 1.18 (realismus) * 1.20 (neletíš vzdušnou čarou) = 1.416
+DISTANCE_SCALE = 1.416  # prodloužené vzdálenosti pro vlakové trasy
+
+def _haversine_miles(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Spočítá vzdálenost mezi dvěma GPS body v mílích."""
+    lat1_rad, lon1_rad = math.radians(lat1), math.radians(lon1)
+    lat2_rad, lon2_rad = math.radians(lat2), math.radians(lon2)
+
+    dlat = lat2_rad - lat1_rad
+    dlon = lon2_rad - lon1_rad
+
+    a = (
+        math.sin(dlat / 2) ** 2
+        + math.cos(lat1_rad) * math.cos(lat2_rad) * math.sin(dlon / 2) ** 2
+    )
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    return EARTH_RADIUS_MI * c
+
+def compute_line_distance_miles(line: TrainLine) -> float:
+    """
+    Vrátí vzdálenost trasy v mílích. Primárně používá GPS (lat/lon),
+    fallback na uložené distance_units nebo px/py, pokud chybí souřadnice.
+    """
+    if line and line.from_city and line.to_city:
+        fa, fb = line.from_city, line.to_city
+        if (
+            fa.lat is not None and fa.lon is not None
+            and fb.lat is not None and fb.lon is not None
+        ):
+            return _haversine_miles(fa.lat, fa.lon, fb.lat, fb.lon) * DISTANCE_SCALE
+
+    if line and line.distance_units:
+        return line.distance_units * DISTANCE_SCALE
+
+    if line and line.from_city and line.to_city:
+        # fallback na obrazovkové vzdálenosti (užitečné jen pro debug)
+        return TrainLine.compute_distance(line.from_city, line.to_city) * DISTANCE_SCALE
+
+    return 0.0
 
 START_BASE_MINUTES = 8 * 60  # 8:00
 
@@ -49,13 +90,25 @@ def compute_next_departures(city: City, current_minutes: int, limit: int = 5) ->
     )
 
     candidates = []
+    used_departure_minutes = set()
+
+    def spread_offset(idx: int, freq: int, total: int) -> int:
+        """
+        Vrátí offset v rámci intervalu [0, freq), který rovnoměrně rozprostře linky.
+        """
+        if total <= 1:
+            return 0
+        # rozprostření mezi 0 a freq (exkluzivně)
+        return int(round((idx + 1) * freq / (total + 1)))
+
+    total_lines = len(from_lines) + len(to_lines)
 
     # FROM → TO
     for idx, line in enumerate(from_lines):
         freq = line.frequency_minutes or 60
+        distance_miles = compute_line_distance_miles(line)
+        offset = spread_offset(idx, freq, total_lines)
 
-        # každá linka dostane offset v rámci [0, freq)
-        offset = (idx * spacing) % freq
         first_departure = START_BASE_MINUTES + offset  # např. 8:02, 8:05...
 
         # spočítáme první odjezd >= aktuální čas
@@ -70,24 +123,29 @@ def compute_next_departures(city: City, current_minutes: int, limit: int = 5) ->
             line,
             imp_a=line.from_city.importance,
             imp_b=line.to_city.importance,
+            distance_miles=distance_miles,
         )
 
         # vygenerujeme pár dalších odjezdů této linky
         for i in range(5):
             dep_time = next_dep + i * freq
+            while dep_time in used_departure_minutes:
+                dep_time += 5  # posuň o 5 minut, aby se časy nekumulovaly
+            used_departure_minutes.add(dep_time)
             candidates.append({
                 "departure_minutes": dep_time,
                 "from_city": city,
                 "to_city": line.to_city,
                 "line": line,
                 "travel_minutes": travel_minutes,
-                "distance_units": line.distance_units or 0.0,
+                "distance_units": distance_miles,
             })
 
     # TO → FROM (vlak z "to_city" směrem zpět do current city)
     for idx, line in enumerate(to_lines):
         freq = line.frequency_minutes or 60
-        offset = (idx * spacing) % freq
+        distance_miles = compute_line_distance_miles(line)
+        offset = spread_offset(len(from_lines) + idx, freq, total_lines)
         first_departure = START_BASE_MINUTES + offset
 
         if day_minutes <= first_departure:
@@ -96,51 +154,74 @@ def compute_next_departures(city: City, current_minutes: int, limit: int = 5) ->
             k = math.ceil((day_minutes - first_departure) / freq)
             next_dep = first_departure + k * freq
 
+        travel_minutes = compute_travel_minutes(
+            line,
+            imp_a=line.from_city.importance,
+            imp_b=line.to_city.importance,
+            distance_miles=distance_miles,
+        )
+
         for i in range(5):
             dep_time = next_dep + i * freq
+            while dep_time in used_departure_minutes:
+                dep_time += 5
+            used_departure_minutes.add(dep_time)
             candidates.append({
                 "departure_minutes": dep_time,
                 "from_city": city,
                 "to_city": line.from_city,
                 "line": line,
+                "travel_minutes": travel_minutes,
+                "distance_units": distance_miles,
             })
 
     # seřadíme podle času a vezmeme prvních N
     candidates.sort(key=lambda c: c["departure_minutes"])
     return candidates[:limit]
 
-def compute_travel_minutes(line: TrainLine, imp_a: int, imp_b: int) -> int:
-    """
-    Spočítá dobu jízdy v minutách pro danou vlakovou linku.
-    Vyšší importance = spíš rychlý vlak.
-    Regional je pomalý (víc zastávek).
-    """
+def _get_speed_level(line: TrainLine, imp_a: int, imp_b: int) -> int:
+    """Určí rychlostní úroveň vlaku (1–3) podle typu linky a důležitosti měst."""
+    line_type = (line.line_type or "").lower() if line else ""
 
-    dist = line.distance_units or 0.0
+    if line_type == "express":
+        return 1  # nejrychlejší
+    if line_type in ("intercity", "ic"):
+        return 2
+
+    # regionální – pokud vede mezi většími městy, ber to jako úroveň 2, jinak 3
+    if imp_a is not None and imp_b is not None:
+        lowest = max(imp_a or 3, imp_b or 3)
+        if lowest <= 2:
+            return 2
+    return 3
+
+def compute_travel_minutes(
+    line: TrainLine,
+    imp_a: int,
+    imp_b: int,
+    distance_miles: Optional[float] = None,
+) -> int:
+    """
+    Spočítá dobu jízdy v minutách – podle reálné vzdálenosti (míle)
+    a rychlostní úrovně vlaku:
+      Úroveň 1 = 190 mph, Úroveň 2 = 100 mph, Úroveň 3 = 60 mph.
+    """
+    if distance_miles is None:
+        distance_miles = compute_line_distance_miles(line)
+    dist = distance_miles or 0.0
     if dist <= 0:
         return 0  # stejná stanice / fallback
 
-    # 1) typ linky → základní rychlost
-    # units / min
-    if line.line_type == "express" and imp_a == 1 and imp_b == 1:
-        base_speed = 6.0   # nejrychlejší hub ↔ hub
-    elif line.line_type == "express":
-        base_speed = 4.0   # express 1–2
+    speed_level = _get_speed_level(line, imp_a, imp_b)
+    if speed_level == 1:
+        speed_mph = 190
+    elif speed_level == 2:
+        speed_mph = 100
     else:
-        base_speed = 2.0   # regionální linky
+        speed_mph = 60
 
-    # 2) penalty podle nejméně důležitého města
-    lowest = max(imp_a, imp_b)  # 3 = nejmenší město
-
-    if lowest == 1:
-        penalty = 1.0
-    elif lowest == 2:
-        penalty = 1.15
-    else:
-        penalty = 1.30
-
-    # 3) hrubý čas = vzdálenost / rychlost * penalty
-    raw_minutes = dist / base_speed * penalty
+    hours = dist / speed_mph
+    raw_minutes = hours * 60.0
 
     # zaokrouhlení nahoru – ať nejsou 0 min na krátké trasy
     return max(1, int(math.ceil(raw_minutes)))

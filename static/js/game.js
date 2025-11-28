@@ -61,6 +61,10 @@ let fogTiles = new Set();     // tile indexy mlhy
 // vlakové linky z backendu
 let trainLines = []; // naplní se v init()
 let connectionsByCityName = new Map();
+let timetableDepartures = [];
+let timetablePage = 1;
+const TIMETABLE_PAGE_SIZE = 10;
+const TIMETABLE_LIMIT = 30;
 
 // Pomocná funkce pro index tile
 function tileIndex(x, y) {
@@ -530,13 +534,13 @@ function drawTrainLines(ctx, trainLines) {
   ctx.restore();
 }
 
-async function fetchTimetableForCurrentCity() {
+async function fetchTimetableForCurrentCity(limit = TIMETABLE_LIMIT) {
   const city = getCityAt(agent.x, agent.y);
   if (!city) {
     return null;
   }
 
-  const res = await fetch(`/api/timetable?city_id=${city.id}&minutes=${gameMinutes}`);
+  const res = await fetch(`/api/timetable?city_id=${city.id}&minutes=${gameMinutes}&limit=${limit}`);
   if (!res.ok) {
     console.error("Nepodařilo se načíst jízdní řád.");
     return null;
@@ -693,14 +697,16 @@ function updateSidebar() {
   });
 }
 
-async function updateTimetable() {
+function renderTimetablePage() {
   const timeEl = document.getElementById("currentTimeLabel");
   const tbody = document.getElementById("timetableBody");
+  const paginationEl = document.getElementById("timetablePagination");
   if (!timeEl || !tbody) return;
 
   // Aktualizace zobrazeného času
   timeEl.textContent = formatGameTime(gameMinutes);
   tbody.innerHTML = "";
+  if (paginationEl) paginationEl.innerHTML = "";
 
   const city = getCityAt(agent.x, agent.y);
 
@@ -708,28 +714,34 @@ async function updateTimetable() {
   if (!city) {
     const tr = document.createElement("tr");
     const td = document.createElement("td");
-    td.colSpan = 6;
+    td.colSpan = 7;
     td.textContent = "Agent nestojí ve městě.";
     tr.appendChild(td);
     tbody.appendChild(tr);
     return;
   }
 
-  // Načteme odjezdy z backendu
-  const departures = await fetchTimetableForCurrentCity();
+  const departures = timetableDepartures;
 
   if (!departures || departures.length === 0) {
     const tr = document.createElement("tr");
     const td = document.createElement("td");
-    td.colSpan = 6;
+    td.colSpan = 7;
     td.textContent = "Z tohoto města nejedou žádné vlaky.";
     tr.appendChild(td);
     tbody.appendChild(tr);
     return;
   }
 
+  const totalPages = Math.max(1, Math.ceil(departures.length / TIMETABLE_PAGE_SIZE));
+  if (timetablePage > totalPages) timetablePage = totalPages;
+
+  const start = (timetablePage - 1) * TIMETABLE_PAGE_SIZE;
+  const end = start + TIMETABLE_PAGE_SIZE;
+  const pageItems = departures.slice(start, end);
+
   // Vykreslení výsledků
-  departures.forEach((dep) => {
+  pageItems.forEach((dep) => {
     const tr = document.createElement("tr");
 
     // Odjezd
@@ -751,7 +763,7 @@ async function updateTimetable() {
     // Vzdálenost
     const distTd = document.createElement("td");
     distTd.textContent = dep.distance_units !== undefined
-      ? dep.distance_units.toFixed(1) + " u"
+      ? dep.distance_units.toFixed(1) + " mi"
       : "-";
 
     // Doba cestování
@@ -759,6 +771,14 @@ async function updateTimetable() {
     travelTd.textContent = dep.travel_minutes !== undefined
       ? dep.travel_minutes + " min"
       : "-";
+
+    // Příjezd
+    const arrivalTd = document.createElement("td");
+    if (dep.travel_minutes !== undefined && dep.travel_minutes !== null) {
+      arrivalTd.textContent = formatGameTime(dep.departure_minutes + dep.travel_minutes);
+    } else {
+      arrivalTd.textContent = "-";
+    }
 
     const destinationName = dep.to_city?.name;
     const destinationCity = destinationName ? cityByName.get(destinationName) : null;
@@ -778,9 +798,51 @@ async function updateTimetable() {
     tr.appendChild(typeTd);
     tr.appendChild(distTd);
     tr.appendChild(travelTd);
+    tr.appendChild(arrivalTd);
 
     tbody.appendChild(tr);
   });
+
+  if (paginationEl) {
+    const info = document.createElement("span");
+    info.textContent = `Strana ${timetablePage}/${totalPages}`;
+
+    const prevBtn = document.createElement("button");
+    prevBtn.textContent = "←";
+    prevBtn.disabled = timetablePage <= 1;
+    prevBtn.addEventListener("click", () => {
+      if (timetablePage > 1) {
+        timetablePage -= 1;
+        renderTimetablePage();
+      }
+    });
+
+    const nextBtn = document.createElement("button");
+    nextBtn.textContent = "→";
+    nextBtn.disabled = timetablePage >= totalPages;
+    nextBtn.addEventListener("click", () => {
+      if (timetablePage < totalPages) {
+        timetablePage += 1;
+        renderTimetablePage();
+      }
+    });
+
+    paginationEl.appendChild(prevBtn);
+    paginationEl.appendChild(info);
+    paginationEl.appendChild(nextBtn);
+  }
+}
+
+async function updateTimetable() {
+  const city = getCityAt(agent.x, agent.y);
+
+  // reset page on city change
+  timetablePage = 1;
+
+  // Načteme odjezdy z backendu
+  timetableDepartures = await fetchTimetableForCurrentCity();
+
+  renderTimetablePage();
 }
 
 

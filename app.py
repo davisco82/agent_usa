@@ -6,7 +6,11 @@ from models.train_line import TrainLine
 from models.city import City
 from seeds.cities_seed import register_city_seed_commands
 from seeds.trainlines_seed import register_trainlines_commands  
-from services.timetable_service import compute_next_departures, compute_travel_minutes
+from services.timetable_service import (
+    compute_line_distance_miles,
+    compute_next_departures,
+    compute_travel_minutes,
+)
 
 
 
@@ -76,7 +80,7 @@ def create_app():
                 },
                 "line_type": line.line_type,
                 "frequency_minutes": line.frequency_minutes,
-                "distance_units": line.distance_units,
+                "distance_units": compute_line_distance_miles(line),
             })
 
         return jsonify(data)
@@ -85,13 +89,17 @@ def create_app():
     def api_timetable():
         city_id = request.args.get("city_id", type=int)
         current_minutes = request.args.get("minutes", type=int)
+        limit = request.args.get("limit", default=30, type=int)
 
         if city_id is None or current_minutes is None:
             return jsonify({"error": "city_id and minutes are required"}), 400
+        if limit is None or limit <= 0:
+            limit = 30
+        limit = min(limit, 100)
 
         city = City.query.get_or_404(city_id)
 
-        departures = compute_next_departures(city, current_minutes, limit=5)
+        departures = compute_next_departures(city, current_minutes, limit=limit)
 
         def to_dict(d):
             line = d["line"]
@@ -104,7 +112,10 @@ def create_app():
                     line,
                     line.from_city.importance,
                     line.to_city.importance,
+                    distance_miles=distance_miles if distance_miles is not None else None,
                 )
+
+            distance_miles = d.get("distance_units")
 
             return {
                 "departure_minutes": d["departure_minutes"],
@@ -118,7 +129,7 @@ def create_app():
                 },
                 "line_type": line.line_type,
                 "frequency_minutes": line.frequency_minutes,
-                "distance_units": line.distance_units,
+                "distance_units": distance_miles if distance_miles is not None else compute_line_distance_miles(line),
                 "travel_minutes": travel,
             }
 
