@@ -36,6 +36,7 @@ let pendingTravel = null;
 let pendingTravelTimer = null;
 let purchasedTicketKey = null;
 let travelAnimation = null;
+let hoveredLineKey = null;
 
 function formatGameTime(totalMinutes) {
   const dayNames = ["Po", "Út", "St", "Čt", "Pá", "So", "Ne"];
@@ -84,6 +85,8 @@ const travelDepartLabel = document.getElementById("travelDepartLabel");
 const travelArriveLabel = document.getElementById("travelArriveLabel");
 const travelClockLabel = document.getElementById("travelClockLabel");
 const travelProgressBar = document.getElementById("travelProgressBar");
+const travelProgressFrom = document.getElementById("travelProgressFrom");
+const travelProgressTo = document.getElementById("travelProgressTo");
 
 if (canvas) {
   canvas.addEventListener("mousemove", (e) => {
@@ -213,6 +216,54 @@ function findCityAtPixel(px, py) {
   }
 
   return nearest;
+}
+
+function findLineAtPixel(px, py) {
+  if (!Array.isArray(trainLines) || trainLines.length === 0) return null;
+
+  const currentCity = getCityAt(agent.x, agent.y);
+  const currentCityName = currentCity ? currentCity.name : null;
+  if (!currentCityName) return null;
+
+  const hitThreshold = 6; // px tolerance
+
+  for (const line of trainLines) {
+    const fromName =
+      line.from?.name ||
+      line.from_name ||
+      line.fromCityName ||
+      line.from ||
+      line.from_city?.name;
+    const toName =
+      line.to?.name ||
+      line.to_name ||
+      line.toCityName ||
+      line.to ||
+      line.to_city?.name;
+
+    const fromCity = cityByName.get(fromName);
+    const toCity = cityByName.get(toName);
+    if (!fromCity || !toCity) continue;
+
+    const isConnectedToAgent =
+      fromCity.name === currentCityName || toCity.name === currentCityName;
+    if (!isConnectedToAgent) continue;
+
+    // vzdálenost bodu od úsečky
+    const dx = toCity.px - fromCity.px;
+    const dy = toCity.py - fromCity.py;
+    const len2 = dx * dx + dy * dy;
+    if (len2 === 0) continue;
+    const t = Math.max(0, Math.min(1, ((px - fromCity.px) * dx + (py - fromCity.py) * dy) / len2));
+    const projX = fromCity.px + t * dx;
+    const projY = fromCity.py + t * dy;
+    const dist = Math.hypot(px - projX, py - projY);
+    if (dist <= hitThreshold) {
+      return `${fromCity.name}__${toCity.name}`;
+    }
+  }
+
+  return null;
 }
 
 // Postaví mapu spojů: název města -> pole cílových měst (lokální objekty z cities)
@@ -717,13 +768,21 @@ function drawTrainLines(ctx, trainLines) {
     const isExpress = line.line_type === "express";
     const isRare = line.frequency_minutes >= 90;
 
-    ctx.strokeStyle = "rgba(255, 255, 255, 0.72)";
-    if (isExpress) {
-      ctx.lineWidth = 2.2;
-    } else if (isRare) {
-      ctx.lineWidth = 1.4;
+    const lineKey = `${fromCity.name}__${toCity.name}`;
+    const isHovered = hoveredLineKey === lineKey;
+
+    if (isHovered) {
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.95)"; // silnější bílá
+      ctx.lineWidth = 3.2;
     } else {
-      ctx.lineWidth = 1.7;
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.72)";
+      if (isExpress) {
+        ctx.lineWidth = 2.2;
+      } else if (isRare) {
+        ctx.lineWidth = 1.4;
+      } else {
+        ctx.lineWidth = 1.7;
+      }
     }
 
     ctx.beginPath();
@@ -748,7 +807,15 @@ function renderTravelOverlay(progress, currentMinutes) {
   travelProgressBar.style.width = `${p * 100}%`;
 
   if (travelClockLabel) {
-    travelClockLabel.textContent = `Čas: ${formatGameTime(currentMinutes)}`;
+    const displayMinutes = Math.floor(currentMinutes);
+    travelClockLabel.textContent = formatGameTime(displayMinutes);
+  }
+
+  if (travelProgressFrom) {
+    travelProgressFrom.textContent = travelAnimation.meta.fromName || "-";
+  }
+  if (travelProgressTo) {
+    travelProgressTo.textContent = travelAnimation.meta.toName || "-";
   }
 }
 
@@ -768,10 +835,15 @@ function startTravelAnimation(travel) {
   const distance = travel.distance || 0;
 
   // 100 mil ~ 1 vteřina, s rozumným rozsahem
-  const durationMsFromDistance = distance > 0 ? (distance / 100) * 1000 : 0;
-  const durationMs = Math.max(600, Math.min(6000,
-    durationMsFromDistance > 0 ? durationMsFromDistance : durationMinutes * 40
-  ));
+  // 100 mil ~ 6 sekund (ještě zpomaleno)
+  const durationMsFromDistance = distance > 0 ? (distance / 100) * 6000 : 0;
+  const durationMs = Math.max(
+    1800,
+    Math.min(
+      15000,
+      durationMsFromDistance > 0 ? durationMsFromDistance : durationMinutes * 240
+    )
+  );
 
   travelAnimation = {
     city: travel.city,
@@ -813,6 +885,9 @@ function finishTravelAnimation() {
 
   renderTravelOverlay(1, gameMinutes);
   travelOverlayEl?.classList.remove("visible");
+
+  // po dojetí resetni koupený ticket – v nové destinaci nedává smysl
+  purchasedTicketKey = null;
 
   travelToCity(targetCity);
   renderTimetablePage();
@@ -1100,6 +1175,13 @@ function renderTimetablePage() {
       tr.title = `Cestovat do ${destinationCity.name}`;
       tr.addEventListener("click", () => {
         scheduleTravelFromDeparture(dep);
+      });
+      tr.addEventListener("mouseenter", () => {
+        const key = `${dep.from_city?.name}__${dep.to_city?.name}`;
+        hoveredLineKey = key;
+      });
+      tr.addEventListener("mouseleave", () => {
+        hoveredLineKey = null;
       });
     }
 

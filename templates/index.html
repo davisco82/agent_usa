@@ -220,6 +220,20 @@
         width: 0%;
         transition: width 0.08s linear;
       }
+      .travel-clock {
+        font-size: 24px;
+        font-weight: 700;
+        margin: 6px 0 10px;
+        color: #e0f2fe;
+      }
+      .travel-progress-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 13px;
+        color: #cbd5e1;
+        margin-top: 10px;
+      }
     </style>
   </head>
 
@@ -310,7 +324,11 @@
             <div class="travel-value" id="travelArriveLabel">-</div>
           </div>
         </div>
-        <div class="travel-label" id="travelClockLabel">-</div>
+        <div class="travel-clock" id="travelClockLabel">-</div>
+        <div class="travel-progress-header">
+          <div id="travelProgressFrom">-</div>
+          <div id="travelProgressTo">-</div>
+        </div>
         <div class="travel-progress">
           <div id="travelProgressBar" class="travel-progress-bar"></div>
         </div>
