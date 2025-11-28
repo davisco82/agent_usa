@@ -45,8 +45,11 @@ function formatGameTime(totalMinutes) {
 }
 
 
-document.getElementById("mapSize").textContent =
-  `${GRID_COLS} × ${GRID_ROWS} polí`;
+// update size label only if element exists (not present on the current page)
+const mapSizeEl = document.getElementById("mapSize");
+if (mapSizeEl) {
+  mapSizeEl.textContent = `${GRID_COLS} × ${GRID_ROWS} polí`;
+}
 
 // ----------------------------------------
 // POST-APO MLHA – základní systém
@@ -316,6 +319,15 @@ function moveAgent(dx, dy) {
   } 
 }
 
+function travelToCity(targetCity) {
+  if (!targetCity) return;
+  agent.x = targetCity.x;
+  agent.y = targetCity.y;
+  updateSidebar();
+  updateTimetable();
+  console.log(`Přesun vlakem do: ${targetCity.name}`);
+}
+
 // ----------------------------------------
 // Vstup z klávesnice
 // ----------------------------------------
@@ -381,14 +393,10 @@ function travelFromCurrentCity() {
   }
 
   const destination = connections[choiceIndex];
-  agent.x = destination.x;
-  agent.y = destination.y;
 
   // tady bychom časově mohli posunout gameMinutes na depature/time travel,
   // zatím necháme jen „teleport“, ať to nezkomplikuju
-  updateSidebar();
-  updateTimetable();
-  console.log(`Přesun vlakem do: ${destination.name}`);
+  travelToCity(destination);
 }
 
 // ----------------------------------------
@@ -678,10 +686,7 @@ function updateSidebar() {
     li.style.cursor = "pointer";
 
     li.addEventListener("click", () => {
-      agent.x = targetCity.x;
-      agent.y = targetCity.y;
-      updateSidebar();
-      console.log(`Přesun vlakem do: ${targetCity.name}`);
+      travelToCity(targetCity);
     });
 
     listEl.appendChild(li);
@@ -754,6 +759,17 @@ async function updateTimetable() {
     travelTd.textContent = dep.travel_minutes !== undefined
       ? dep.travel_minutes + " min"
       : "-";
+
+    const destinationName = dep.to_city?.name;
+    const destinationCity = destinationName ? cityByName.get(destinationName) : null;
+
+    if (destinationCity) {
+      tr.style.cursor = "pointer";
+      tr.title = `Cestovat do ${destinationCity.name}`;
+      tr.addEventListener("click", () => {
+        travelToCity(destinationCity);
+      });
+    }
 
     // Append do řádku
     tr.appendChild(timeTd);
