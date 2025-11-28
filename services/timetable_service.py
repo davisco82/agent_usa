@@ -71,6 +71,7 @@ def compute_next_departures(city: City, current_minutes: int, limit: int = 5) ->
     # Budeme řešit rozestupy v rámci jednoho dne – mod 24h
     MINUTES_PER_DAY = 24 * 60
     day_minutes = current_minutes % MINUTES_PER_DAY
+    day_start_minutes = current_minutes - day_minutes  # absolutní začátek dne (Po 8:00 = 480)
 
     importance = city.importance or 3
     spacing = get_spacing_for_importance(importance)
@@ -118,6 +119,9 @@ def compute_next_departures(city: City, current_minutes: int, limit: int = 5) ->
             k = math.ceil((day_minutes - first_departure) / freq)
             next_dep = first_departure + k * freq
 
+        # převod na absolutní čas v minutách od startu hry
+        next_dep_abs = day_start_minutes + next_dep
+
         # spočítáme délku cestování pro trasu
         travel_minutes = compute_travel_minutes(
             line,
@@ -128,7 +132,7 @@ def compute_next_departures(city: City, current_minutes: int, limit: int = 5) ->
 
         # vygenerujeme pár dalších odjezdů této linky
         for i in range(5):
-            dep_time = next_dep + i * freq
+            dep_time = next_dep_abs + i * freq
             while dep_time in used_departure_minutes:
                 dep_time += 5  # posuň o 5 minut, aby se časy nekumulovaly
             used_departure_minutes.add(dep_time)
@@ -154,6 +158,8 @@ def compute_next_departures(city: City, current_minutes: int, limit: int = 5) ->
             k = math.ceil((day_minutes - first_departure) / freq)
             next_dep = first_departure + k * freq
 
+        next_dep_abs = day_start_minutes + next_dep
+
         travel_minutes = compute_travel_minutes(
             line,
             imp_a=line.from_city.importance,
@@ -162,7 +168,7 @@ def compute_next_departures(city: City, current_minutes: int, limit: int = 5) ->
         )
 
         for i in range(5):
-            dep_time = next_dep + i * freq
+            dep_time = next_dep_abs + i * freq
             while dep_time in used_departure_minutes:
                 dep_time += 5
             used_departure_minutes.add(dep_time)

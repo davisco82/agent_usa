@@ -44,6 +44,22 @@ function formatGameTime(totalMinutes) {
   return `${dayNames[dayIndex]} ${hh}:${mm}`;
 }
 
+function formatTravelDuration(totalMinutes) {
+  if (totalMinutes === undefined || totalMinutes === null) {
+    return "-";
+  }
+
+  const safeMinutes = Math.max(0, Math.round(totalMinutes));
+  const hours = Math.floor(safeMinutes / 60);
+  const minutes = safeMinutes % 60;
+
+  if (hours === 0) {
+    return `${minutes} min`;
+  }
+
+  return `${hours} h ${minutes} min`;
+}
+
 
 // update size label only if element exists (not present on the current page)
 const mapSizeEl = document.getElementById("mapSize");
@@ -272,6 +288,29 @@ function getConnections(cityName) {
   return connectionsByCityName.get(cityName) || [];
 }
 
+function findDepartureToCity(destinationName) {
+  if (!destinationName || !Array.isArray(timetableDepartures)) return null;
+  const matches = timetableDepartures.filter(
+    (dep) => dep?.to_city?.name === destinationName
+  );
+  if (matches.length === 0) return null;
+  matches.sort((a, b) => a.departure_minutes - b.departure_minutes);
+  return matches[0];
+}
+
+function travelUsingTimetable(targetCity) {
+  if (!targetCity) return;
+  const depInfo = findDepartureToCity(targetCity.name);
+  if (depInfo && depInfo.travel_minutes !== undefined && depInfo.travel_minutes !== null) {
+    travelToCity(targetCity, {
+      departureMinutes: depInfo.departure_minutes,
+      travelMinutes: depInfo.travel_minutes,
+    });
+  } else {
+    travelToCity(targetCity);
+  }
+}
+
 
 // Čištění města agentem
 function cleanCity() {
@@ -323,8 +362,23 @@ function moveAgent(dx, dy) {
   } 
 }
 
-function travelToCity(targetCity) {
+function travelToCity(targetCity, options = {}) {
   if (!targetCity) return;
+
+  const departureMinutes = options.departureMinutes;
+  const travelMinutes = options.travelMinutes;
+
+  if (
+    departureMinutes !== undefined &&
+    departureMinutes !== null &&
+    travelMinutes !== undefined &&
+    travelMinutes !== null
+  ) {
+    const safeTravel = Math.max(0, travelMinutes);
+    const start = Math.max(gameMinutes, departureMinutes);
+    gameMinutes = start + safeTravel;
+  }
+
   agent.x = targetCity.x;
   agent.y = targetCity.y;
   updateSidebar();
@@ -398,9 +452,7 @@ function travelFromCurrentCity() {
 
   const destination = connections[choiceIndex];
 
-  // tady bychom časově mohli posunout gameMinutes na depature/time travel,
-  // zatím necháme jen „teleport“, ať to nezkomplikuju
-  travelToCity(destination);
+  travelUsingTimetable(destination);
 }
 
 // ----------------------------------------
@@ -690,7 +742,7 @@ function updateSidebar() {
     li.style.cursor = "pointer";
 
     li.addEventListener("click", () => {
-      travelToCity(targetCity);
+      travelUsingTimetable(targetCity);
     });
 
     listEl.appendChild(li);
@@ -768,9 +820,7 @@ function renderTimetablePage() {
 
     // Doba cestování
     const travelTd = document.createElement("td");
-    travelTd.textContent = dep.travel_minutes !== undefined
-      ? dep.travel_minutes + " min"
-      : "-";
+    travelTd.textContent = formatTravelDuration(dep.travel_minutes);
 
     // Příjezd
     const arrivalTd = document.createElement("td");
@@ -787,7 +837,10 @@ function renderTimetablePage() {
       tr.style.cursor = "pointer";
       tr.title = `Cestovat do ${destinationCity.name}`;
       tr.addEventListener("click", () => {
-        travelToCity(destinationCity);
+        travelToCity(destinationCity, {
+          departureMinutes: dep.departure_minutes,
+          travelMinutes: dep.travel_minutes,
+        });
       });
     }
 
