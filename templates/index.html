@@ -4,6 +4,16 @@
     <meta charset="utf-8" />
     <title>Agent USA – mapa</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      #timetableCard {
+        transition: transform 0.3s ease, margin-top 0.3s ease, box-shadow 0.3s ease;
+      }
+      .timetable-raised {
+        transform: translateY(-50vh);
+        margin-top: -40px;
+        box-shadow: 0 18px 36px rgba(0, 0, 0, 0.45);
+      }
+    </style>
   </head>
   <body class="bg-slate-950 text-slate-100 min-h-screen">
     <div class="max-w-screen-xl mx-auto px-4 py-6 flex flex-col gap-4">
@@ -24,11 +34,11 @@
       <div class="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-4">
         <!-- Levý blok: mapa + tabulka -->
         <div class="space-y-4">
-          <div class="relative bg-slate-900/70 border border-slate-800 rounded-2xl shadow-2xl shadow-blue-900/40 p-3">
+          <div class="relative bg-slate-900/70 border border-slate-800 rounded-2xl shadow-2xl shadow-blue-900/40 p-3 overflow-visible">
             <canvas id="gameCanvas" width="1024" height="576" class="rounded-xl border border-slate-800 bg-slate-950 w-full"></canvas>
           </div>
 
-          <div class="bg-slate-900/70 border border-slate-800 rounded-2xl shadow-2xl shadow-red-900/30 p-4">
+          <div id="timetableCard" class="relative bg-slate-900/70 border border-slate-800 rounded-2xl shadow-2xl shadow-red-900/30 p-4">
             <div class="flex items-center mb-3">
               <h2 class="text-base font-semibold text-slate-100 flex items-center gap-2">
                 <span class="text-sky-300">🚉</span> Jízdní řád
@@ -74,7 +84,7 @@
           <div class="space-y-3">
             <h4 class="text-sm font-semibold text-slate-100">Rychlá navigace</h4>
             <div class="grid grid-cols-1 gap-2 px-5">
-              <button class="relative w-full pl-20 pr-4 py-4 rounded-xl bg-slate-800/80 border border-slate-700 text-slate-100 hover:border-sky-400 transition flex items-center justify-end overflow-visible">
+              <button id="ticketToggleBtn" class="relative w-full pl-20 pr-4 py-4 rounded-xl bg-slate-800/80 border border-slate-700 text-slate-100 hover:border-sky-400 transition flex items-center justify-end overflow-visible">
                 <img src="/static/assets/train_station.png" alt="" class="absolute -left-4 top-1/2 -translate-y-1/2 h-16 w-16 drop-shadow-[0_10px_20px_rgba(0,0,0,0.45)]" />
                 <span class="font-semibold text-right w-full pr-2">Nákup jízdenek</span>
               </button>

@@ -37,6 +37,7 @@ let pendingTravelTimer = null;
 let purchasedTicketKey = null;
 let travelAnimation = null;
 let hoveredLineKey = null;
+let timetableRaised = false;
 
 function formatGameTime(totalMinutes) {
   const dayNames = ["Po", "Út", "St", "Čt", "Pá", "So", "Ne"];
@@ -490,6 +491,14 @@ function makeDepartureKey(dep, overrideDepartureMinutes) {
   return `${from}__${to}__${time}`;
 }
 
+function setTimetableRaised(raised) {
+  timetableRaised = !!raised;
+  const card = document.getElementById("timetableCard");
+  if (card) {
+    card.classList.toggle("timetable-raised", timetableRaised);
+  }
+}
+
 function scheduleTravelFromDeparture(dep) {
   if (!dep) return;
   const destinationName = dep.to_city?.name;
@@ -654,6 +663,18 @@ window.addEventListener("keydown", (e) => {
       break;
   }
 });
+
+// Vysunutí tabule při nákupu jízdenek, schování po kliknutí na mapu
+const ticketToggleBtn = document.getElementById("ticketToggleBtn");
+if (ticketToggleBtn) {
+  ticketToggleBtn.addEventListener("click", (e) => {
+    e.preventDefault();
+    setTimetableRaised(true);
+  });
+}
+if (canvas) {
+  canvas.addEventListener("click", () => setTimetableRaised(false));
+}
 
 // Cestování vlakem z aktuálního města
 function travelFromCurrentCity() {
