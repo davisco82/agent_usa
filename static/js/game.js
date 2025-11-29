@@ -139,8 +139,11 @@ const travelDurationLabel = document.getElementById("travelDurationLabel");
 if (canvas) {
   canvas.addEventListener("mousemove", (e) => {
     const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    // přepočet pro případ, že je canvas vykreslen v jiném rozměru než jeho vnitřní bitmapa
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const x = (e.clientX - rect.left) * scaleX;
+    const y = (e.clientY - rect.top) * scaleY;
     hoveredCity = findCityAtPixel(x, y);
   });
 
@@ -727,7 +730,8 @@ function drawCities(ctx) {
   cities.forEach((city) => {
     const isKeyCity = city.importance === 1;
     const isHovered = hoveredCity && hoveredCity.name === city.name;
-    const baseRadius = isKeyCity ? 4.5 : 3;
+    const baseRadius =
+      city.importance === 1 ? 6 : city.importance === 2 ? 4.5 : 3;
     const radius = isHovered ? baseRadius + 1 : baseRadius;
 
     // fill
@@ -769,8 +773,8 @@ function drawCities(ctx) {
     }
 
     const label = city.name;
-    const isKeyCity = city.importance === 1;
-    const fontSize = isKeyCity ? 12 : 10;
+    const fontSize =
+      city.importance === 1 ? 14 : city.importance === 2 ? 12 : 10;
     ctx.font = `${fontSize}px system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif`;
 
     const px = city.px + 8;
@@ -1380,8 +1384,8 @@ async function init() {
   // 3) vytvoříme mapu podle jména
   cityByName = new Map(cities.map((c) => [c.name, c]));
 
-  // 4) vybereme startovní město importance 3
-  const importantCities = cities.filter((c) => c.importance === 3);
+  // 4) vybereme startovní město importance 2 nebo 3
+  const importantCities = cities.filter((c) => c.importance === 2 || c.importance === 3);
   const startCity =
     importantCities.length > 0
       ? importantCities[Math.floor(Math.random() * importantCities.length)]

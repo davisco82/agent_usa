@@ -41,18 +41,26 @@ def _compute_distance(city_a: City, city_b: City) -> float:
 
 def _compute_frequency(imp_a: int, imp_b: int) -> int:
     """
-    Frekvence podle MÉNĚ důležitého města z dvojice.
-    1 → 15 min  (1–1)
-    2 → 30 min  (1–2, 2–2)
-    3 → 90 min  (cokoli s 3)
+    Frekvence podle kombinace důležitostí (symetricky).
+      1–1: 30 min
+      1–2: 40 min
+      1–3: 60 min
+      2–2: 60 min
+      2–3: 75 min
+      3–3: 90 min
     """
-    lowest = max(imp_a, imp_b)  # 3 = nejméně důležité
+    pair = tuple(sorted((imp_a or 3, imp_b or 3)))
 
-    if lowest == 1:
-        return 15
-    if lowest == 2:
-        return 30
-    return 90
+    freq_map = {
+        (1, 1): 30,
+        (1, 2): 40,
+        (1, 3): 60,
+        (2, 2): 60,
+        (2, 3): 75,
+        (3, 3): 90,
+    }
+
+    return freq_map.get(pair, 90)
 
 
 def _compute_line_type(imp_a: int, imp_b: int) -> str:
@@ -75,9 +83,15 @@ def _compute_line_type(imp_a: int, imp_b: int) -> str:
 def _select_neighbors(city: City, neighbor_ids, cities_by_id) -> set:
     """
     Omezí počet sousedů podle importance města.
-      imp 3: max 5 (snaha 4–5), z toho 1–2 do nejdůležitějších
-      imp 2: max 7, z toho 1–2 do nejdůležitějších
-      imp 1: max 10, z toho 3–4 do importance 1
+      imp 3:
+        - 2 spoje do importance 1
+        - 3–5 spojů do nejbližších importance 2 nebo 3
+      imp 2:
+        - 2–3 spoje do importance 1
+        - 3–5 spojů do nejbližších importance 2 nebo 3
+      imp 1:
+        - 3–5 spojů do importance 1
+        - 4–7 spojů do importance 2 nebo 3
     """
     entries = []
     for nid in neighbor_ids:
@@ -89,48 +103,54 @@ def _select_neighbors(city: City, neighbor_ids, cities_by_id) -> set:
 
     imp = city.importance or 3
     if imp == 3:
-        max_total = 5
-        high_min = 1
-        high_max = 2
-        high_importances = {1}
-    elif imp == 2:
         max_total = 7
-        high_min = 1
-        high_max = 2
-        high_importances = {1}
+        hub_min = 2
+        hub_max = 2
+        peer_min = 3
+        peer_max = 5
+        peer_importances = {2, 3}
+    elif imp == 2:
+        max_total = 8
+        hub_min = 2
+        hub_max = 3
+        peer_min = 3
+        peer_max = 5
+        peer_importances = {2, 3}
     else:  # imp == 1
-        max_total = 10
-        high_min = 3
-        high_max = 4
-        high_importances = {1}
+        max_total = 12
+        hub_min = 3
+        hub_max = 5
+        peer_min = 4
+        peer_max = 7
+        peer_importances = {2, 3}
 
     selected = set()
 
-    # nejdřív high (importance 1), případně fallback na importance 2 pokud žádný high není a potřebujeme min
-    high_candidates = [e for e in entries if e[2] in high_importances]
-    for nid, _, _ in high_candidates[:high_max]:
-        selected.add(nid)
-
-    if len(selected) < high_min:
-        fallback = [e for e in entries if e[2] == 2 and e[0] not in selected]
-        for nid, _, _ in fallback:
-            selected.add(nid)
-            if len(selected) >= high_min:
+    def _take_candidates(candidates, min_needed, max_needed):
+        """Vezmi kandidáty podle vzdálenosti až do maxima, při nedostatku vezmi, co je k dispozici."""
+        taken = 0
+        for nid, _, _ in candidates:
+            if len(selected) >= max_total or taken >= max_needed:
                 break
+            selected.add(nid)
+            taken += 1
 
-    # doplň zbytek nejbližšími, dokud nepřekročíme max_total
-    for nid, _, _ in entries:
-        if len(selected) >= max_total:
-            break
-        if nid in selected:
-            continue
-        selected.add(nid)
+        if taken < min_needed:
+            for nid, _, _ in candidates:
+                if len(selected) >= max_total or taken >= min_needed:
+                    break
+                if nid in selected:
+                    continue
+                selected.add(nid)
+                taken += 1
 
-    # pokud by zbylo moc (teoreticky), zkrať na max_total podle vzdálenosti
-    if len(selected) > max_total:
-        entries_filtered = [e for e in entries if e[0] in selected]
-        entries_filtered.sort(key=lambda x: x[1])
-        selected = set(nid for nid, _, _ in entries_filtered[:max_total])
+        return taken
+
+    hub_candidates = [e for e in entries if e[2] == 1]
+    _take_candidates(hub_candidates, hub_min, hub_max)
+
+    peer_candidates = [e for e in entries if e[2] in peer_importances and e[0] not in selected]
+    _take_candidates(peer_candidates, peer_min, peer_max)
 
     return selected
 
