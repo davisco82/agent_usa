@@ -152,6 +152,14 @@ def _select_neighbors(city: City, neighbor_ids, cities_by_id) -> set:
     peer_candidates = [e for e in entries if e[2] in peer_importances and e[0] not in selected]
     _take_candidates(peer_candidates, peer_min, peer_max)
 
+    # doplň nejbližšími, pokud nesplňujeme minimální počet (napříč kategoriemi)
+    desired_min_total = min(max_total, hub_min + peer_min)
+    if len(selected) < desired_min_total:
+        for nid, _, _ in entries:
+            if len(selected) >= desired_min_total or len(selected) >= max_total:
+                break
+            selected.add(nid)
+
     return selected
 
 

@@ -89,6 +89,29 @@ function formatLineTypeLabel(lineType) {
   return "Local";
 }
 
+function getLineTypeInfo(lineType) {
+  const t = (lineType || "").toLowerCase();
+  if (t === "express") {
+    return {
+      key: "express",
+      symbol: "Ex",
+      badgeClasses: "bg-red-900/70 border border-red-600/60 text-red-100",
+    };
+  }
+  if (t === "intercity" || t === "ic" || t === "regional") {
+    return {
+      key: "regional",
+      symbol: "Reg",
+      badgeClasses: "bg-blue-900/60 border border-blue-500/60 text-blue-100 text-[11px] px-[6px] py-[2px]",
+    };
+  }
+  return {
+    key: "local",
+    symbol: "Loc",
+    badgeClasses: "bg-green-900/70 border border-green-600/60 text-green-100 text-[10px] px-[6px] py-[2px]",
+  };
+}
+
 function formatCityLabel(name) {
   if (!name) return "-";
   const city = cityByName.get(name);
@@ -1239,6 +1262,7 @@ function renderTimetablePage() {
     const tr = document.createElement("tr");
     tr.classList.add("tabular-nums");
     const depMinutes = dep._next_departure ?? normalizeDepartureMinutes(dep.departure_minutes, gameMinutes);
+    const typeInfo = getLineTypeInfo(dep.line_type);
 
     // Odjezd
     const timeTd = document.createElement("td");
@@ -1249,13 +1273,17 @@ function renderTimetablePage() {
     const toName = dep.to_city?.name || "-";
     const cityMeta = cityByName.get(toName);
     const toState = cityMeta?.state_shortcut || cityMeta?.state || dep.to_city?.state_shortcut || dep.to_city?.state;
-    const toLabel = `<span class="font-semibold text-sky-100 text-base lg:text-lg leading-tight">${toName}</span>`;
+    const toLabel = `<span class="font-semibold text-sky-100 text-sm leading-tight">${toName}</span>`;
     const stateLabel = toState ? `<span class="ml-1 text-xs text-slate-300 align-middle">(${toState})</span>` : "";
     toTd.innerHTML = `${toLabel}${stateLabel}`;
 
     // Typ linky
     const typeTd = document.createElement("td");
-    typeTd.textContent = formatLineTypeLabel(dep.line_type);
+    const badgeSizeClass =
+      typeInfo.key === "express"
+        ? "min-w-[2.8rem] px-3 py-1 text-xs"
+        : "min-w-[2.1rem] px-2 py-0.5 text-[11px]";
+    typeTd.innerHTML = `<span class="inline-flex items-center justify-center rounded-md ${badgeSizeClass} ${typeInfo.badgeClasses} font-semibold uppercase tracking-wide" title="${formatLineTypeLabel(dep.line_type)}">${typeInfo.symbol}</span>`;
 
     // Vzdálenost
     const distTd = document.createElement("td");
