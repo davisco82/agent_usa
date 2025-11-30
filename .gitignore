@@ -42,3 +42,7 @@ migrations/versions/__pycache__/
 .cache/
 .python-cache/
 pip-wheel-metadata/
+
+# ========== ASSETS ==========
+static/assets/
+assets/

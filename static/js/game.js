@@ -136,6 +136,122 @@ function getTrainSpeedMph(level) {
   return 60;
 }
 
+let lastSkyPhase = null;
+function applySkyGradientForMinutes(totalMinutes) {
+  if (!skyGradientEl) return;
+  const minutesNorm = ((totalMinutes % MINUTES_PER_DAY) + MINUTES_PER_DAY) % MINUTES_PER_DAY;
+  const hour = Math.floor(minutesNorm / 60);
+  let phase = "day";
+  if (hour >= 20 || hour < 6) {
+    phase = "night";
+  } else if (hour >= 18 && hour < 20) {
+    phase = "dusk";
+  } else if (hour >= 6 && hour < 8) {
+    phase = "dawn";
+  } else {
+    phase = "day";
+  }
+
+  if (phase === lastSkyPhase) return;
+  lastSkyPhase = phase;
+
+  const gradients = {
+    day: "linear-gradient(180deg, rgba(223,238,255,0.9) 0%, rgba(160,210,255,0.8) 45%, rgba(120,190,255,0.7) 100%)",
+    dusk: "linear-gradient(180deg, rgba(172,192,255,0.85) 0%, rgba(130,120,220,0.8) 50%, rgba(70,50,140,0.7) 100%)",
+    night: "linear-gradient(180deg, rgba(8,12,28,0.95) 0%, rgba(6,18,44,0.9) 50%, rgba(4,12,28,0.9) 100%)",
+    dawn: "linear-gradient(180deg, rgba(255,226,189,0.85) 0%, rgba(245,191,211,0.75) 45%, rgba(154,205,255,0.7) 100%)",
+  };
+
+  skyGradientEl.style.background = gradients[phase] || gradients.day;
+}
+
+function travelProgressProfile(t, totalMinutes) {
+  // Trapezový profil rychlosti: pomalý rozjezd (až 60 min), střed konstantní, delší dojezd se zpomalováním (až 60 min).
+  const total = Math.max(totalMinutes || 0, 1);
+  let accelFrac = Math.min(60 / total, 0.4);
+  let decelFrac = Math.min(60 / total, 0.4);
+  // ponecháme min. 20 % na střed
+  const maxSum = 0.8;
+  if (accelFrac + decelFrac > maxSum) {
+    const scale = maxSum / (accelFrac + decelFrac);
+    accelFrac *= scale;
+    decelFrac *= scale;
+  }
+  const midFrac = Math.max(0.2, 1 - accelFrac - decelFrac);
+
+  if (t <= 0) return 0;
+  if (t >= 1) return 1;
+
+  // Spočteme normalizační konstantu (plocha pod rychlostí = 1)
+  const denom = 0.5 * accelFrac * accelFrac + accelFrac * midFrac + 0.5 * accelFrac * decelFrac;
+  const a = denom > 0 ? 1 / denom : 0; // zrychlení
+  const vCruise = a * accelFrac;       // rychlost v konstantní fázi
+
+  if (t < accelFrac) {
+    // fáze rozjezdu (kvadratický nárůst rychlosti)
+    return 0.5 * a * t * t;
+  }
+
+  if (t < accelFrac + midFrac) {
+    // konstantní rychlost
+    const tau = t - accelFrac;
+    const distAccel = 0.5 * a * accelFrac * accelFrac;
+    return distAccel + vCruise * tau;
+  }
+
+  // fáze dojezdu (kvadratické zpomalování)
+  const tau = t - accelFrac - midFrac;
+  const distBeforeDecel = 0.5 * a * accelFrac * accelFrac + vCruise * midFrac;
+  const decel = vCruise / decelFrac;
+  const distDecel = vCruise * tau - 0.5 * decel * tau * tau;
+  return Math.min(1, distBeforeDecel + distDecel);
+}
+
+function slugifyCityName(name) {
+  return (name || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .toLowerCase();
+}
+
+async function findCityImageUrl(city) {
+  if (!city || !city.name) return null;
+  const baseNames = [
+    slugifyCityName(city.name),                      // např. "new_york"
+    city.name.replace(/\s+/g, "_"),                  // zachová velká písmena: "New_York"
+  ].filter(Boolean);
+  const exts = ["webp", "jpg", "jpeg", "png"];
+
+  for (const base of baseNames) {
+    for (const ext of exts) {
+      const url = `/static/assets/cities/${base}.${ext}`;
+      const exists = await imageExists(url);
+      if (exists) return url;
+    }
+  }
+  return null;
+}
+
+function imageExists(url) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve(true);
+    img.onerror = () => resolve(false);
+    img.src = url;
+  });
+}
+
+function setFrameAspectFromImage(img) {
+  if (!img || !visualFrameEl) return;
+  const w = img.naturalWidth;
+  const h = img.naturalHeight;
+  if (w > 0 && h > 0) {
+    visualFrameEl.style.aspectRatio = `${w} / ${h}`;
+  }
+}
+
 
 // update size label only if element exists (not present on the current page)
 const mapSizeEl = document.getElementById("mapSize");
@@ -143,6 +259,12 @@ if (mapSizeEl) {
   mapSizeEl.textContent = `${GRID_COLS} × ${GRID_ROWS} polí`;
 }
 
+const canvasBlock = document.getElementById("canvasBlock");
+const cityBackdropEl = document.getElementById("cityBackdrop");
+const visualFrameEl = document.getElementById("visualFrame");
+const skyGradientEl = document.getElementById("skyGradient");
+const timetableCardEl = document.getElementById("timetableCard");
+const cityHubBtn = document.getElementById("cityHubBtn");
 const travelOverlayEl = document.getElementById("travelOverlay");
 const travelFromLabel = document.getElementById("travelFromLabel");
 const travelToLabel = document.getElementById("travelToLabel");
@@ -519,9 +641,8 @@ function makeDepartureKey(dep, overrideDepartureMinutes) {
 
 function setTimetableRaised(raised) {
   timetableRaised = !!raised;
-  const card = document.getElementById("timetableCard");
-  if (card) {
-    card.classList.toggle("timetable-raised", timetableRaised);
+  if (timetableCardEl) {
+    timetableCardEl.classList.toggle("timetable-raised", timetableRaised);
   }
 }
 
@@ -623,6 +744,7 @@ function travelToCity(targetCity, options = {}) {
 
   agent.x = targetCity.x;
   agent.y = targetCity.y;
+  showTimetablePanel(false); // po přesunu zpět na úvodní pohled s obrázkem
   updateSidebar();
   updateTimetable();
   console.log(`Přesun vlakem do: ${targetCity.name}`);
@@ -690,16 +812,53 @@ window.addEventListener("keydown", (e) => {
   }
 });
 
+function showTimetablePanel(show) {
+  if (!timetableCardEl || !canvasBlock) return;
+  if (show) {
+    timetableCardEl.classList.remove("hidden");
+    canvasBlock.classList.add("hidden");
+  } else {
+    timetableCardEl.classList.add("hidden");
+    canvasBlock.classList.remove("hidden");
+  }
+  setTimetableRaised(false);
+}
+
+async function maybeShowCityImage(city) {
+  if (!canvas || !cityBackdropEl) return;
+  const imgUrl = await findCityImageUrl(city);
+
+  if (imgUrl) {
+    cityBackdropEl.onload = () => setFrameAspectFromImage(cityBackdropEl);
+    cityBackdropEl.src = imgUrl;
+    cityBackdropEl.classList.remove("opacity-0");
+    canvas.classList.add("hidden");
+  } else {
+    cityBackdropEl.src = "";
+    cityBackdropEl.classList.add("opacity-0");
+    canvas.classList.remove("hidden");
+    if (visualFrameEl) {
+      visualFrameEl.style.aspectRatio = "";
+    }
+  }
+}
+
 // Vysunutí tabule při nákupu jízdenek, schování po kliknutí na mapu
 const ticketToggleBtn = document.getElementById("ticketToggleBtn");
 if (ticketToggleBtn) {
   ticketToggleBtn.addEventListener("click", (e) => {
     e.preventDefault();
-    setTimetableRaised(true);
+    showTimetablePanel(true);
+  });
+}
+if (cityHubBtn) {
+  cityHubBtn.addEventListener("click", (e) => {
+    e.preventDefault();
+    showTimetablePanel(false);
   });
 }
 if (canvas) {
-  canvas.addEventListener("click", () => setTimetableRaised(false));
+  canvas.addEventListener("click", () => showTimetablePanel(false));
 }
 
 // Cestování vlakem z aktuálního města
@@ -961,6 +1120,7 @@ function startTravelAnimation(travel) {
   const durationMinutes = Math.max(0, travel.travelMinutes || 0);
   const arrivalMinutes = startMinutes + durationMinutes;
   const distance = travel.distance || 0;
+  const totalMinutes = Math.max(arrivalMinutes - startMinutes, 1);
 
   // Délka animace podle jízdní doby: 1 h ~ 5s, 7 h ~ 15s, min ~3s
   const travelHours = durationMinutes / 60;
@@ -978,6 +1138,7 @@ function startTravelAnimation(travel) {
     city: travel.city,
     startMinutes,
     arrivalMinutes,
+    totalMinutes,
     startMs: performance.now(),
     durationMs,
     meta: {
@@ -1065,10 +1226,11 @@ function update() {
   if (travelAnimation) {
     const elapsed = now - travelAnimation.startMs;
     const t = travelAnimation.durationMs > 0 ? Math.min(1, elapsed / travelAnimation.durationMs) : 1;
-    const eased = t; // lineární
+    const eased = travelProgressProfile(t, travelAnimation.totalMinutes);
     gameMinutes = travelAnimation.startMinutes + (travelAnimation.arrivalMinutes - travelAnimation.startMinutes) * eased;
 
     renderTravelOverlay(eased, gameMinutes);
+    applySkyGradientForMinutes(gameMinutes);
 
     if (t >= 1) {
       finishTravelAnimation();
@@ -1083,6 +1245,9 @@ function update() {
     timeAccumulatorMs -= REAL_MS_PER_GAME_MINUTE;
     gameMinutes += 1;
     advancedMinutes += 1;
+  }
+  if (advancedMinutes > 0) {
+    applySkyGradientForMinutes(gameMinutes);
   }
 
   if (advancedMinutes > 0) {
@@ -1197,6 +1362,7 @@ function updateSidebar() {
     if (cityDescEl) {
       cityDescEl.textContent = "Agent nestojí ve městě.";
     }
+    maybeShowCityImage(null);
     return;
   }
 
@@ -1211,6 +1377,7 @@ function updateSidebar() {
     const parts = [regionText, descText].filter(Boolean);
     cityDescEl.textContent = parts.join(" \u2022 ");
   }
+  maybeShowCityImage(city);
 }
 
 function renderTimetablePage() {
@@ -1433,6 +1600,8 @@ async function init() {
 
   // 7) UI – sidebar + tabulka
   updateSidebar();
+  maybeShowCityImage(getCityAt(agent.x, agent.y));
+  applySkyGradientForMinutes(gameMinutes);
   await updateTimetable();
 
   gameLoop();
