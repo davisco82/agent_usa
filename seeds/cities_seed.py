@@ -108,6 +108,7 @@ STATE_MAP = {
     "Jefferson City": ("Missouri", "MO"),
     "Topeka": ("Kansas", "KS"),
     "Lincoln": ("Nebraska", "NE"),
+    "Louisville": ("Kentucky", "KY"),
 }
 
 DESCRIPTION_MAP = {
@@ -202,6 +203,7 @@ DESCRIPTION_MAP = {
     "Jefferson City": "Kapitál Missouri na řece Missouri.\nKopcovité centrum s Capitolem a státní správou.\nKlidnější město mezi Kansas City a St. Louis.",
     "Topeka": "Hlavní město Kansasu na řece Kansas.\nHistorie občanských práv a státní instituce.\nPrérijní horizonty a klidné čtvrti.",
     "Lincoln": "Hlavní město Nebrasky s univerzitním kampusem.\nCapitol s věží a prérijní panorama.\nZázemí agrárního státu s rostoucím tech sektorem.",
+    "Louisville": "Kentucké město na řece Ohio a Derby tradic.\nMosty mezi Kentucky a Indianou, mix bourbonu a baseballu.\nRozlehlý parkový systém a rostoucí logistické huby.",
 }
 
 CITIES = [
@@ -699,6 +701,17 @@ CITIES = [
         "py": 295.9,
         "grid_x": 86,
         "grid_y": 37,
+    },
+    {
+        "name": "Louisville",
+        "region": "midwest_central",
+        "importance": 2,
+        "lat": 38.2527,
+        "lon": -85.7585,
+        "px": 674.0,
+        "py": 314.0,
+        "grid_x": 84,
+        "grid_y": 39,
     },
     {
         "name": "Lincoln",
@@ -1248,7 +1261,11 @@ def register_city_seed_commands(app):
             else:
                 city.state = None
                 city.state_shortcut = None
-            # description zatím necháme None – možno doplnit později
+
+            # doplníme popis z mapy, pokud je k dispozici
+            desc = DESCRIPTION_MAP.get(city.name)
+            if desc:
+                city.description = desc
 
         db.session.commit()
         print("✅ Seed hotový")

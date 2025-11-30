@@ -4,6 +4,8 @@ from flask_migrate import Migrate
 from models import db
 from models.train_line import TrainLine
 from models.city import City
+from models.agent import Agent
+from game.agent.level_config import AGENT_LEVELS
 from seeds.cities_seed import register_city_seed_commands
 from seeds.trainlines_seed import register_trainlines_commands  
 from services.timetable_service import (
@@ -137,6 +139,42 @@ def create_app():
             }
 
         return jsonify([to_dict(dep) for dep in departures])
+
+    @app.get("/api/agent")
+    def api_agent():
+        """Vrátí aktuálního agenta + konfiguraci levelů pro UI."""
+        agent = Agent.query.order_by(Agent.id.asc()).first()
+
+        def level_cfg(level):
+            for cfg in AGENT_LEVELS:
+                if cfg["level"] == level:
+                    return cfg
+            return None
+
+        agent_payload = None
+        if agent:
+            cfg = level_cfg(agent.level) or level_cfg(1) or {"energy_max": agent.energy_max}
+            energy_max = cfg.get("energy_max", agent.energy_max)
+            agent_payload = {
+                "level": agent.level,
+                "xp": agent.xp,
+                "energy_current": min(agent.energy_current, energy_max),
+                "energy_max": energy_max,
+            }
+        else:
+            # fallback, pokud v DB není agent
+            fallback_cfg = level_cfg(1) or {"energy_max": 5}
+            agent_payload = {
+                "level": 1,
+                "xp": 0,
+                "energy_current": fallback_cfg.get("energy_max", 5),
+                "energy_max": fallback_cfg.get("energy_max", 5),
+            }
+
+        return jsonify({
+            "agent": agent_payload,
+            "levels": AGENT_LEVELS,
+        })
 
 
     return app

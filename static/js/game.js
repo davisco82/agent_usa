@@ -39,6 +39,14 @@ let travelAnimation = null;
 let hoveredLineKey = null;
 let timetableRaised = false;
 
+// Jednoduchá lokální reprezentace agenta (pro UI panel nahoře)
+let levelConfig = [];
+let agentStats = {
+  level: 1,
+  xp: 0,
+  energy_current: 5,
+};
+
 function formatGameTime(totalMinutes) {
   const dayNames = ["Po", "Út", "St", "Čt", "Pá", "So", "Ne"];
   const minutesNorm = ((totalMinutes % MINUTES_PER_WEEK) + MINUTES_PER_WEEK) % MINUTES_PER_WEEK;
@@ -156,13 +164,19 @@ function applySkyGradientForMinutes(totalMinutes) {
   lastSkyPhase = phase;
 
   const gradients = {
-    day: "linear-gradient(180deg, rgba(223,238,255,0.9) 0%, rgba(160,210,255,0.8) 45%, rgba(120,190,255,0.7) 100%)",
-    dusk: "linear-gradient(180deg, rgba(172,192,255,0.85) 0%, rgba(130,120,220,0.8) 50%, rgba(70,50,140,0.7) 100%)",
+    day: "linear-gradient(180deg, rgba(44,86,176,0.92) 0%, rgba(64,138,210,0.88) 50%, rgba(28,94,170,0.88) 100%)",
+    dusk: "linear-gradient(180deg, rgba(255,196,128,0.9) 0%, rgba(255,134,136,0.84) 42%, rgba(92,88,168,0.78) 100%)",
     night: "linear-gradient(180deg, rgba(8,12,28,0.95) 0%, rgba(6,18,44,0.9) 50%, rgba(4,12,28,0.9) 100%)",
     dawn: "linear-gradient(180deg, rgba(255,226,189,0.85) 0%, rgba(245,191,211,0.75) 45%, rgba(154,205,255,0.7) 100%)",
   };
 
   skyGradientEl.style.background = gradients[phase] || gradients.day;
+  if (nightOverlayEl) {
+    nightOverlayEl.style.opacity = phase === "night" ? "0.75" : "0";
+  }
+  if (daySunOverlayEl) {
+    daySunOverlayEl.style.opacity = phase === "day" ? "0.45" : "0";
+  }
 }
 
 function travelProgressProfile(t, totalMinutes) {
@@ -263,6 +277,8 @@ const canvasBlock = document.getElementById("canvasBlock");
 const cityBackdropEl = document.getElementById("cityBackdrop");
 const visualFrameEl = document.getElementById("visualFrame");
 const skyGradientEl = document.getElementById("skyGradient");
+const nightOverlayEl = document.getElementById("nightOverlay");
+const daySunOverlayEl = document.getElementById("daySunOverlay");
 const timetableCardEl = document.getElementById("timetableCard");
 const cityHubBtn = document.getElementById("cityHubBtn");
 const travelOverlayEl = document.getElementById("travelOverlay");
@@ -280,6 +296,17 @@ const travelTrainImg = document.getElementById("travelTrainImg");
 const travelTopType = document.getElementById("travelTopType");
 const travelTopSpeed = document.getElementById("travelTopSpeed");
 const travelDurationLabel = document.getElementById("travelDurationLabel");
+const infoCenterBtn = document.getElementById("infoCenterBtn");
+const cityInfoPanel = document.getElementById("cityInfoPanel");
+const cityInfoNameEl = document.getElementById("cityInfoName");
+const cityInfoMetaEl = document.getElementById("cityInfoMeta");
+const cityInfoDescEl = document.getElementById("cityInfoDesc");
+const agentLevelEl = document.getElementById("agentLevel");
+const agentXpLabelEl = document.getElementById("agentXpLabel");
+const agentXpToNextEl = document.getElementById("agentXpToNext");
+const agentXpBarFillEl = document.getElementById("agentXpBarFill");
+const agentEnergyLabelEl = document.getElementById("agentEnergyLabel");
+const agentEnergyBarFillEl = document.getElementById("agentEnergyBarFill");
 
 if (canvas) {
   canvas.addEventListener("mousemove", (e) => {
@@ -684,7 +711,7 @@ function travelUsingTimetable(targetCity) {
       }
     );
   } else {
-    travelToCity(targetCity);
+    completeTravel(targetCity);
   }
 }
 
@@ -817,6 +844,9 @@ function showTimetablePanel(show) {
   if (show) {
     timetableCardEl.classList.remove("hidden");
     canvasBlock.classList.add("hidden");
+    if (cityInfoPanel) {
+      cityInfoPanel.classList.add("hidden");
+    }
   } else {
     timetableCardEl.classList.add("hidden");
     canvasBlock.classList.remove("hidden");
@@ -824,15 +854,200 @@ function showTimetablePanel(show) {
   setTimetableRaised(false);
 }
 
+function getLevelCfg(level) {
+  return levelConfig.find((c) => c.level === level);
+}
+
+function cumulativeXpForLevel(level) {
+  const cfg = levelConfig;
+  if (!cfg || cfg.length === 0) return 0;
+  let total = 0;
+  for (const entry of cfg) {
+    if (entry.level > level) break;
+    total += entry._xp_total_add || entry.xp_required || 0;
+  }
+  return total;
+}
+
+function normalizeLevelConfig(raw) {
+  const sorted = Array.isArray(raw) ? [...raw].sort((a, b) => (a.level || 0) - (b.level || 0)) : [];
+  let runningTotal = 0;
+  sorted.forEach((cfg) => {
+    const inc = cfg?.xp_required || 0;
+    runningTotal += inc;
+    cfg._xp_total = runningTotal;
+    cfg._xp_total_add = inc;
+  });
+  return sorted;
+}
+
+function updateAgentHeader() {
+  if (!agentLevelEl) return;
+
+  const currentCfg = getLevelCfg(agentStats.level) || { xp_required: 0, energy_max: 5, _xp_total: 0 };
+  const nextCfg = getLevelCfg(agentStats.level + 1);
+
+  const prevXpThreshold = currentCfg._xp_total ?? cumulativeXpForLevel(agentStats.level);
+  const nextXpThreshold = nextCfg ? nextCfg._xp_total ?? cumulativeXpForLevel(agentStats.level + 1) : prevXpThreshold;
+  const stepTotal = Math.max(1, nextXpThreshold - prevXpThreshold);
+  const xpInStep = Math.max(0, agentStats.xp - prevXpThreshold);
+  const xpPct = Math.min(100, (xpInStep / stepTotal) * 100);
+  const xpRemaining = Math.max(0, nextXpThreshold - agentStats.xp);
+
+  agentLevelEl.textContent = agentStats.level;
+  if (agentXpLabelEl) {
+    const capValue = nextCfg ? nextXpThreshold : agentStats.xp;
+    agentXpLabelEl.textContent = `${agentStats.xp} / ${capValue}`;
+  }
+  if (agentXpToNextEl) {
+    agentXpToNextEl.textContent = nextCfg ? `Do L${nextCfg.level}: ${xpRemaining} XP` : "Max level";
+  }
+  if (agentXpBarFillEl) {
+    agentXpBarFillEl.style.width = `${xpPct}%`;
+  }
+
+  const energyMax = currentCfg.energy_max || 5;
+  const energyCur = Math.min(agentStats.energy_current ?? energyMax, energyMax);
+  if (agentEnergyLabelEl) {
+    agentEnergyLabelEl.textContent = `${energyCur} / ${energyMax}`;
+  }
+  if (agentEnergyBarFillEl) {
+    const energyPct = Math.min(100, (energyCur / energyMax) * 100);
+    agentEnergyBarFillEl.style.width = `${energyPct}%`;
+  }
+}
+
+function grantTravelXp(amount = 50) {
+  if (!amount || amount <= 0) return;
+  agentStats.xp = Math.max(0, (agentStats.xp || 0) + amount);
+
+  // postupné level-upy dle configu
+  while (true) {
+    const nextCfg = getLevelCfg(agentStats.level + 1);
+    if (!nextCfg) break;
+    const nextThreshold = nextCfg._xp_total ?? cumulativeXpForLevel(nextCfg.level);
+    if (agentStats.xp < nextThreshold) break;
+    agentStats.level = nextCfg.level;
+    agentStats.energy_current = nextCfg.energy_max;
+  }
+
+  // po level-upu/XP vždy srovnej energii na maximum aktuálního levelu
+  const curCfg = getLevelCfg(agentStats.level) || { energy_max: 5 };
+  if (agentStats.energy_current === undefined || agentStats.energy_current === null) {
+    agentStats.energy_current = curCfg.energy_max;
+  } else {
+    agentStats.energy_current = Math.min(agentStats.energy_current, curCfg.energy_max);
+  }
+
+  updateAgentHeader();
+}
+
+async function loadAgentAndLevels() {
+  try {
+    const res = await fetch("/api/agent");
+    if (!res.ok) throw new Error("Failed to fetch agent");
+    const data = await res.json();
+
+    if (Array.isArray(data.levels) && data.levels.length > 0) {
+      levelConfig = data.levels;
+    }
+
+    if (data.agent) {
+      agentStats = {
+        level: data.agent.level ?? 1,
+        xp: data.agent.xp ?? 0,
+        energy_current: data.agent.energy_current ?? (data.agent.energy_max || 5),
+      };
+    }
+  } catch (err) {
+    console.error("Agent load failed, using defaults:", err);
+  }
+
+  updateAgentHeader();
+}
+
+function showCanvasView() {
+  if (canvasBlock) {
+    canvasBlock.classList.remove("hidden");
+  }
+  if (canvas) {
+    canvas.classList.remove("hidden");
+  }
+  if (cityBackdropEl) {
+    cityBackdropEl.classList.add("opacity-0");
+  }
+  if (visualFrameEl) {
+    visualFrameEl.style.aspectRatio = "";
+  }
+}
+
+function renderCityInfo() {
+  if (!cityInfoPanel || !cityInfoNameEl || !cityInfoMetaEl || !cityInfoDescEl) return;
+
+  const city = getCityAt(agent.x, agent.y);
+  if (!city) {
+    cityInfoNameEl.textContent = "Neznámé město";
+    cityInfoMetaEl.textContent = "Agent není ve městě";
+    cityInfoDescEl.textContent = "Přesuň se do města pro detailní přehled.";
+    return;
+  }
+
+  const importanceLabels = {
+    1: "Hlavní uzel",
+    2: "Regionální centrum",
+    3: "Místní město",
+  };
+
+  const statePart = city.state ? (city.state_shortcut ? `${city.state} (${city.state_shortcut})` : city.state) : null;
+  const regionPart = city.region || null;
+  const importancePart = importanceLabels[city.importance] || null;
+
+  cityInfoNameEl.textContent = city.name;
+  const metaParts = [statePart, regionPart, importancePart].filter(Boolean);
+  cityInfoMetaEl.textContent = metaParts.join(" • ") || "-";
+  cityInfoDescEl.textContent = city.description || "Chybí popis pro toto město.";
+}
+
+function showCityInfoPanel(show) {
+  if (!cityInfoPanel) return;
+  const shouldShow = !!show;
+  cityInfoPanel.classList.toggle("hidden", !shouldShow);
+  if (cityBackdropEl) {
+    cityBackdropEl.classList.toggle("hidden", shouldShow);
+  }
+  if (shouldShow) {
+    showTimetablePanel(false);
+    showCanvasView();
+    renderCityInfo();
+  }
+}
+
+function hideCityInfoPanel() {
+  showCityInfoPanel(false);
+  if (cityBackdropEl) {
+    cityBackdropEl.classList.remove("hidden");
+  }
+  maybeShowCityImage(getCityAt(agent.x, agent.y));
+}
+
 async function maybeShowCityImage(city) {
   if (!canvas || !cityBackdropEl) return;
   const imgUrl = await findCityImageUrl(city);
+  const infoPanelVisible = cityInfoPanel && !cityInfoPanel.classList.contains("hidden");
 
   if (imgUrl) {
     cityBackdropEl.onload = () => setFrameAspectFromImage(cityBackdropEl);
     cityBackdropEl.src = imgUrl;
-    cityBackdropEl.classList.remove("opacity-0");
-    canvas.classList.add("hidden");
+    if (infoPanelVisible) {
+      cityBackdropEl.classList.add("opacity-0");
+      canvas.classList.remove("hidden");
+      if (visualFrameEl) {
+        visualFrameEl.style.aspectRatio = "";
+      }
+    } else {
+      cityBackdropEl.classList.remove("opacity-0");
+      canvas.classList.add("hidden");
+    }
   } else {
     cityBackdropEl.src = "";
     cityBackdropEl.classList.add("opacity-0");
@@ -855,6 +1070,14 @@ if (cityHubBtn) {
   cityHubBtn.addEventListener("click", (e) => {
     e.preventDefault();
     showTimetablePanel(false);
+    hideCityInfoPanel();
+    maybeShowCityImage(getCityAt(agent.x, agent.y));
+  });
+}
+if (infoCenterBtn) {
+  infoCenterBtn.addEventListener("click", (e) => {
+    e.preventDefault();
+    showCityInfoPanel(true);
   });
 }
 if (canvas) {
@@ -1106,6 +1329,13 @@ function renderTravelOverlay(progress, currentMinutes) {
   }
 }
 
+function completeTravel(targetCity) {
+  if (!targetCity) return;
+  grantTravelXp(50);
+  travelToCity(targetCity);
+  renderTimetablePage();
+}
+
 function startTravelAnimation(travel) {
   if (!travel) return;
   console.log("Start animace cestovani", travel);
@@ -1195,8 +1425,7 @@ function finishTravelAnimation() {
   // po dojetí resetni koupený ticket – v nové destinaci nedává smysl
   purchasedTicketKey = null;
 
-  travelToCity(targetCity);
-  renderTimetablePage();
+  completeTravel(targetCity);
 }
 
 async function fetchTimetableForCurrentCity(limit = TIMETABLE_LIMIT) {
@@ -1362,6 +1591,7 @@ function updateSidebar() {
     if (cityDescEl) {
       cityDescEl.textContent = "Agent nestojí ve městě.";
     }
+    renderCityInfo();
     maybeShowCityImage(null);
     return;
   }
@@ -1377,6 +1607,7 @@ function updateSidebar() {
     const parts = [regionText, descText].filter(Boolean);
     cityDescEl.textContent = parts.join(" \u2022 ");
   }
+  renderCityInfo();
   maybeShowCityImage(city);
 }
 
@@ -1556,6 +1787,8 @@ function gameLoop() {
 async function init() {
   initFog();
 
+  await loadAgentAndLevels();
+
   // 1) načteme města z backendu
   let rawCities = await fetchCities();
 
@@ -1579,12 +1812,8 @@ async function init() {
   // 3) vytvoříme mapu podle jména
   cityByName = new Map(cities.map((c) => [c.name, c]));
 
-  // 4) vybereme startovní město importance 2 nebo 3
-  const importantCities = cities.filter((c) => c.importance === 2 || c.importance === 3);
-  const startCity =
-    importantCities.length > 0
-      ? importantCities[Math.floor(Math.random() * importantCities.length)]
-      : cities[Math.floor(Math.random() * cities.length)];
+  // 4) vybereme startovní město – dočasně může být libovolné
+  const startCity = cities[Math.floor(Math.random() * cities.length)];
 
   if (startCity) {
     agent.x = startCity.x;
@@ -1600,6 +1829,7 @@ async function init() {
 
   // 7) UI – sidebar + tabulka
   updateSidebar();
+  updateAgentHeader();
   maybeShowCityImage(getCityAt(agent.x, agent.y));
   applySkyGradientForMinutes(gameMinutes);
   await updateTimetable();

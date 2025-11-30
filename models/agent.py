@@ -1,5 +1,7 @@
 # models/agent.py
 from models import db
+from game.agent.level_config import AGENT_LEVELS
+
 
 
 class Agent(db.Model):
@@ -46,3 +48,51 @@ class Agent(db.Model):
 
     def __repr__(self):
         return f"<Agent id={self.id} level={self.level} xp={self.xp}>"
+    
+    def get_level_config(self, level: int):
+        """Vrátí config pro daný level (nebo None, pokud neexistuje)."""
+        for cfg in AGENT_LEVELS:
+            if cfg["level"] == level:
+                return cfg
+        return None
+
+    def cumulative_xp_for_level(self, level: int) -> int:
+        """Spočítá celkové XP nutné k dosažení dané úrovně (xp_required jsou přírůstky mezi levely)."""
+        total = 0
+        for cfg in AGENT_LEVELS:
+            if cfg["level"] > level:
+                break
+            total += cfg.get("xp_required", 0)
+        return total
+
+    def max_level(self) -> int:
+        return max(cfg["level"] for cfg in AGENT_LEVELS)
+
+    def gain_xp(self, amount: int):
+        """Přidá XP a případně zvedne level + energii dle configu."""
+        if amount <= 0:
+            return
+
+        self.xp += amount
+
+        # opakovaně kontrolujeme, jestli nedosáhl dalšího levelu
+        while True:
+            next_level = self.level + 1
+            cfg = self.get_level_config(next_level)
+
+            # žádný další level neexistuje
+            if not cfg:
+                break
+
+            # nemá ještě dost XP na level-up (xp_required je přírůstek, proto porovnáváme s kumulativní hodnotou)
+            if self.xp < self.cumulative_xp_for_level(next_level):
+                break
+
+            # zvedni level
+            self.level = next_level
+
+            # uprav max energii podle configu
+            self.energy_max = cfg["energy_max"]
+
+            # při level-upu můžeš doplnit energii na max (MVP varianta)
+            self.energy_current = self.energy_max
