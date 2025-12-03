@@ -6,6 +6,7 @@ from models.train_line import TrainLine
 from models.city import City
 from models.agent import Agent
 from game.agent.level_config import AGENT_LEVELS
+from game.agent.task_config import AGENT_TASKS
 from seeds.cities_seed import register_city_seed_commands
 from seeds.trainlines_seed import register_trainlines_commands  
 from services.timetable_service import (
@@ -175,6 +176,11 @@ def create_app():
             "agent": agent_payload,
             "levels": AGENT_LEVELS,
         })
+
+    @app.get("/api/tasks")
+    def api_tasks():
+        """Vrátí seznam konfigurovaných úkolů agenta."""
+        return jsonify({"tasks": AGENT_TASKS})
 
 
     return app

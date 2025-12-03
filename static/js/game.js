@@ -47,6 +47,9 @@ let agentStats = {
   energy_current: 5,
 };
 
+let agentTasks = [];
+let activeTaskId = null;
+
 function formatGameTime(totalMinutes) {
   const dayNames = ["Po", "Út", "St", "Čt", "Pá", "So", "Ne"];
   const minutesNorm = ((totalMinutes % MINUTES_PER_WEEK) + MINUTES_PER_WEEK) % MINUTES_PER_WEEK;
@@ -307,6 +310,24 @@ const agentXpToNextEl = document.getElementById("agentXpToNext");
 const agentXpBarFillEl = document.getElementById("agentXpBarFill");
 const agentEnergyLabelEl = document.getElementById("agentEnergyLabel");
 const agentEnergyBarFillEl = document.getElementById("agentEnergyBarFill");
+const taskCardEl = document.getElementById("taskCard");
+const currentTaskTitleEl = document.getElementById("currentTaskTitle");
+const currentTaskSummaryEl = document.getElementById("currentTaskSummary");
+const currentTaskMetaEl = document.getElementById("currentTaskMeta");
+const currentTaskProgressBarEl = document.getElementById("currentTaskProgressBar");
+const currentTaskProgressLabelEl = document.getElementById("currentTaskProgressLabel");
+const taskDetailPanelEl = document.getElementById("taskDetailPanel");
+const taskListContainerEl = document.getElementById("taskListContainer");
+const taskDetailTitleEl = document.getElementById("taskDetailTitle");
+const taskDetailSubtitleEl = document.getElementById("taskDetailSubtitle");
+const taskDetailLocationEl = document.getElementById("taskDetailLocation");
+const taskDetailPriorityEl = document.getElementById("taskDetailPriority");
+const taskDetailEtaEl = document.getElementById("taskDetailEta");
+const taskDetailDescEl = document.getElementById("taskDetailDesc");
+const taskObjectiveListEl = document.getElementById("taskObjectiveList");
+const taskRewardLabelEl = document.getElementById("taskRewardLabel");
+const taskStatusLabelEl = document.getElementById("taskStatusLabel");
+const closeTaskDetailBtn = document.getElementById("closeTaskDetailBtn");
 
 if (canvas) {
   canvas.addEventListener("mousemove", (e) => {
@@ -847,9 +868,14 @@ function showTimetablePanel(show) {
     if (cityInfoPanel) {
       cityInfoPanel.classList.add("hidden");
     }
+    if (taskDetailPanelEl) {
+      taskDetailPanelEl.classList.add("hidden");
+    }
   } else {
     timetableCardEl.classList.add("hidden");
-    canvasBlock.classList.remove("hidden");
+    if (!taskDetailPanelEl || taskDetailPanelEl.classList.contains("hidden")) {
+      canvasBlock.classList.remove("hidden");
+    }
   }
   setTimetableRaised(false);
 }
@@ -966,6 +992,192 @@ async function loadAgentAndLevels() {
   updateAgentHeader();
 }
 
+async function loadAgentTasks() {
+  let tasks = [];
+  try {
+    const res = await fetch("/api/tasks");
+    if (!res.ok) throw new Error("Failed to fetch tasks");
+    const data = await res.json();
+    tasks = Array.isArray(data?.tasks) ? data.tasks : [];
+  } catch (err) {
+    console.error("Task load failed, using empty list:", err);
+  }
+
+  agentTasks = tasks;
+  if (!agentTasks.length) {
+    activeTaskId = null;
+  } else if (!activeTaskId || !agentTasks.some((task) => task.id === activeTaskId)) {
+    activeTaskId = agentTasks[0].id;
+  }
+
+  renderTaskCard();
+  renderTaskDetailPanel();
+}
+
+function getActiveTask() {
+  if (!Array.isArray(agentTasks) || agentTasks.length === 0) {
+    return null;
+  }
+
+  if (activeTaskId) {
+    const found = agentTasks.find((task) => task.id === activeTaskId);
+    if (found) {
+      return found;
+    }
+  }
+
+  return agentTasks[0];
+}
+
+function setActiveTask(taskId) {
+  if (!taskId || taskId === activeTaskId) return;
+  const exists = agentTasks.some((task) => task.id === taskId);
+  if (!exists) return;
+  activeTaskId = taskId;
+  renderTaskCard();
+  renderTaskDetailPanel();
+}
+
+function renderTaskCard() {
+  if (!taskCardEl || !currentTaskTitleEl || !currentTaskSummaryEl || !currentTaskMetaEl) return;
+  const task = getActiveTask();
+  if (!task) {
+    currentTaskTitleEl.textContent = "Žádné zadání";
+    currentTaskSummaryEl.textContent = "Velitelství zatím neposlalo žádnou operaci. Sleduj kanál HQ.";
+    currentTaskMetaEl.textContent = "-";
+    if (currentTaskProgressBarEl) currentTaskProgressBarEl.style.width = "0%";
+    if (currentTaskProgressLabelEl) currentTaskProgressLabelEl.textContent = "0%";
+    taskCardEl.classList.add("opacity-60");
+    taskCardEl.setAttribute("aria-disabled", "true");
+    return;
+  }
+
+  taskCardEl.classList.remove("opacity-60");
+  taskCardEl.removeAttribute("aria-disabled");
+  currentTaskTitleEl.textContent = task.title;
+  currentTaskSummaryEl.textContent = task.summary;
+  const priorityLabel = task.priority ? `${task.priority} priorita` : "Bez priority";
+  const metaParts = [task.location, priorityLabel, task.eta ? `ETA ${task.eta}` : null].filter(Boolean);
+  currentTaskMetaEl.textContent = metaParts.join(" • ");
+  const progressPercent = Math.max(0, Math.min(100, Math.round((task.progress || 0) * 100)));
+  if (currentTaskProgressBarEl) currentTaskProgressBarEl.style.width = `${progressPercent}%`;
+  if (currentTaskProgressLabelEl) currentTaskProgressLabelEl.textContent = `${progressPercent}%`;
+}
+
+function renderTaskList() {
+  if (!taskListContainerEl) return;
+  if (!Array.isArray(agentTasks) || agentTasks.length === 0) {
+    taskListContainerEl.innerHTML = `<p class="text-sm text-slate-300">Velitelství zatím nepřiřadilo žádné operace.</p>`;
+    return;
+  }
+
+  const active = getActiveTask();
+  taskListContainerEl.innerHTML = agentTasks
+    .map((task) => {
+      const isActive = active && task.id === active.id;
+      const border = isActive
+        ? "border-violet-400/70 bg-violet-500/10 shadow-[0_10px_25px_rgba(99,102,241,0.25)]"
+        : "border-white/10 bg-white/5 hover:border-violet-300/40";
+      return `
+        <button
+          type="button"
+          data-task-id="${task.id}"
+          class="w-full text-left rounded-2xl border ${border} px-4 py-3 transition focus:outline-none focus:ring-2 focus:ring-violet-400/70"
+        >
+          <p class="text-[11px] uppercase tracking-[0.22em] text-slate-400">${task.priority || "Standard"} • ${task.eta || "—"}</p>
+          <p class="text-sm font-semibold text-slate-100">${task.title}</p>
+          <p class="text-xs text-slate-300">${task.location}</p>
+        </button>
+      `;
+    })
+    .join("");
+
+  taskListContainerEl.querySelectorAll("[data-task-id]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const id = btn.getAttribute("data-task-id");
+      setActiveTask(id);
+    });
+  });
+}
+
+function renderTaskDetailPanel() {
+  renderTaskList();
+  renderTaskDetail();
+}
+
+function renderTaskDetail() {
+  if (
+    !taskDetailPanelEl ||
+    !taskDetailTitleEl ||
+    !taskDetailSubtitleEl ||
+    !taskDetailLocationEl ||
+    !taskDetailPriorityEl ||
+    !taskDetailEtaEl ||
+    !taskDetailDescEl ||
+    !taskObjectiveListEl ||
+    !taskRewardLabelEl ||
+    !taskStatusLabelEl
+  ) {
+    return;
+  }
+
+  const task = getActiveTask();
+  if (!task) {
+    taskDetailTitleEl.textContent = "Žádný aktivní úkol";
+    taskDetailSubtitleEl.textContent = "Jakmile HQ přiřadí operaci, uvidíš ji tady.";
+    taskDetailLocationEl.textContent = "---";
+    taskDetailPriorityEl.textContent = "-";
+    taskDetailEtaEl.textContent = "-";
+    taskDetailDescEl.textContent = "Čekáme na instrukce velitelství.";
+    taskObjectiveListEl.innerHTML = `<li class="text-slate-400">Žádné kroky nejsou zadány.</li>`;
+    taskRewardLabelEl.textContent = "-";
+    taskStatusLabelEl.textContent = "-";
+    return;
+  }
+
+  taskDetailTitleEl.textContent = task.title;
+  taskDetailSubtitleEl.textContent = task.summary;
+  taskDetailLocationEl.textContent = task.location || "---";
+  taskDetailPriorityEl.textContent = task.priority || "Standard";
+  taskDetailEtaEl.textContent = task.eta || "—";
+  taskDetailDescEl.textContent = task.description || "-";
+  taskObjectiveListEl.innerHTML = (task.objectives || [])
+    .map(
+      (step) => `
+        <li class="flex items-start gap-2">
+          <span class="text-violet-300 mt-[3px] text-xs">◆</span>
+          <span class="text-slate-100">${step}</span>
+        </li>
+      `
+    )
+    .join("");
+  if (!task.objectives || task.objectives.length === 0) {
+    taskObjectiveListEl.innerHTML = `<li class="text-slate-400">Žádné kroky nejsou zadány.</li>`;
+  }
+  taskRewardLabelEl.textContent = task.reward || "-";
+  taskStatusLabelEl.textContent = task.status || "-";
+}
+
+function showTaskDetailPanel(show) {
+  if (!taskDetailPanelEl) return;
+  const shouldShow = !!show;
+  taskDetailPanelEl.classList.toggle("hidden", !shouldShow);
+  if (canvasBlock) {
+    canvasBlock.classList.toggle("hidden", shouldShow);
+  }
+  if (shouldShow) {
+    if (cityInfoPanel) {
+      cityInfoPanel.classList.add("hidden");
+    }
+    showTimetablePanel(false);
+    if (taskListContainerEl && !taskListContainerEl.children.length) {
+      renderTaskDetailPanel();
+    }
+  } else if (!timetableCardEl || timetableCardEl.classList.contains("hidden")) {
+    showCanvasView();
+  }
+}
+
 function showCanvasView() {
   if (canvasBlock) {
     canvasBlock.classList.remove("hidden");
@@ -1017,6 +1229,7 @@ function showCityInfoPanel(show) {
   }
   if (shouldShow) {
     showTimetablePanel(false);
+    showTaskDetailPanel(false);
     showCanvasView();
     renderCityInfo();
   }
@@ -1070,6 +1283,7 @@ if (cityHubBtn) {
   cityHubBtn.addEventListener("click", (e) => {
     e.preventDefault();
     showTimetablePanel(false);
+    showTaskDetailPanel(false);
     hideCityInfoPanel();
     maybeShowCityImage(getCityAt(agent.x, agent.y));
   });
@@ -1080,8 +1294,24 @@ if (infoCenterBtn) {
     showCityInfoPanel(true);
   });
 }
+if (taskCardEl) {
+  taskCardEl.addEventListener("click", (e) => {
+    e.preventDefault();
+    renderTaskDetailPanel();
+    showTaskDetailPanel(true);
+  });
+}
+if (closeTaskDetailBtn) {
+  closeTaskDetailBtn.addEventListener("click", (e) => {
+    e.preventDefault();
+    showTaskDetailPanel(false);
+  });
+}
 if (canvas) {
-  canvas.addEventListener("click", () => showTimetablePanel(false));
+  canvas.addEventListener("click", () => {
+    showTimetablePanel(false);
+    showTaskDetailPanel(false);
+  });
 }
 
 // Cestování vlakem z aktuálního města
@@ -1838,5 +2068,7 @@ async function init() {
 }
 
 
-
+renderTaskCard();
+renderTaskDetailPanel();
+loadAgentTasks();
 init();
