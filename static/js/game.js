@@ -78,6 +78,15 @@ function formatGameTimeHHMM(totalMinutes) {
   return `${hh}:${mm}`;
 }
 
+function formatWeekAndTime(totalMinutes) {
+  const weekIndex = Math.floor(totalMinutes / MINUTES_PER_WEEK);
+  const weekLabel = Math.max(1, weekIndex + 1);
+  return {
+    weekText: `Týden ${weekLabel}`,
+    timeText: formatGameTime(totalMinutes),
+  };
+}
+
 function formatTravelDuration(totalMinutes) {
   if (totalMinutes === undefined || totalMinutes === null) {
     return "-";
@@ -864,10 +873,9 @@ window.addEventListener("keydown", (e) => {
 });
 
 function showTimetablePanel(show) {
-  if (!timetableCardEl || !canvasBlock) return;
+  if (!timetableCardEl) return;
   if (show) {
     timetableCardEl.classList.remove("hidden");
-    canvasBlock.classList.add("hidden");
     if (cityInfoPanel) {
       cityInfoPanel.classList.add("hidden");
     }
@@ -876,9 +884,6 @@ function showTimetablePanel(show) {
     }
   } else {
     timetableCardEl.classList.add("hidden");
-    if (!taskDetailPanelEl || taskDetailPanelEl.classList.contains("hidden")) {
-      canvasBlock.classList.remove("hidden");
-    }
   }
   setTimetableRaised(false);
 }
@@ -929,7 +934,7 @@ function updateAgentHeader() {
     agentXpLabelEl.textContent = `${agentStats.xp} / ${capValue}`;
   }
   if (agentXpToNextEl) {
-    agentXpToNextEl.textContent = nextCfg ? `Do L${nextCfg.level}: ${xpRemaining} XP` : "Max level";
+    agentXpToNextEl.textContent = nextCfg ? `${xpRemaining} XP` : "MAX";
   }
   if (agentXpBarFillEl) {
     agentXpBarFillEl.style.width = `${xpPct}%`;
@@ -1916,6 +1921,8 @@ function updateSidebar() {
   const cityDescEl = document.getElementById("currentCityDescription");
   const cityStateEl = document.getElementById("currentCityState");
   const posEl = document.getElementById("agentPos"); // může, ale nemusí existovat
+  const timeEl = document.getElementById("currentTimeLabel");
+  const weekEl = document.getElementById("currentWeekLabel");
 
   if (!cityNameEl) return;
 
@@ -1930,6 +1937,11 @@ function updateSidebar() {
     if (cityStateEl) cityStateEl.textContent = "-";
     if (cityDescEl) {
       cityDescEl.textContent = "Agent nestojí ve městě.";
+    }
+    if (timeEl || weekEl) {
+      const { weekText, timeText } = formatWeekAndTime(gameMinutes);
+      if (weekEl) weekEl.textContent = weekText;
+      if (timeEl) timeEl.textContent = timeText;
     }
     renderCityInfo();
     maybeShowCityImage(null);
@@ -1949,6 +1961,12 @@ function updateSidebar() {
   }
   renderCityInfo();
   maybeShowCityImage(city);
+
+  if (timeEl || weekEl) {
+    const { weekText, timeText } = formatWeekAndTime(gameMinutes);
+    if (weekEl) weekEl.textContent = weekText;
+    if (timeEl) timeEl.textContent = timeText;
+  }
 }
 
 function renderTimetablePage() {
@@ -1956,11 +1974,14 @@ function renderTimetablePage() {
   if (travelAnimation) return;
 
   const timeEl = document.getElementById("currentTimeLabel");
+  const weekEl = document.getElementById("currentWeekLabel");
   const tbody = document.getElementById("timetableBody");
   if (!timeEl || !tbody) return;
 
   // Aktualizace zobrazeného času
-  timeEl.textContent = formatGameTime(gameMinutes);
+  const { weekText, timeText } = formatWeekAndTime(gameMinutes);
+  if (weekEl) weekEl.textContent = weekText;
+  timeEl.textContent = timeText;
   tbody.innerHTML = "";
 
   const city = getCityAt(agent.x, agent.y);
