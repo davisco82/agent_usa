@@ -1,12 +1,17 @@
 # app.py
+from __future__ import annotations
+
+import random
+
 from flask import Flask, jsonify, render_template, request
 from flask_migrate import Migrate
 from models import db
 from models.train_line import TrainLine
 from models.city import City
 from models.agent import Agent
+from models.agent_task_progress import AgentTaskProgress
 from game.agent.level_config import AGENT_LEVELS
-from game.agent.task_config import AGENT_TASKS
+from game.agent.task_config import get_agent_tasks
 from seeds.cities_seed import register_city_seed_commands
 from seeds.trainlines_seed import register_trainlines_commands  
 from services.timetable_service import (
@@ -15,6 +20,52 @@ from services.timetable_service import (
     compute_travel_minutes,
 )
 
+
+def _agent_region_code(agent: Agent | None) -> str | None:
+    if not agent or not agent.current_city or not agent.current_city.region:
+        return None
+    return agent.current_city.region.code
+
+
+def _resolve_tasks_for_agent(agent: Agent | None) -> list[dict]:
+    region_code = _agent_region_code(agent)
+    rng_seed = agent.id if agent and agent.id is not None else 0
+    return get_agent_tasks(region_code, rng=random.Random(rng_seed))
+
+
+def _inject_progress(tasks: list[dict], agent: Agent | None) -> list[dict]:
+    if not tasks:
+        return tasks
+
+    objective_counts = {
+        task["id"]: len(task.get("objectives") or [])
+        for task in tasks
+    }
+
+    progress_by_task = {}
+    if agent:
+        task_ids = [task["id"] for task in tasks]
+        if task_ids:
+            rows = (
+                AgentTaskProgress.query.filter(AgentTaskProgress.agent_id == agent.id)
+                .filter(AgentTaskProgress.task_id.in_(task_ids))
+                .all()
+            )
+            for row in rows:
+                progress_by_task[row.task_id] = row
+
+    for task in tasks:
+        count = objective_counts.get(task["id"], 0)
+        progress_row = progress_by_task.get(task["id"])
+        if progress_row:
+            state = progress_row.ensure_state_length(count)
+        else:
+            state = [False] * count
+        completed = sum(1 for flag in state if flag)
+        task["completed_objectives"] = state
+        task["progress"] = (completed / count) if count else task.get("progress", 0.0) or 0.0
+
+    return tasks
 
 
 def create_app():
@@ -179,8 +230,62 @@ def create_app():
 
     @app.get("/api/tasks")
     def api_tasks():
-        """Vrátí seznam konfigurovaných úkolů agenta."""
-        return jsonify({"tasks": AGENT_TASKS})
+        """Vrátí seznam konfigurovaných úkolů agenta (s dynamickými lokacemi)."""
+        agent = Agent.query.order_by(Agent.id.asc()).first()
+        tasks = _resolve_tasks_for_agent(agent)
+        tasks = _inject_progress(tasks, agent)
+        return jsonify({"tasks": tasks})
+
+    @app.post("/api/tasks/<task_id>/objectives/<int:objective_index>/complete")
+    def api_complete_task_objective(task_id: str, objective_index: int):
+        """Označí konkrétní krok úkolu jako splněný + vrátí aktualizaci."""
+        agent = Agent.query.order_by(Agent.id.asc()).first()
+        if not agent:
+            return jsonify({"error": "Agent not found"}), 404
+
+        tasks = _resolve_tasks_for_agent(agent)
+        task_payload = next((task for task in tasks if task["id"] == task_id), None)
+        if not task_payload:
+            return jsonify({"error": "Task not found"}), 404
+
+        objectives = task_payload.get("objectives") or []
+        if objective_index < 0 or objective_index >= len(objectives):
+            return jsonify({"error": "Objective index out of range"}), 400
+
+        progress_row = (
+            AgentTaskProgress.query.filter_by(agent_id=agent.id, task_id=task_id).first()
+        )
+        if not progress_row:
+            progress_row = AgentTaskProgress(
+                agent_id=agent.id,
+                task_id=task_id,
+                objectives_state=[False] * len(objectives),
+            )
+            db.session.add(progress_row)
+
+        state = progress_row.ensure_state_length(len(objectives))
+        already_completed = bool(state[objective_index])
+
+        xp_rewards = task_payload.get("objective_rewards") or []
+        xp_to_grant = xp_rewards[objective_index] if objective_index < len(xp_rewards) else 0
+
+        if not already_completed:
+            state[objective_index] = True
+            progress_row.objectives_state = state
+            progress_row.xp_earned = (progress_row.xp_earned or 0) + xp_to_grant
+
+        completed = sum(1 for flag in state if flag)
+        progress_value = (completed / len(objectives)) if objectives else 0.0
+        task_payload["completed_objectives"] = state
+        task_payload["progress"] = progress_value
+
+        db.session.commit()
+
+        return jsonify({
+            "task": task_payload,
+            "xp_awarded": xp_to_grant if not already_completed else 0,
+            "already_completed": already_completed,
+        })
 
 
     return app

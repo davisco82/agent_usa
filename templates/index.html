@@ -5,6 +5,90 @@
     <title>Agent USA – městské menu</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
+      :root {
+        --bg-deep-gradient: radial-gradient(120% 120% at 10% 20%, #1b2650 0%, #050c1d 55%, #030712 100%);
+        --panel-gradient: linear-gradient(145deg, rgba(26, 32, 57, 0.95) 0%, rgba(9, 13, 25, 0.92) 100%);
+        --panel-gradient-accent: linear-gradient(145deg, rgba(62, 47, 126, 0.94) 0%, rgba(18, 24, 45, 0.95) 55%, rgba(11, 16, 32, 0.95) 100%);
+        --border-color: rgba(148, 163, 184, 0.2);
+        --border-accent: rgba(129, 140, 248, 0.45);
+        --glow-strong: 0 30px 85px rgba(4, 8, 20, 0.55);
+        --glow-soft: 0 18px 60px rgba(4, 8, 20, 0.4);
+      }
+
+      body.brand-bg {
+        background: var(--bg-deep-gradient);
+        color: #e2e8f0;
+      }
+
+      .glass-panel {
+        background: var(--panel-gradient);
+        border: 1px solid var(--border-color);
+        box-shadow: var(--glow-soft);
+        backdrop-filter: blur(18px);
+      }
+
+      .glass-panel--accent {
+        background: var(--panel-gradient-accent);
+        border-color: var(--border-accent);
+        box-shadow: var(--glow-strong);
+      }
+
+      .location-option {
+        display: flex;
+        align-items: center;
+        gap: 0.85rem;
+        border-radius: 0.9rem;
+        padding: 0.65rem 0.95rem;
+        position: relative;
+        overflow: hidden;
+        z-index: 0;
+        background: linear-gradient(120deg, rgba(24, 33, 66, 0.9), rgba(10, 15, 31, 0.96));
+        border: 1px solid rgba(129, 140, 248, 0.25);
+        color: #f8fafc;
+        transition: border-color 0.3s ease, transform 0.3s ease, background 0.3s ease, box-shadow 0.3s ease;
+      }
+
+      .location-option::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(circle at 20% 50%, rgba(96, 165, 250, 0.45), transparent 55%);
+        opacity: 0;
+        z-index: 0;
+        transition: opacity 0.3s ease;
+      }
+
+      .location-option:hover {
+        border-color: rgba(191, 219, 254, 0.75);
+        transform: translateY(-2px);
+        box-shadow: 0 14px 36px rgba(3, 7, 18, 0.55);
+      }
+
+      .location-option:hover::before {
+        opacity: 1;
+      }
+
+      .location-option__icon {
+        position: relative;
+        z-index: 1;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        height: 2.5rem;
+        width: 2.5rem;
+        border-radius: 1rem;
+        background: linear-gradient(135deg, rgba(191, 219, 254, 0.18), rgba(59, 130, 246, 0.75));
+        box-shadow: 0 4px 18px rgba(14, 165, 233, 0.35);
+        font-size: 1.05rem;
+      }
+
+      .location-option__label {
+        position: relative;
+        z-index: 1;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+      }
+
       #timetableCard {
         transition: transform 0.3s ease, margin-top 0.3s ease, box-shadow 0.3s ease;
       }
@@ -19,9 +103,9 @@
       }
     </style>
   </head>
-  <body class="min-h-screen text-slate-100 bg-gradient-to-br from-[#0b1224] via-[#0a0f1d] to-[#0e1d33]">
+  <body class="min-h-screen text-slate-100 brand-bg">
     <div class="w-[80%] mx-auto px-6 py-6 space-y-5">
-      <header class="flex flex-wrap items-center justify-between gap-4 rounded-full px-4 py-3 bg-gradient-to-r from-sky-500/30 via-cyan-300/20 to-fuchsia-400/30 shadow-lg shadow-sky-900/30 backdrop-blur">
+      <header class="flex flex-wrap items-center justify-between gap-4 rounded-full px-4 py-3 glass-panel glass-panel--accent backdrop-blur">
         <div class="flex items-center gap-2">
           <div class="h-7 w-7 rounded-full bg-gradient-to-br from-sky-400 via-slate-50 to-rose-500 shadow-lg shadow-sky-500/30"></div>
           <p class="text-[11px] uppercase tracking-[0.35em] text-slate-100">Agent USA</p>
@@ -87,7 +171,7 @@
       <div class="grid lg:grid-cols-[1.5fr_0.5fr] gap-5 items-start">
         <!-- Levý sloupec: canvas -->
         <main class="space-y-3">
-          <div id="canvasBlock" class="relative overflow-hidden rounded-3xl bg-transparent shadow-[0_25px_90px_rgba(0,0,0,0.2)]">
+          <div id="canvasBlock" class="relative overflow-hidden rounded-3xl glass-panel glass-panel--accent">
             <div class="absolute inset-0 z-0">
               <div id="skyGradient" class="absolute inset-0"></div>
               <img
@@ -118,7 +202,7 @@
 
           <div
             id="taskDetailPanel"
-            class="hidden bg-gradient-to-br from-violet-800/70 via-slate-900/80 to-slate-950/80 rounded-3xl border border-violet-500/25 shadow-[0_22px_75px_rgba(0,0,0,0.35)] p-5 space-y-4"
+            class="hidden glass-panel glass-panel--accent rounded-3xl p-5 space-y-4"
           >
             <div class="flex flex-wrap items-start justify-between gap-4">
               <div>
@@ -138,7 +222,7 @@
               <div id="taskListContainer" class="space-y-3">
                 <p class="text-sm text-slate-300">Žádné aktivní úkoly.</p>
               </div>
-              <div class="rounded-2xl border border-white/10 bg-black/20 p-4 space-y-4">
+              <div class="rounded-2xl p-4 space-y-4 glass-panel">
                 <div class="flex flex-wrap items-center gap-3">
                   <div class="rounded-xl bg-violet-500/20 border border-violet-400/40 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-violet-100">
                     <span id="taskDetailLocation">---</span>
@@ -175,7 +259,7 @@
 
           <div
             id="cityInfoPanel"
-            class="hidden bg-gradient-to-br from-slate-800/80 via-slate-900/80 to-slate-950/80 rounded-2xl border border-slate-800/60 shadow-[0_18px_60px_rgba(0,0,0,0.3)] p-4 space-y-3"
+            class="hidden glass-panel rounded-2xl p-4 space-y-3"
           >
             <div class="flex items-center justify-between">
               <div>
@@ -191,7 +275,7 @@
           </div>
 
           <!-- Odjezdy schované pod tlačítkem Stanice (stále napojené na JS) -->
-          <div id="timetableCard" class="relative bg-gradient-to-br from-slate-800/80 via-slate-900/80 to-slate-950/80 rounded-2xl shadow-[0_18px_60px_rgba(0,0,0,0.35)] p-4 hidden">
+          <div id="timetableCard" class="relative glass-panel rounded-2xl p-4 hidden">
             <div class="flex items-center mb-3">
               <h2 class="text-base font-semibold text-slate-100 flex items-center gap-2">
                 <span class="text-sky-300">🚉</span> Jízdní řád
@@ -221,7 +305,7 @@
 
         <!-- Pravý sloupec: ovládání -->
         <aside class="space-y-4">
-          <section class="rounded-2xl bg-gradient-to-br from-violet-800/60 via-slate-900/70 to-slate-950/80 shadow-[0_18px_60px_rgba(0,0,0,0.35)] border border-violet-500/20">
+          <section class="rounded-2xl glass-panel glass-panel--accent">
             <button
               id="taskCard"
               type="button"
@@ -255,46 +339,39 @@
             </div>
           </section>
 
-          <section class="rounded-2xl p-5 bg-gradient-to-b from-slate-800/70 via-slate-900/70 to-slate-950/70 shadow-[0_18px_60px_rgba(0,0,0,0.3)] space-y-4">
+          <section class="rounded-2xl p-5 glass-panel space-y-4">
             <div class="flex items-center gap-2">
               <span class="text-lg">🧭</span>
               <h3 class="text-sm font-semibold text-slate-100 uppercase tracking-[0.16em]">Lokace ve městě</h3>
             </div>
             <div class="grid grid-cols-1 gap-2 text-sm">
-              <button id="cityHubBtn" class="group flex items-center gap-3 rounded-xl bg-gradient-to-r from-slate-800/80 via-slate-700/70 to-slate-900/80 px-3 py-2.5 hover:from-sky-700/70 hover:via-sky-800/70 hover:to-slate-900/80 transition shadow-sm shadow-slate-900/30 relative overflow-hidden">
-                <span class="absolute -left-2 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-slate-500/30 blur-xl"></span>
-                <span class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-slate-200 to-slate-500 text-base shadow-md shadow-slate-900/40">🏡</span>
-                <span class="font-semibold text-slate-100">Úvod</span>
+              <button id="cityHubBtn" class="location-option">
+                <span class="location-option__icon">🏡</span>
+                <span class="location-option__label">Úvod</span>
               </button>
-              <button id="ticketToggleBtn" class="group flex items-center gap-3 rounded-xl bg-gradient-to-r from-slate-800/80 via-slate-700/70 to-slate-900/80 px-3 py-2.5 hover:from-sky-700/70 hover:via-sky-800/70 hover:to-slate-900/80 transition shadow-sm shadow-slate-900/30 relative overflow-hidden">
-                <span class="absolute -left-2 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-sky-500/30 blur-xl"></span>
-                <span class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-sky-300 to-sky-600 text-base shadow-md shadow-slate-900/40">🚉</span>
-                <span class="font-semibold text-slate-100">Nádraží</span>
+              <button id="ticketToggleBtn" class="location-option">
+                <span class="location-option__icon">🚉</span>
+                <span class="location-option__label">Nádraží</span>
               </button>
-              <button id="infoCenterBtn" class="group flex items-center gap-3 rounded-xl bg-gradient-to-r from-slate-800/80 via-slate-700/70 to-slate-900/80 px-3 py-2.5 hover:from-amber-700/70 hover:via-amber-800/70 hover:to-slate-900/80 transition shadow-sm shadow-slate-900/30 relative overflow-hidden">
-                <span class="absolute -left-2 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-amber-500/30 blur-xl"></span>
-                <span class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-amber-200 to-amber-500 text-base shadow-md shadow-slate-900/40">🏛️</span>
-                <span class="font-semibold text-slate-100">Informační centrum</span>
+              <button id="infoCenterBtn" class="location-option">
+                <span class="location-option__icon">🏛️</span>
+                <span class="location-option__label">Informační centrum</span>
               </button>
-              <button class="group flex items-center gap-3 rounded-xl bg-gradient-to-r from-slate-800/80 via-slate-700/70 to-slate-900/80 px-3 py-2.5 hover:from-emerald-700/70 hover:via-emerald-800/70 hover:to-slate-900/80 transition shadow-sm shadow-slate-900/30 relative overflow-hidden">
-                <span class="absolute -left-2 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-emerald-500/30 blur-xl"></span>
-                <span class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-300 to-emerald-600 text-base shadow-md shadow-slate-900/40">🏦</span>
-                <span class="font-semibold text-slate-100">Banka</span>
+              <button class="location-option">
+                <span class="location-option__icon">🏦</span>
+                <span class="location-option__label">Banka</span>
               </button>
-              <button class="group flex items-center gap-3 rounded-xl bg-gradient-to-r from-slate-800/80 via-slate-700/70 to-slate-900/80 px-3 py-2.5 hover:from-indigo-700/70 hover:via-indigo-800/70 hover:to-slate-900/80 transition shadow-sm shadow-slate-900/30 relative overflow-hidden">
-                <span class="absolute -left-2 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-indigo-500/30 blur-xl"></span>
-                <span class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-200 to-indigo-500 text-base shadow-md shadow-slate-900/40">🧪</span>
-                <span class="font-semibold text-slate-100">Laboratoř</span>
+              <button class="location-option">
+                <span class="location-option__icon">🧪</span>
+                <span class="location-option__label">Laboratoř</span>
               </button>
-              <button class="group flex items-center gap-3 rounded-xl bg-gradient-to-r from-slate-800/80 via-slate-700/70 to-slate-900/80 px-3 py-2.5 hover:from-rose-700/70 hover:via-rose-800/70 hover:to-slate-900/80 transition shadow-sm shadow-slate-900/30 relative overflow-hidden">
-                <span class="absolute -left-2 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-rose-500/30 blur-xl"></span>
-                <span class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-rose-200 to-rose-500 text-base shadow-md shadow-slate-900/40">📣</span>
-                <span class="font-semibold text-slate-100">Mediální centrum</span>
+              <button class="location-option">
+                <span class="location-option__icon">📣</span>
+                <span class="location-option__label">Mediální centrum</span>
               </button>
-              <button class="group flex items-center gap-3 rounded-xl bg-gradient-to-r from-slate-800/80 via-slate-700/70 to-slate-900/80 px-3 py-2.5 hover:from-lime-700/70 hover:via-lime-800/70 hover:to-slate-900/80 transition shadow-sm shadow-slate-900/30 relative overflow-hidden">
-                <span class="absolute -left-2 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-lime-500/30 blur-xl"></span>
-                <span class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-lime-200 to-lime-500 text-base shadow-md shadow-slate-900/40">🛒</span>
-                <span class="font-semibold text-slate-100">Trh</span>
+              <button class="location-option">
+                <span class="location-option__icon">🛒</span>
+                <span class="location-option__label">Trh</span>
               </button>
             </div>
           </section>
@@ -304,7 +381,7 @@
 
     <!-- Overlay pro animaci přesunu -->
     <div id="travelOverlay" class="fixed inset-0 bg-slate-950/90 backdrop-blur-sm hidden z-50 flex items-center justify-center px-4">
-      <div class="travel-card bg-slate-900/80 border border-slate-800 rounded-2xl shadow-[0_20px_80px_rgba(0,0,0,0.6)] relative overflow-visible w-[min(720px,90vw)] px-6 pt-24 pb-6">
+      <div class="travel-card glass-panel glass-panel--accent rounded-2xl relative overflow-visible w-[min(720px,90vw)] px-6 pt-24 pb-6">
         <div class="travel-top-row flex justify-between items-end">
           <div class="travel-top-info flex flex-col gap-1">
             <div class="travel-top-type text-lg font-bold text-slate-100" id="travelTopType">-</div>

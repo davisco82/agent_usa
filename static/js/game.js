@@ -49,6 +49,7 @@ let agentStats = {
 
 let agentTasks = [];
 let activeTaskId = null;
+const pendingObjectiveRequests = new Set();
 
 function formatGameTime(totalMinutes) {
   const dayNames = ["Po", "Út", "St", "Čt", "Pá", "So", "Ne"];
@@ -106,20 +107,20 @@ function getLineTypeInfo(lineType) {
     return {
       key: "express",
       symbol: "Ex",
-      badgeClasses: "bg-red-900/70 border border-red-600/60 text-red-100",
+      badgeClasses: "bg-gradient-to-r from-pink-500/40 to-violet-500/40 border border-pink-300/45 text-pink-50 text-[11px] px-[8px] py-[2px]",
     };
   }
   if (t === "intercity" || t === "ic" || t === "regional") {
     return {
       key: "regional",
       symbol: "Reg",
-      badgeClasses: "bg-blue-900/60 border border-blue-500/60 text-blue-100 text-[11px] px-[6px] py-[2px]",
+      badgeClasses: "bg-gradient-to-r from-sky-500/35 to-indigo-500/40 border border-sky-300/40 text-sky-50 text-[11px] px-[6px] py-[2px]",
     };
   }
   return {
     key: "local",
     symbol: "Loc",
-    badgeClasses: "bg-green-900/70 border border-green-600/60 text-green-100 text-[10px] px-[6px] py-[2px]",
+    badgeClasses: "bg-gradient-to-r from-emerald-500/35 to-teal-500/40 border border-emerald-300/40 text-emerald-50 text-[10px] px-[6px] py-[2px]",
   };
 }
 
@@ -784,6 +785,7 @@ function moveAgent(dx, dy) {
     agent.y = newY;
     updateSidebar();
     updateTimetable();
+    notifyTaskLocationChange();
   } 
 }
 
@@ -796,6 +798,7 @@ function travelToCity(targetCity, options = {}) {
   updateSidebar();
   updateTimetable();
   console.log(`Přesun vlakem do: ${targetCity.name}`);
+  notifyTaskLocationChange();
 }
 
 function scheduleTravel(targetCity, departureMinutes, travelMinutes, meta = {}) {
@@ -1003,7 +1006,7 @@ async function loadAgentTasks() {
     console.error("Task load failed, using empty list:", err);
   }
 
-  agentTasks = tasks;
+  agentTasks = tasks.map((task) => normalizeTaskPayload(task)).filter(Boolean);
   if (!agentTasks.length) {
     activeTaskId = null;
   } else if (!activeTaskId || !agentTasks.some((task) => task.id === activeTaskId)) {
@@ -1012,6 +1015,7 @@ async function loadAgentTasks() {
 
   renderTaskCard();
   renderTaskDetailPanel();
+  notifyTaskLocationChange();
 }
 
 function getActiveTask() {
@@ -1036,6 +1040,90 @@ function setActiveTask(taskId) {
   activeTaskId = taskId;
   renderTaskCard();
   renderTaskDetailPanel();
+}
+
+function normalizeTaskPayload(task) {
+  if (!task || typeof task !== "object") return null;
+  const normalized = { ...task };
+  const objectives = Array.isArray(task.objectives) ? task.objectives : [];
+  normalized.objectives = objectives;
+  const completed = Array.isArray(task.completed_objectives)
+    ? task.completed_objectives.slice(0, objectives.length)
+    : Array(objectives.length).fill(false);
+  normalized.completed_objectives = completed;
+  const triggers = Array.isArray(task.objective_triggers) ? task.objective_triggers : [];
+  normalized.objective_triggers = triggers;
+  if (typeof normalized.progress !== "number") {
+    const done = completed.filter(Boolean).length;
+    normalized.progress = objectives.length ? done / objectives.length : 0;
+  }
+  return normalized;
+}
+
+function upsertTask(updatedTask) {
+  const normalized = normalizeTaskPayload(updatedTask);
+  if (!normalized || !normalized.id) return;
+  const idx = agentTasks.findIndex((task) => task.id === normalized.id);
+  if (idx >= 0) {
+    agentTasks[idx] = { ...agentTasks[idx], ...normalized };
+  } else {
+    agentTasks.push(normalized);
+  }
+}
+
+async function completeTaskObjective(taskId, objectiveIndex) {
+  if (!taskId || objectiveIndex === undefined || objectiveIndex === null) return;
+  const key = `${taskId}:${objectiveIndex}`;
+  if (pendingObjectiveRequests.has(key)) return;
+
+  pendingObjectiveRequests.add(key);
+  try {
+    const res = await fetch(`/api/tasks/${taskId}/objectives/${objectiveIndex}/complete`, {
+      method: "POST",
+    });
+    if (!res.ok) throw new Error("Objective completion failed");
+    const data = await res.json();
+    if (data?.task) {
+      upsertTask(data.task);
+    }
+    if (data?.xp_awarded) {
+      grantTravelXp(data.xp_awarded);
+    }
+    renderTaskCard();
+    renderTaskDetailPanel();
+  } catch (err) {
+    console.error("Objective completion failed:", err);
+  } finally {
+    pendingObjectiveRequests.delete(key);
+  }
+}
+
+function triggerObjectiveCompletion(taskId, objectiveIndex) {
+  completeTaskObjective(taskId, objectiveIndex);
+}
+
+function notifyTaskLocationChange() {
+  const city = getCityAt(agent.x, agent.y);
+  if (!city) return;
+  evaluateVisitObjectives(city);
+}
+
+function evaluateVisitObjectives(city) {
+  if (!city || !city.name) return;
+  const cityName = city.name.toLowerCase();
+  agentTasks.forEach((task) => {
+    const triggers = task.objective_triggers || [];
+    const completed = task.completed_objectives || [];
+    triggers.forEach((trigger, index) => {
+      if (completed[index]) return;
+      if (trigger?.type === "visit_city") {
+        const triggerName = (trigger.city_name || "").toLowerCase();
+        if (triggerName && triggerName === cityName) {
+          triggerObjectiveCompletion(task.id, index);
+        }
+      }
+    });
+  });
 }
 
 function renderTaskCard() {
@@ -1141,19 +1229,41 @@ function renderTaskDetail() {
   taskDetailPriorityEl.textContent = task.priority || "Standard";
   taskDetailEtaEl.textContent = task.eta || "—";
   taskDetailDescEl.textContent = task.description || "-";
-  taskObjectiveListEl.innerHTML = (task.objectives || [])
-    .map(
-      (step) => `
+  const objectives = task.objectives || [];
+  const completed = task.completed_objectives || [];
+  const triggers = task.objective_triggers || [];
+  taskObjectiveListEl.innerHTML = objectives
+    .map((step, index) => {
+      const done = !!completed[index];
+      const trigger = triggers[index] || {};
+      const icon = done ? "✔" : "◆";
+      const iconColor = done ? "text-emerald-300" : "text-violet-300";
+      const textClasses = done ? "text-slate-400 line-through" : "text-slate-100";
+      const manualButton =
+        !done && trigger?.type === "manual"
+          ? `<button type="button" class="ml-auto text-xs text-violet-200 underline hover:text-white" data-complete-objective="true" data-task-id="${task.id}" data-objective-index="${index}">Označit splněno</button>`
+          : "";
+      return `
         <li class="flex items-start gap-2">
-          <span class="text-violet-300 mt-[3px] text-xs">◆</span>
-          <span class="text-slate-100">${step}</span>
+          <span class="${iconColor} mt-[3px] text-xs">${icon}</span>
+          <div class="flex flex-col gap-1 sm:flex-row sm:items-center w-full">
+            <span class="${textClasses}">${step}</span>
+            ${manualButton}
+          </div>
         </li>
-      `
-    )
+      `;
+    })
     .join("");
-  if (!task.objectives || task.objectives.length === 0) {
+  if (!objectives.length) {
     taskObjectiveListEl.innerHTML = `<li class="text-slate-400">Žádné kroky nejsou zadány.</li>`;
   }
+  taskObjectiveListEl.querySelectorAll("[data-complete-objective]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const idx = Number(btn.getAttribute("data-objective-index"));
+      if (Number.isNaN(idx)) return;
+      completeTaskObjective(task.id, idx);
+    });
+  });
   taskRewardLabelEl.textContent = task.reward || "-";
   taskStatusLabelEl.textContent = task.status || "-";
 }
