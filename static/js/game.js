@@ -196,7 +196,7 @@ function applySkyGradientForMinutes(totalMinutes) {
   lastSkyPhase = phase;
 
   const gradients = {
-    day: "linear-gradient(180deg, rgba(44,86,176,0.92) 0%, rgba(64,138,210,0.88) 50%, rgba(28,94,170,0.88) 100%)",
+    day: "linear-gradient(180deg, #3f7fd8 0%, #8fcfff 55%, #f4fbff 100%)",
     dusk: "linear-gradient(180deg, rgba(255,196,128,0.9) 0%, rgba(255,134,136,0.84) 42%, rgba(92,88,168,0.78) 100%)",
     night: "linear-gradient(180deg, rgba(8,12,28,0.95) 0%, rgba(6,18,44,0.9) 50%, rgba(4,12,28,0.9) 100%)",
     dawn: "linear-gradient(180deg, rgba(255,226,189,0.85) 0%, rgba(245,191,211,0.75) 45%, rgba(154,205,255,0.7) 100%)",
@@ -331,6 +331,7 @@ let cityInfoMapTargets = [];
 const ticketToggleBtn = document.getElementById("ticketToggleBtn");
 const agentLevelEl = document.getElementById("agentLevel");
 const agentXpToNextEl = document.getElementById("agentXpToNext");
+const agentLevelProgressFillEl = document.getElementById("agentLevelProgress");
 const agentEnergyLabelEl = document.getElementById("agentEnergyLabel");
 const agentEnergyBarFillEl = document.getElementById("agentEnergyBarFill");
 const taskCardEl = document.getElementById("taskCard");
@@ -972,10 +973,14 @@ function updateAgentHeader() {
   const nextXpThreshold = nextCfg ? nextCfg._xp_total ?? cumulativeXpForLevel(agentStats.level + 1) : prevXpThreshold;
   const stepTotal = Math.max(1, nextXpThreshold - prevXpThreshold);
   const xpRemaining = Math.max(0, nextXpThreshold - agentStats.xp);
+  const xpProgress = nextCfg ? Math.min(1, Math.max(0, (agentStats.xp - prevXpThreshold) / stepTotal)) : 1;
 
   agentLevelEl.textContent = agentStats.level;
   if (agentXpToNextEl) {
     agentXpToNextEl.textContent = nextCfg ? `${xpRemaining} XP` : "MAX";
+  }
+  if (agentLevelProgressFillEl) {
+    agentLevelProgressFillEl.style.width = `${xpProgress * 100}%`;
   }
 
   const energyMax = currentCfg.energy_max || 5;
