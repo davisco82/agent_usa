@@ -309,12 +309,16 @@ const travelTopSpeed = document.getElementById("travelTopSpeed");
 const travelDurationLabel = document.getElementById("travelDurationLabel");
 const infoCenterBtn = document.getElementById("infoCenterBtn");
 const labBtn = document.getElementById("labBtn");
+const bankBtn = document.getElementById("bankBtn");
+const hqBtn = document.getElementById("hqBtn");
+const workshopBtn = document.getElementById("workshopBtn");
 const cityInfoPanel = document.getElementById("cityInfoPanel");
 const cityInfoNameEl = document.getElementById("cityInfoName");
 const cityInfoMetaEl = document.getElementById("cityInfoMeta");
 const cityInfoPopulationEl = document.getElementById("cityInfoPopulation");
 const cityInfoDescEl = document.getElementById("cityInfoDesc");
 const labPanelEl = document.getElementById("labPanel");
+const workshopPanelEl = document.getElementById("workshopPanel");
 const labActionElements = document.querySelectorAll("[data-action-code]");
 const labFogLevelLabel = document.getElementById("labFogLevelLabel");
 const labFogLevelDesc = document.getElementById("labFogLevelDesc");
@@ -352,6 +356,7 @@ const footerButtons = {
   timetable: ticketToggleBtn,
   info: infoCenterBtn,
   lab: labBtn,
+  workshop: workshopBtn,
 };
 let activeFooterButton = null;
 
@@ -918,6 +923,9 @@ function showTimetablePanel(show) {
     if (labPanelEl) {
       labPanelEl.classList.add("hidden");
     }
+    if (workshopPanelEl) {
+      workshopPanelEl.classList.add("hidden");
+    }
     if (taskDetailPanelEl) {
       taskDetailPanelEl.classList.add("hidden");
     }
@@ -1320,6 +1328,9 @@ function showTaskDetailPanel(show) {
     if (labPanelEl) {
       labPanelEl.classList.add("hidden");
     }
+    if (workshopPanelEl) {
+      workshopPanelEl.classList.add("hidden");
+    }
     showTimetablePanel(false);
     if (taskListContainerEl && !taskListContainerEl.children.length) {
       renderTaskDetailPanel();
@@ -1474,6 +1485,46 @@ function renderCityInfoMap(city) {
   ctx.restore();
 }
 
+function updateLabAvailability(city) {
+  if (!labBtn) return;
+  const allowed = !!city && city.importance === 1;
+  labBtn.classList.toggle("hidden", !allowed);
+  labBtn.setAttribute("aria-disabled", allowed ? "false" : "true");
+  if (!allowed && labPanelEl) {
+    labPanelEl.classList.add("hidden");
+  }
+  if (!allowed && activeFooterButton === "lab") {
+    setActiveFooterButton(null);
+  }
+}
+
+function updateWorkshopAvailability(city) {
+  if (!workshopBtn) return;
+  const allowed = !!city && city.importance !== 1;
+  workshopBtn.classList.toggle("hidden", !allowed);
+  workshopBtn.setAttribute("aria-disabled", allowed ? "false" : "true");
+  if (!allowed && workshopPanelEl) {
+    workshopPanelEl.classList.add("hidden");
+  }
+  if (!allowed && activeFooterButton === "workshop") {
+    setActiveFooterButton(null);
+  }
+}
+
+function updateBankAvailability(city) {
+  if (!bankBtn) return;
+  const allowed = !!city && city.importance === 1;
+  bankBtn.classList.toggle("hidden", !allowed);
+  bankBtn.setAttribute("aria-disabled", allowed ? "false" : "true");
+}
+
+function updateHqAvailability(city) {
+  if (!hqBtn) return;
+  const allowed = !!city && (city.importance === 1 || city.importance === 2);
+  hqBtn.classList.toggle("hidden", !allowed);
+  hqBtn.setAttribute("aria-disabled", allowed ? "false" : "true");
+}
+
 function renderLabPanel() {
   if (!labPanelEl) return;
 
@@ -1609,6 +1660,9 @@ function showCityInfoPanel(show) {
     if (labPanelEl) {
       labPanelEl.classList.add("hidden");
     }
+    if (workshopPanelEl) {
+      workshopPanelEl.classList.add("hidden");
+    }
     renderCityInfo();
     maybeShowCityImage(getCityAt(agent.x, agent.y));
   }
@@ -1626,12 +1680,35 @@ function hideCityInfoPanel() {
 function showLabPanel(show) {
   if (!labPanelEl) return;
   const shouldShow = !!show;
+  const allowed = !labBtn || !labBtn.classList.contains("hidden");
+  if (shouldShow && !allowed) {
+    return;
+  }
   labPanelEl.classList.toggle("hidden", !shouldShow);
   if (shouldShow) {
     hideCityInfoPanel();
     showTimetablePanel(false);
     showTaskDetailPanel(false);
+    showWorkshopPanel(false);
     loadLabPanelData();
+  } else {
+    maybeShowCityImage(getCityAt(agent.x, agent.y));
+  }
+}
+
+function showWorkshopPanel(show) {
+  if (!workshopPanelEl) return;
+  const shouldShow = !!show;
+  const allowed = !workshopBtn || !workshopBtn.classList.contains("hidden");
+  if (shouldShow && !allowed) {
+    return;
+  }
+  workshopPanelEl.classList.toggle("hidden", !shouldShow);
+  if (shouldShow) {
+    hideCityInfoPanel();
+    showTimetablePanel(false);
+    showTaskDetailPanel(false);
+    showLabPanel(false);
   } else {
     maybeShowCityImage(getCityAt(agent.x, agent.y));
   }
@@ -1680,6 +1757,7 @@ if (cityHubBtn) {
     showTaskDetailPanel(false);
     hideCityInfoPanel();
     showLabPanel(false);
+    showWorkshopPanel(false);
     maybeShowCityImage(getCityAt(agent.x, agent.y));
     setActiveFooterButton("hub");
   });
@@ -1707,6 +1785,19 @@ if (labBtn) {
     } else {
       showLabPanel(true);
       setActiveFooterButton("lab");
+    }
+  });
+}
+if (workshopBtn) {
+  workshopBtn.addEventListener("click", (e) => {
+    e.preventDefault();
+    const isVisible = workshopPanelEl && !workshopPanelEl.classList.contains("hidden");
+    if (activeFooterButton === "workshop" && isVisible) {
+      showWorkshopPanel(false);
+      setActiveFooterButton(null);
+    } else {
+      showWorkshopPanel(true);
+      setActiveFooterButton("workshop");
     }
   });
 }
@@ -2243,6 +2334,10 @@ function updateSidebar() {
     if (cityDescEl) {
       cityDescEl.textContent = "Agent nestojí ve městě.";
     }
+    updateLabAvailability(null);
+    updateWorkshopAvailability(null);
+    updateBankAvailability(null);
+    updateHqAvailability(null);
     if (timeEl || weekEl) {
       const { weekText, timeText } = formatWeekAndTime(gameMinutes);
       if (weekEl) weekEl.textContent = weekText;
@@ -2264,6 +2359,10 @@ function updateSidebar() {
     const parts = [regionText, descText].filter(Boolean);
     cityDescEl.textContent = parts.join(" \u2022 ");
   }
+  updateLabAvailability(city);
+  updateWorkshopAvailability(city);
+  updateBankAvailability(city);
+  updateHqAvailability(city);
   renderCityInfo();
   maybeShowCityImage(city);
 

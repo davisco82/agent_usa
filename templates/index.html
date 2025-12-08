@@ -399,6 +399,40 @@
         cursor: not-allowed;
       }
 
+      .lab-hero {
+        background: radial-gradient(circle at 20% 20%, rgba(245, 158, 11, 0.25), transparent 45%),
+          radial-gradient(circle at 80% 0%, rgba(14, 165, 233, 0.25), transparent 40%),
+          rgba(15, 23, 42, 0.8);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        box-shadow: 0 25px 60px rgba(0, 0, 0, 0.45);
+      }
+      .lab-chip {
+        border-radius: 999px;
+        padding: 0.15rem 0.75rem;
+        font-size: 0.65rem;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+      }
+      .lab-gauge {
+        position: relative;
+        height: 12px;
+        border-radius: 999px;
+        overflow: hidden;
+        background: rgba(15, 23, 42, 0.55);
+      }
+      .lab-gauge__fill {
+        position: absolute;
+        inset: 0;
+        width: 30%;
+        border-radius: inherit;
+        background: linear-gradient(90deg, #f59e0b, #e11d48);
+      }
+      .lab-grid-card {
+        border-radius: 1.25rem;
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        background: linear-gradient(135deg, rgba(15, 23, 42, 0.9), rgba(15, 23, 42, 0.7));
+      }
+
       #timetableCard {
         left: 4%;
         right: auto;
@@ -420,6 +454,16 @@
       }
 
       #labPanel {
+        left: 4%;
+        right: auto;
+        top: 50%;
+        bottom: auto;
+        transform: translate(0, -50%);
+        width: 75%;
+        max-width: 960px;
+      }
+
+      #workshopPanel {
         left: 4%;
         right: auto;
         top: 50%;
@@ -626,81 +670,172 @@
       </div>
 
       <div id="labPanel" class="panel-card hidden space-y-6">
+        <div class="lab-hero rounded-3xl p-6 flex flex-col gap-4">
+          <div class="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <p class="lab-chip bg-amber-200/15 text-amber-200">Laboratoř</p>
+              <h3 class="text-2xl font-semibold text-white mt-2">Centrum bio-analýz</h3>
+              <p class="text-sm text-slate-200/80">Živé přehledy senzorů a rychlé zásahy proti mlze.</p>
+            </div>
+            <div class="text-4xl" aria-hidden="true">🧪</div>
+          </div>
+          <div class="grid gap-4 sm:grid-cols-[1.1fr_0.9fr]">
+            <div class="lab-grid-card p-4 space-y-3">
+              <div class="flex items-center justify-between">
+                <p class="text-[11px] uppercase tracking-[0.3em] text-slate-300">Úroveň šíření</p>
+                <span class="text-xs text-slate-400">Živá telemetrie</span>
+              </div>
+              <div class="flex items-center gap-4">
+                <div>
+                  <p id="labFogLevelLabel" class="text-4xl font-bold text-amber-200">-</p>
+                  <p id="labFogLevelDesc" class="text-sm text-slate-300">-</p>
+                </div>
+                <div class="flex-1 space-y-2">
+                  <div class="lab-gauge">
+                    <div id="labFogLevelBar" class="lab-gauge__fill"></div>
+                  </div>
+                  <p class="text-[11px] uppercase tracking-[0.2em] text-slate-400">Rychlost postupu</p>
+                </div>
+              </div>
+            </div>
+            <div class="grid gap-3 sm:grid-cols-2">
+              <div class="lab-grid-card p-4">
+                <p class="text-xs text-slate-400">Senzorická data</p>
+                <p class="text-2xl font-semibold text-sky-200">+</p>
+                <p class="text-xs text-slate-300">Aktualizace každých 15 min</p>
+              </div>
+              <div class="lab-grid-card p-4">
+                <p class="text-xs text-slate-400">Vzorky ve frontě</p>
+                <p class="text-2xl font-semibold text-rose-200">4</p>
+                <p class="text-xs text-slate-300">Čekají na analýzu</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
+          <section class="space-y-4">
+            <div class="flex items-center justify-between">
+              <p class="text-sm font-semibold text-slate-200">Analytické režimy</p>
+              <span class="text-xs text-slate-400">Hluboké skeny</span>
+            </div>
+            <div class="grid gap-3 sm:grid-cols-2">
+              <button type="button" class="lab-action-btn rounded-2xl border border-sky-400/40 bg-gradient-to-br from-sky-500/15 to-indigo-500/15 px-4 py-4 text-left hover:from-sky-500/25 hover:to-indigo-500/25 transition" data-action-code="fog_analysis">
+                <div class="flex items-center gap-2">
+                  <span class="text-xl">🔬</span>
+                  <div class="flex-1">
+                    <p class="text-sm font-semibold text-slate-100">Analýza mlhy</p>
+                    <p class="text-xs text-slate-300">Rozklad částic, hustota</p>
+                  </div>
+                </div>
+                <p class="text-[11px] mt-3 text-slate-400">Status: <span class="text-amber-200 hidden" data-action-status></span></p>
+              </button>
+              <button type="button" class="lab-action-btn rounded-2xl border border-violet-400/40 bg-gradient-to-br from-purple-500/15 to-pink-500/15 px-4 py-4 text-left hover:from-purple-500/25 hover:to-pink-500/25 transition" data-action-code="direction_detection">
+                <div class="flex items-center gap-2">
+                  <span class="text-xl">🧭</span>
+                  <div class="flex-1">
+                    <p class="text-sm font-semibold text-slate-100">Detekce směru</p>
+                    <p class="text-xs text-slate-300">Predictivní model šíření</p>
+                  </div>
+                </div>
+                <p class="text-[11px] mt-3 text-slate-400">Status: <span class="text-amber-200 hidden" data-action-status></span></p>
+              </button>
+            </div>
+          </section>
+
+          <section class="space-y-4">
+            <div class="flex items-center justify-between">
+              <p class="text-sm font-semibold text-slate-200">Taktické zásahy</p>
+              <span class="text-xs text-slate-400">Deploymenty</span>
+            </div>
+            <div class="grid gap-3 sm:grid-cols-3">
+              <button type="button" class="lab-action-btn rounded-2xl border border-amber-400/40 bg-gradient-to-br from-amber-500/15 to-orange-500/15 px-3 py-4 text-left hover:from-amber-500/25 hover:to-orange-500/25 transition" data-action-code="slow_spread">
+                <div class="flex items-center justify-between gap-2">
+                  <span class="text-lg">🌀</span>
+                  <span class="text-[11px] uppercase tracking-[0.25em] text-amber-100 hidden" data-action-status></span>
+                </div>
+                <p class="text-sm font-semibold text-slate-100 mt-2">Zpomalení šíření</p>
+                <p class="text-xs text-slate-300">Tlumení expanze</p>
+              </button>
+              <button type="button" class="lab-action-btn rounded-2xl border border-emerald-400/40 bg-gradient-to-br from-emerald-500/15 to-teal-500/15 px-3 py-4 text-left hover:from-emerald-500/25 hover:to-teal-500/25 transition" data-action-code="local_filter">
+                <div class="flex items-center justify-between gap-2">
+                  <span class="text-lg">🛡️</span>
+                  <span class="text-[11px] uppercase tracking-[0.25em] text-amber-100 hidden" data-action-status></span>
+                </div>
+                <p class="text-sm font-semibold text-slate-100 mt-2">Lokální filtr</p>
+                <p class="text-xs text-slate-300">Stabilizace města</p>
+              </button>
+              <button type="button" class="lab-action-btn rounded-2xl border border-rose-400/40 bg-gradient-to-br from-rose-500/15 to-red-500/15 px-3 py-4 text-left hover:from-rose-500/25 hover:to-red-500/25 transition" data-action-code="local_serum">
+                <div class="flex items-center justify-between gap-2">
+                  <span class="text-lg">💉</span>
+                  <span class="text-[11px] uppercase tracking-[0.25em] text-amber-100 hidden" data-action-status></span>
+                </div>
+                <p class="text-sm font-semibold text-slate-100 mt-2">Lokální sérum</p>
+                <p class="text-xs text-slate-300">Neutralizace ložisek</p>
+              </button>
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <div id="workshopPanel" class="panel-card hidden space-y-6">
         <div class="flex items-center justify-between">
           <div>
-            <p class="text-[11px] uppercase tracking-[0.3em] text-indigo-200/70">Laboratoř</p>
-            <h3 class="text-lg font-semibold text-slate-50">Výzkumné a obranné protokoly</h3>
-            <p class="text-sm text-slate-300">Monitoruj mlhu, prováděj analýzy a spouštěj lokální akce.</p>
+            <p class="text-[11px] uppercase tracking-[0.3em] text-orange-200/70">Dílna</p>
+            <h3 class="text-lg font-semibold text-slate-50">Výroba prototypů</h3>
+            <p class="text-sm text-slate-300">Spravuj plány, materiál a provoz modularních stanic.</p>
           </div>
-          <span class="text-3xl" aria-hidden="true">🧪</span>
+          <span class="text-3xl" aria-hidden="true">🛠️</span>
         </div>
 
         <section class="space-y-3">
           <div>
-            <p class="text-[11px] uppercase tracking-[0.3em] text-slate-400">1) Základní informace</p>
-            <h4 class="text-base font-semibold text-slate-100">Stav regionu</h4>
+            <p class="text-[11px] uppercase tracking-[0.3em] text-slate-400">1) Základní parametry</p>
+            <h4 class="text-base font-semibold text-slate-100">Stav dílny</h4>
           </div>
-          <div class="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 flex items-center justify-between">
-          <div>
-            <p class="text-xs uppercase tracking-[0.35em] text-slate-400">Úroveň šíření mlhy</p>
-            <p id="labFogLevelLabel" class="text-2xl font-bold text-amber-200">-</p>
-            <p id="labFogLevelDesc" class="text-xs text-slate-400 mt-1">-</p>
-          </div>
-            <div class="w-40 h-2 rounded-full bg-slate-800 overflow-hidden">
-              <div id="labFogLevelBar" class="h-full w-1/3 bg-gradient-to-r from-amber-400 to-pink-500"></div>
+          <div class="grid gap-3 sm:grid-cols-3 text-sm text-slate-200">
+            <div class="rounded-2xl border border-white/10 bg-slate-900/70 p-4">
+              <p class="text-[10px] uppercase tracking-[0.3em] text-slate-400">Úroveň</p>
+              <p id="workshopLevelLabel" class="text-2xl font-bold text-white">-</p>
+            </div>
+            <div class="rounded-2xl border border-white/10 bg-slate-900/70 p-4">
+              <p class="text-[10px] uppercase tracking-[0.3em] text-slate-400">Kapacity</p>
+              <p id="workshopCapacityLabel" class="text-2xl font-bold text-amber-200">-</p>
+            </div>
+            <div class="rounded-2xl border border-white/10 bg-slate-900/70 p-4">
+              <p class="text-[10px] uppercase tracking-[0.3em] text-slate-400">Aktivní výroby</p>
+              <p id="workshopQueueLabel" class="text-2xl font-bold text-emerald-200">-</p>
             </div>
           </div>
         </section>
 
         <section class="space-y-3">
           <div>
-            <p class="text-[11px] uppercase tracking-[0.3em] text-slate-400">2) Analýzy</p>
-            <h4 class="text-base font-semibold text-slate-100">Skeny v terénu</h4>
+            <p class="text-[11px] uppercase tracking-[0.3em] text-slate-400">2) Blueprinty</p>
+            <h4 class="text-base font-semibold text-slate-100">Dostupné recepty</h4>
           </div>
-          <div class="grid gap-3 sm:grid-cols-2">
-            <button type="button" class="lab-action-btn rounded-2xl border border-sky-500/30 bg-sky-500/10 px-4 py-3 text-left hover:bg-sky-500/20 transition" data-action-code="fog_analysis">
-              <div class="flex items-center justify-between gap-2">
-                <p class="text-sm font-semibold text-slate-100">Analýza mlhy</p>
-                <span class="text-[10px] uppercase tracking-[0.3em] text-amber-200 hidden" data-action-status></span>
-              </div>
-              <p class="text-xs text-slate-300">Získá složení a aktuální hustotu.</p>
-            </button>
-            <button type="button" class="lab-action-btn rounded-2xl border border-violet-500/30 bg-violet-500/10 px-4 py-3 text-left hover:bg-violet-500/20 transition" data-action-code="direction_detection">
-              <div class="flex items-center justify-between gap-2">
-                <p class="text-sm font-semibold text-slate-100">Detekce směru</p>
-                <span class="text-[10px] uppercase tracking-[0.3em] text-amber-200 hidden" data-action-status></span>
-              </div>
-              <p class="text-xs text-slate-300">Odhad budoucího postupu mlhy.</p>
-            </button>
+          <div class="rounded-2xl border border-slate-800 bg-slate-900/70 divide-y divide-slate-800" id="workshopBlueprintList">
+            <div class="p-4 text-sm text-slate-300">Zatím žádné plány.</div>
           </div>
         </section>
 
         <section class="space-y-3">
           <div>
-            <p class="text-[11px] uppercase tracking-[0.3em] text-slate-400">3) Akce proti mlze</p>
-            <h4 class="text-base font-semibold text-slate-100">Taktické zásahy</h4>
+            <p class="text-[11px] uppercase tracking-[0.3em] text-slate-400">3) Výroba</p>
+            <h4 class="text-base font-semibold text-slate-100">Akce dílny</h4>
           </div>
-          <div class="grid gap-3 sm:grid-cols-3">
-            <button type="button" class="lab-action-btn rounded-2xl border border-amber-500/30 bg-amber-500/10 px-3 py-4 text-left hover:bg-amber-500/20 transition" data-action-code="slow_spread">
-              <div class="flex items-center justify-between gap-2">
-                <p class="text-sm font-semibold text-slate-100">Zpomalení šíření</p>
-                <span class="text-[10px] uppercase tracking-[0.3em] text-amber-200 hidden" data-action-status></span>
-              </div>
-              <p class="text-xs text-slate-300">Dočasné utlumení expanze.</p>
+          <div class="grid gap-3 sm:grid-cols-3" id="workshopActionGrid">
+            <button type="button" class="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-3 py-4 text-left text-sm text-slate-100 hover:bg-amber-500/20 transition" disabled>
+              <p class="font-semibold">Vyber blueprint</p>
+              <p class="text-xs text-slate-300">Najdi plán a spusť výrobní linku.</p>
             </button>
-            <button type="button" class="lab-action-btn rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-4 text-left hover:bg-emerald-500/20 transition" data-action-code="local_filter">
-              <div class="flex items-center justify-between gap-2">
-                <p class="text-sm font-semibold text-slate-100">Lokální ochranný filtr</p>
-                <span class="text-[10px] uppercase tracking-[0.3em] text-amber-200 hidden" data-action-status></span>
-              </div>
-              <p class="text-xs text-slate-300">Stabilizuje vybrané město.</p>
+            <button type="button" class="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-4 text-left text-sm text-slate-100 hover:bg-emerald-500/20 transition" disabled>
+              <p class="font-semibold">Správa fronty</p>
+              <p class="text-xs text-slate-300">Zde se objeví aktivní projekty.</p>
             </button>
-            <button type="button" class="lab-action-btn rounded-2xl border border-rose-500/30 bg-rose-500/10 px-3 py-4 text-left hover:bg-rose-500/20 transition" data-action-code="local_serum">
-              <div class="flex items-center justify-between gap-2">
-                <p class="text-sm font-semibold text-slate-100">Lokální sérum</p>
-                <span class="text-[10px] uppercase tracking-[0.3em] text-amber-200 hidden" data-action-status></span>
-              </div>
-              <p class="text-xs text-slate-300">Neutralizuje infekční ložiska.</p>
+            <button type="button" class="rounded-2xl border border-sky-500/30 bg-sky-500/10 px-3 py-4 text-left text-sm text-slate-100 hover:bg-sky-500/20 transition" disabled>
+              <p class="font-semibold">Upgrade dílny</p>
+              <p class="text-xs text-slate-300">Odemkni další sloty pro výrobu.</p>
             </button>
           </div>
         </section>
@@ -763,11 +898,11 @@
             <button id="cityHubBtn" class="location-pill" data-label="Úvod" aria-label="Úvod">🏡</button>
             <button id="ticketToggleBtn" class="location-pill" data-label="Nádraží" aria-label="Nádraží">🚉</button>
             <button id="infoCenterBtn" class="location-pill" data-label="Infocentrum" aria-label="Informační centrum">🏛️</button>
-            <button class="location-pill" data-label="Banka" aria-label="Banka">🏦</button>
+            <button id="bankBtn" class="location-pill" data-label="Banka" aria-label="Banka">🏦</button>
             <button id="labBtn" class="location-pill" data-label="Laboratoř" aria-label="Laboratoř">🧪</button>
-            <button class="location-pill" data-label="Média" aria-label="Mediální centrum">📣</button>
+            <button id="workshopBtn" class="location-pill" data-label="Dílna" aria-label="Dílna">🛠️</button>
             <button class="location-pill" data-label="Trh" aria-label="Trh">🛒</button>
-            <button class="location-pill" data-label="HQ kanál" aria-label="HQ kanál">🌐</button>
+            <button id="hqBtn" class="location-pill" data-label="HQ kanál" aria-label="HQ kanál">🌐</button>
           </div>
           <div class="footer-resources">
             <div class="energy-meter">
