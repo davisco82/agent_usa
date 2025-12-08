@@ -135,7 +135,7 @@ AGENT_TASK_TEMPLATES = [
         "priority": "Vysoká",
         "eta": "2–3 hodiny",
         "progress": 0.0,
-        "objective_rewards": [50, 50, 50],
+        "objective_rewards": [10, 20, 30],
         "objective_triggers": [
             {"type": "visit_city", "city_name": "{entry_city}"},
             {"type": "visit_city", "city_name": "{doctor_city}"},

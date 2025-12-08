@@ -995,7 +995,7 @@ function updateAgentHeader() {
   }
 }
 
-function grantTravelXp(amount = 50) {
+function grantTravelXp(amount = 5) {
   if (!amount || amount <= 0) return;
   agentStats.xp = Math.max(0, (agentStats.xp || 0) + amount);
 
@@ -1321,9 +1321,6 @@ function showTaskDetailPanel(show) {
   if (!taskDetailPanelEl) return;
   const shouldShow = !!show;
   taskDetailPanelEl.classList.toggle("hidden", !shouldShow);
-  if (canvasBlock) {
-    canvasBlock.classList.toggle("hidden", shouldShow);
-  }
   if (shouldShow) {
     if (activeFooterButton) {
       setActiveFooterButton(null);
@@ -1341,20 +1338,6 @@ function showTaskDetailPanel(show) {
     if (taskListContainerEl && !taskListContainerEl.children.length) {
       renderTaskDetailPanel();
     }
-  } else if (!timetableCardEl || timetableCardEl.classList.contains("hidden")) {
-    showCanvasView();
-  }
-}
-
-function showCanvasView() {
-  if (canvasBlock) {
-    canvasBlock.classList.remove("hidden");
-  }
-  if (canvas) {
-    canvas.classList.remove("hidden");
-  }
-  if (cityBackdropEl) {
-    cityBackdropEl.classList.add("opacity-0");
   }
 }
 
@@ -1810,8 +1793,14 @@ if (workshopBtn) {
 if (taskCardEl) {
   taskCardEl.addEventListener("click", (e) => {
     e.preventDefault();
-    renderTaskDetailPanel();
-    showTaskDetailPanel(true);
+    const isVisible = taskDetailPanelEl && !taskDetailPanelEl.classList.contains("hidden");
+    if (isVisible) {
+      showTaskDetailPanel(false);
+    } else {
+      renderTaskDetailPanel();
+      setTimetableRaised(false);
+      showTaskDetailPanel(true);
+    }
   });
 }
 if (closeTaskDetailBtn) {
@@ -2081,7 +2070,7 @@ function renderTravelOverlay(progress, currentMinutes) {
 
 function completeTravel(targetCity) {
   if (!targetCity) return;
-  grantTravelXp(50);
+  grantTravelXp(5);
   travelToCity(targetCity);
   renderTimetablePage();
 }
