@@ -20,5 +20,6 @@ class City(db.Model):
     py = db.Column(db.Float)
     grid_x = db.Column(db.Integer)
     grid_y = db.Column(db.Integer)
+    population = db.Column(db.Integer)
 
     region = db.relationship("Region", back_populates="cities")

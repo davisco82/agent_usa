@@ -13,12 +13,14 @@ from models.agent_task_progress import AgentTaskProgress
 from game.agent.level_config import AGENT_LEVELS
 from game.agent.task_config import get_agent_tasks
 from seeds.cities_seed import register_city_seed_commands
-from seeds.trainlines_seed import register_trainlines_commands  
+from seeds.trainlines_seed import register_trainlines_commands
+from seeds.lab_seed import register_lab_seed_commands
 from services.timetable_service import (
     compute_line_distance_miles,
     compute_next_departures,
     compute_travel_minutes,
 )
+from services.lab_service import build_lab_overview
 
 
 def _agent_region_code(agent: Agent | None) -> str | None:
@@ -78,6 +80,7 @@ def create_app():
     # CLI příkazy (seed)
     register_city_seed_commands(app)
     register_trainlines_commands(app)
+    register_lab_seed_commands(app)
 
    # ----------------- ROUTES -----------------
 
@@ -107,9 +110,16 @@ def create_app():
                 "py": c.py,
                 "grid_x": c.grid_x,
                 "grid_y": c.grid_y,
+                "population": c.population,
             })
 
         return jsonify(data)
+
+    @app.get("/api/lab/actions")
+    def api_lab_actions():
+        agent = Agent.query.order_by(Agent.id.asc()).first()
+        overview = build_lab_overview(agent)
+        return jsonify(overview)
 
     
     @app.get("/api/trainlines")

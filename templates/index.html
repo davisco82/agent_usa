@@ -394,6 +394,11 @@
         z-index: 20;
       }
 
+      .lab-action-btn[disabled] {
+        opacity: 0.45;
+        cursor: not-allowed;
+      }
+
       #timetableCard {
         left: 4%;
         right: auto;
@@ -405,6 +410,16 @@
       }
 
       #cityInfoPanel {
+        left: 4%;
+        right: auto;
+        top: 50%;
+        bottom: auto;
+        transform: translate(0, -50%);
+        width: 75%;
+        max-width: 960px;
+      }
+
+      #labPanel {
         left: 4%;
         right: auto;
         top: 50%;
@@ -574,16 +589,17 @@
       </div>
 
       <div id="cityInfoPanel" class="panel-card hidden">
-        <div class="flex flex-col gap-6 lg:flex-row lg:items-start">
+        <div class="flex flex-col gap-6 lg:flex-row lg:items-center">
           <div class="flex-1 space-y-4">
             <div class="flex items-center justify-between">
               <div>
                 <p class="text-[11px] uppercase tracking-[0.3em] text-amber-200/70">Informační centrum</p>
                 <h3 id="cityInfoName" class="text-lg font-semibold">-</h3>
                 <p id="cityInfoMeta" class="text-sm text-slate-300">Vyber město na mapě</p>
+                <p id="cityInfoPopulation" class="text-sm font-semibold text-amber-200">Počet obyvatel: -</p>
               </div>
             </div>
-            <p id="cityInfoDesc" class="text-sm leading-relaxed text-slate-200 whitespace-pre-line">
+            <p id="cityInfoDesc" class="text-xs leading-relaxed text-slate-200 whitespace-pre-line">
               Přepni na město a ukážeme ti detaily.
             </p>
             <div id="cityInfoDetails" class="space-y-3 text-sm text-slate-200">
@@ -607,6 +623,87 @@
             ></div>
           </div>
         </div>
+      </div>
+
+      <div id="labPanel" class="panel-card hidden space-y-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-[11px] uppercase tracking-[0.3em] text-indigo-200/70">Laboratoř</p>
+            <h3 class="text-lg font-semibold text-slate-50">Výzkumné a obranné protokoly</h3>
+            <p class="text-sm text-slate-300">Monitoruj mlhu, prováděj analýzy a spouštěj lokální akce.</p>
+          </div>
+          <span class="text-3xl" aria-hidden="true">🧪</span>
+        </div>
+
+        <section class="space-y-3">
+          <div>
+            <p class="text-[11px] uppercase tracking-[0.3em] text-slate-400">1) Základní informace</p>
+            <h4 class="text-base font-semibold text-slate-100">Stav regionu</h4>
+          </div>
+          <div class="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 flex items-center justify-between">
+          <div>
+            <p class="text-xs uppercase tracking-[0.35em] text-slate-400">Úroveň šíření mlhy</p>
+            <p id="labFogLevelLabel" class="text-2xl font-bold text-amber-200">-</p>
+            <p id="labFogLevelDesc" class="text-xs text-slate-400 mt-1">-</p>
+          </div>
+            <div class="w-40 h-2 rounded-full bg-slate-800 overflow-hidden">
+              <div id="labFogLevelBar" class="h-full w-1/3 bg-gradient-to-r from-amber-400 to-pink-500"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="space-y-3">
+          <div>
+            <p class="text-[11px] uppercase tracking-[0.3em] text-slate-400">2) Analýzy</p>
+            <h4 class="text-base font-semibold text-slate-100">Skeny v terénu</h4>
+          </div>
+          <div class="grid gap-3 sm:grid-cols-2">
+            <button type="button" class="lab-action-btn rounded-2xl border border-sky-500/30 bg-sky-500/10 px-4 py-3 text-left hover:bg-sky-500/20 transition" data-action-code="fog_analysis">
+              <div class="flex items-center justify-between gap-2">
+                <p class="text-sm font-semibold text-slate-100">Analýza mlhy</p>
+                <span class="text-[10px] uppercase tracking-[0.3em] text-amber-200 hidden" data-action-status></span>
+              </div>
+              <p class="text-xs text-slate-300">Získá složení a aktuální hustotu.</p>
+            </button>
+            <button type="button" class="lab-action-btn rounded-2xl border border-violet-500/30 bg-violet-500/10 px-4 py-3 text-left hover:bg-violet-500/20 transition" data-action-code="direction_detection">
+              <div class="flex items-center justify-between gap-2">
+                <p class="text-sm font-semibold text-slate-100">Detekce směru</p>
+                <span class="text-[10px] uppercase tracking-[0.3em] text-amber-200 hidden" data-action-status></span>
+              </div>
+              <p class="text-xs text-slate-300">Odhad budoucího postupu mlhy.</p>
+            </button>
+          </div>
+        </section>
+
+        <section class="space-y-3">
+          <div>
+            <p class="text-[11px] uppercase tracking-[0.3em] text-slate-400">3) Akce proti mlze</p>
+            <h4 class="text-base font-semibold text-slate-100">Taktické zásahy</h4>
+          </div>
+          <div class="grid gap-3 sm:grid-cols-3">
+            <button type="button" class="lab-action-btn rounded-2xl border border-amber-500/30 bg-amber-500/10 px-3 py-4 text-left hover:bg-amber-500/20 transition" data-action-code="slow_spread">
+              <div class="flex items-center justify-between gap-2">
+                <p class="text-sm font-semibold text-slate-100">Zpomalení šíření</p>
+                <span class="text-[10px] uppercase tracking-[0.3em] text-amber-200 hidden" data-action-status></span>
+              </div>
+              <p class="text-xs text-slate-300">Dočasné utlumení expanze.</p>
+            </button>
+            <button type="button" class="lab-action-btn rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-4 text-left hover:bg-emerald-500/20 transition" data-action-code="local_filter">
+              <div class="flex items-center justify-between gap-2">
+                <p class="text-sm font-semibold text-slate-100">Lokální ochranný filtr</p>
+                <span class="text-[10px] uppercase tracking-[0.3em] text-amber-200 hidden" data-action-status></span>
+              </div>
+              <p class="text-xs text-slate-300">Stabilizuje vybrané město.</p>
+            </button>
+            <button type="button" class="lab-action-btn rounded-2xl border border-rose-500/30 bg-rose-500/10 px-3 py-4 text-left hover:bg-rose-500/20 transition" data-action-code="local_serum">
+              <div class="flex items-center justify-between gap-2">
+                <p class="text-sm font-semibold text-slate-100">Lokální sérum</p>
+                <span class="text-[10px] uppercase tracking-[0.3em] text-amber-200 hidden" data-action-status></span>
+              </div>
+              <p class="text-xs text-slate-300">Neutralizuje infekční ložiska.</p>
+            </button>
+          </div>
+        </section>
       </div>
 
       <div id="timetableCard" class="panel-card hidden space-y-4">
@@ -667,7 +764,7 @@
             <button id="ticketToggleBtn" class="location-pill" data-label="Nádraží" aria-label="Nádraží">🚉</button>
             <button id="infoCenterBtn" class="location-pill" data-label="Infocentrum" aria-label="Informační centrum">🏛️</button>
             <button class="location-pill" data-label="Banka" aria-label="Banka">🏦</button>
-            <button class="location-pill" data-label="Laboratoř" aria-label="Laboratoř">🧪</button>
+            <button id="labBtn" class="location-pill" data-label="Laboratoř" aria-label="Laboratoř">🧪</button>
             <button class="location-pill" data-label="Média" aria-label="Mediální centrum">📣</button>
             <button class="location-pill" data-label="Trh" aria-label="Trh">🛒</button>
             <button class="location-pill" data-label="HQ kanál" aria-label="HQ kanál">🌐</button>

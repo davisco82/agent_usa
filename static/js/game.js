@@ -39,6 +39,8 @@ let purchasedTicketKey = null;
 let travelAnimation = null;
 let hoveredLineKey = null;
 let timetableRaised = false;
+let labOverview = null;
+let labOverviewLoading = false;
 
 // Jednoduchá lokální reprezentace agenta (pro UI panel nahoře)
 let levelConfig = [];
@@ -143,6 +145,22 @@ function formatCityLabel(name) {
     return city.name;
   }
   return name;
+}
+
+function formatPopulation(population) {
+  if (population === null || population === undefined) {
+    return "-";
+  }
+
+  if (population >= 1_000_000) {
+    const roundedMillions = Math.round((population / 1_000_000) * 10) / 10;
+    const label = roundedMillions.toString().replace(".", ",");
+    return `${label} mil.`;
+  }
+
+  const thousands = Math.round(population / 1000);
+  const label = thousands.toString().replace(".", ",");
+  return `${label} tis.`;
 }
 
 function getTrainLevel(lineType) {
@@ -290,10 +308,17 @@ const travelTopType = document.getElementById("travelTopType");
 const travelTopSpeed = document.getElementById("travelTopSpeed");
 const travelDurationLabel = document.getElementById("travelDurationLabel");
 const infoCenterBtn = document.getElementById("infoCenterBtn");
+const labBtn = document.getElementById("labBtn");
 const cityInfoPanel = document.getElementById("cityInfoPanel");
 const cityInfoNameEl = document.getElementById("cityInfoName");
 const cityInfoMetaEl = document.getElementById("cityInfoMeta");
+const cityInfoPopulationEl = document.getElementById("cityInfoPopulation");
 const cityInfoDescEl = document.getElementById("cityInfoDesc");
+const labPanelEl = document.getElementById("labPanel");
+const labActionElements = document.querySelectorAll("[data-action-code]");
+const labFogLevelLabel = document.getElementById("labFogLevelLabel");
+const labFogLevelDesc = document.getElementById("labFogLevelDesc");
+const labFogLevelBar = document.getElementById("labFogLevelBar");
 const cityInfoMapCanvas = document.getElementById("cityInfoMap");
 const cityInfoMapCtx = cityInfoMapCanvas ? cityInfoMapCanvas.getContext("2d") : null;
 const cityInfoMapWrapper = document.getElementById("cityInfoMapWrapper");
@@ -326,6 +351,7 @@ const footerButtons = {
   hub: cityHubBtn,
   timetable: ticketToggleBtn,
   info: infoCenterBtn,
+  lab: labBtn,
 };
 let activeFooterButton = null;
 
@@ -889,6 +915,9 @@ function showTimetablePanel(show) {
     if (cityInfoPanel) {
       cityInfoPanel.classList.add("hidden");
     }
+    if (labPanelEl) {
+      labPanelEl.classList.add("hidden");
+    }
     if (taskDetailPanelEl) {
       taskDetailPanelEl.classList.add("hidden");
     }
@@ -1288,6 +1317,9 @@ function showTaskDetailPanel(show) {
     if (cityInfoPanel) {
       cityInfoPanel.classList.add("hidden");
     }
+    if (labPanelEl) {
+      labPanelEl.classList.add("hidden");
+    }
     showTimetablePanel(false);
     if (taskListContainerEl && !taskListContainerEl.children.length) {
       renderTaskDetailPanel();
@@ -1310,12 +1342,13 @@ function showCanvasView() {
 }
 
 function renderCityInfo() {
-  if (!cityInfoPanel || !cityInfoNameEl || !cityInfoMetaEl || !cityInfoDescEl) return;
+  if (!cityInfoPanel || !cityInfoNameEl || !cityInfoMetaEl || !cityInfoPopulationEl || !cityInfoDescEl) return;
 
   const city = getCityAt(agent.x, agent.y);
   if (!city) {
     cityInfoNameEl.textContent = "Neznámé město";
     cityInfoMetaEl.textContent = "Agent není ve městě";
+    cityInfoPopulationEl.textContent = "Počet obyvatel: -";
     cityInfoDescEl.textContent = "Přesuň se do města pro detailní přehled.";
     renderCityInfoMap(null);
     return;
@@ -1334,6 +1367,10 @@ function renderCityInfo() {
   cityInfoNameEl.textContent = city.name;
   const metaParts = [statePart, regionPart, importancePart].filter(Boolean);
   cityInfoMetaEl.textContent = metaParts.join(" • ") || "-";
+  const hasPopulation = typeof city.population === "number" && !Number.isNaN(city.population);
+  cityInfoPopulationEl.textContent = hasPopulation
+    ? `Počet obyvatel: ${formatPopulation(city.population)}`
+    : "Počet obyvatel: -";
   cityInfoDescEl.textContent = city.description || "Chybí popis pro toto město.";
   renderCityInfoMap(city);
 }
@@ -1437,6 +1474,86 @@ function renderCityInfoMap(city) {
   ctx.restore();
 }
 
+function renderLabPanel() {
+  if (!labPanelEl) return;
+
+  if (!labOverview) {
+    if (labFogLevelLabel) labFogLevelLabel.textContent = "-";
+    if (labFogLevelDesc) labFogLevelDesc.textContent = "Načítám data...";
+    if (labFogLevelBar) labFogLevelBar.style.width = "12%";
+    labActionElements.forEach((btn) => {
+      btn.disabled = true;
+      const statusEl = btn.querySelector("[data-action-status]");
+      if (statusEl) {
+        statusEl.textContent = "Načítám";
+        statusEl.classList.remove("hidden");
+        statusEl.classList.remove("text-rose-200", "text-emerald-200");
+        statusEl.classList.add("text-amber-200");
+      }
+    });
+    return;
+  }
+
+  const fog = labOverview.fog || {};
+  if (labFogLevelLabel) {
+    labFogLevelLabel.textContent = fog.label || "-";
+  }
+  if (labFogLevelDesc) {
+    labFogLevelDesc.textContent = fog.description || "-";
+  }
+  if (labFogLevelBar && typeof fog.percent === "number") {
+    const pct = Math.max(4, Math.min(100, fog.percent));
+    labFogLevelBar.style.width = `${pct}%`;
+  }
+
+  const actionMap = new Map((labOverview.actions || []).map((action) => [action.code, action]));
+  labActionElements.forEach((btn) => {
+    const code = btn.dataset.actionCode;
+    const action = actionMap.get(code);
+    const statusEl = btn.querySelector("[data-action-status]");
+    if (!action) {
+      btn.disabled = true;
+      if (statusEl) {
+        statusEl.textContent = "Nedostupné";
+        statusEl.classList.remove("hidden", "text-emerald-200");
+        statusEl.classList.add("text-rose-200");
+      }
+      return;
+    }
+
+    const unlocked = !!action.is_unlocked;
+    btn.disabled = !unlocked;
+    if (statusEl) {
+      statusEl.classList.remove("hidden");
+      if (unlocked) {
+        statusEl.textContent = action.cooldown_minutes ? `Cooldown ${action.cooldown_minutes}m` : "Připraveno";
+        statusEl.classList.remove("text-rose-200", "text-amber-200");
+        statusEl.classList.add("text-emerald-200");
+      } else {
+        statusEl.textContent = action.locked_reason || "Zamčeno";
+        statusEl.classList.remove("text-emerald-200");
+        statusEl.classList.add("text-rose-200");
+      }
+    }
+  });
+}
+
+async function loadLabPanelData(force = false) {
+  if (!labPanelEl) return;
+  if (labOverviewLoading) return;
+  if (labOverview && !force) {
+    renderLabPanel();
+    return;
+  }
+  labOverviewLoading = true;
+  try {
+    labOverview = await fetchLabOverview();
+    renderLabPanel();
+  } finally {
+    labOverviewLoading = false;
+  }
+}
+
 function showCityInfoMapTooltip(target, clientX, clientY) {
   if (!cityInfoMapTooltip || !cityInfoMapWrapper || !target) return;
   const wrapperRect = cityInfoMapWrapper.getBoundingClientRect();
@@ -1489,6 +1606,9 @@ function showCityInfoPanel(show) {
   if (shouldShow) {
     showTimetablePanel(false);
     showTaskDetailPanel(false);
+    if (labPanelEl) {
+      labPanelEl.classList.add("hidden");
+    }
     renderCityInfo();
     maybeShowCityImage(getCityAt(agent.x, agent.y));
   }
@@ -1501,6 +1621,20 @@ function hideCityInfoPanel() {
   }
   maybeShowCityImage(getCityAt(agent.x, agent.y));
   hideCityInfoMapTooltip();
+}
+
+function showLabPanel(show) {
+  if (!labPanelEl) return;
+  const shouldShow = !!show;
+  labPanelEl.classList.toggle("hidden", !shouldShow);
+  if (shouldShow) {
+    hideCityInfoPanel();
+    showTimetablePanel(false);
+    showTaskDetailPanel(false);
+    loadLabPanelData();
+  } else {
+    maybeShowCityImage(getCityAt(agent.x, agent.y));
+  }
 }
 
 async function maybeShowCityImage(city) {
@@ -1545,6 +1679,7 @@ if (cityHubBtn) {
     showTimetablePanel(false);
     showTaskDetailPanel(false);
     hideCityInfoPanel();
+    showLabPanel(false);
     maybeShowCityImage(getCityAt(agent.x, agent.y));
     setActiveFooterButton("hub");
   });
@@ -1559,6 +1694,19 @@ if (infoCenterBtn) {
     } else {
       showCityInfoPanel(true);
       setActiveFooterButton("info");
+    }
+  });
+}
+if (labBtn) {
+  labBtn.addEventListener("click", (e) => {
+    e.preventDefault();
+    const isVisible = labPanelEl && !labPanelEl.classList.contains("hidden");
+    if (activeFooterButton === "lab" && isVisible) {
+      showLabPanel(false);
+      setActiveFooterButton(null);
+    } else {
+      showLabPanel(true);
+      setActiveFooterButton("lab");
     }
   });
 }
@@ -1720,6 +1868,20 @@ async function fetchTrainLines() {
   } catch (err) {
     console.error("Error loading trainlines:", err);
     return [];
+  }
+}
+
+async function fetchLabOverview() {
+  try {
+    const res = await fetch("/api/lab/actions");
+    if (!res.ok) {
+      console.error("Nepodařilo se načíst laboratorní data.");
+      return null;
+    }
+    return await res.json();
+  } catch (err) {
+    console.error("Chyba při načítání laboratorních dat:", err);
+    return null;
   }
 }
 
