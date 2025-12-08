@@ -9,6 +9,7 @@ mapImage.src = "/static/assets/usa_sil.png"; // cesta k silhouetě USA
 mapImage.addEventListener("load", () => {
   mapLoaded = true;
   console.log("Map image loaded");
+  renderCityInfoMap(getCityAt(agent.x, agent.y));
 });
 
 const TILE_SIZE = 8;
@@ -20,7 +21,7 @@ const MINUTES_PER_WEEK = MINUTES_PER_DAY * 7;
 
 // Po 08:00 = start
 let gameMinutes = 8 * 60; // 8:00 první den (Po)
-const REAL_MS_PER_GAME_MINUTE = 1500; // 1 herní minuta = 1.5 reálné sekundy (rychlejší testování)
+const REAL_MS_PER_GAME_MINUTE = 1000; // 1 herní minuta = 1 reálná sekunda pro rychlejší postup
 let lastFrameMs = performance.now();
 let timeAccumulatorMs = 0;
 
@@ -270,37 +271,16 @@ function imageExists(url) {
   });
 }
 
-function setFrameAspectFromImage(img) {
-  if (!img || !visualFrameEl) return;
-  const w = img.naturalWidth;
-  const h = img.naturalHeight;
-  if (w > 0 && h > 0) {
-    visualFrameEl.style.aspectRatio = `${w} / ${h}`;
-  }
-}
-
-
-// update size label only if element exists (not present on the current page)
-const mapSizeEl = document.getElementById("mapSize");
-if (mapSizeEl) {
-  mapSizeEl.textContent = `${GRID_COLS} × ${GRID_ROWS} polí`;
-}
-
+// DOM references
 const canvasBlock = document.getElementById("canvasBlock");
 const cityBackdropEl = document.getElementById("cityBackdrop");
-const visualFrameEl = document.getElementById("visualFrame");
 const skyGradientEl = document.getElementById("skyGradient");
 const nightOverlayEl = document.getElementById("nightOverlay");
 const daySunOverlayEl = document.getElementById("daySunOverlay");
 const timetableCardEl = document.getElementById("timetableCard");
 const cityHubBtn = document.getElementById("cityHubBtn");
 const travelOverlayEl = document.getElementById("travelOverlay");
-const travelFromLabel = document.getElementById("travelFromLabel");
-const travelToLabel = document.getElementById("travelToLabel");
-const travelLineLabel = document.getElementById("travelLineLabel");
 const travelDistanceLabel = document.getElementById("travelDistanceLabel");
-const travelDepartLabel = document.getElementById("travelDepartLabel");
-const travelArriveLabel = document.getElementById("travelArriveLabel");
 const travelClockLabel = document.getElementById("travelClockLabel");
 const travelProgressBar = document.getElementById("travelProgressBar");
 const travelProgressFrom = document.getElementById("travelProgressFrom");
@@ -314,10 +294,14 @@ const cityInfoPanel = document.getElementById("cityInfoPanel");
 const cityInfoNameEl = document.getElementById("cityInfoName");
 const cityInfoMetaEl = document.getElementById("cityInfoMeta");
 const cityInfoDescEl = document.getElementById("cityInfoDesc");
+const cityInfoMapCanvas = document.getElementById("cityInfoMap");
+const cityInfoMapCtx = cityInfoMapCanvas ? cityInfoMapCanvas.getContext("2d") : null;
+const cityInfoMapWrapper = document.getElementById("cityInfoMapWrapper");
+const cityInfoMapTooltip = document.getElementById("cityInfoMapTooltip");
+let cityInfoMapTargets = [];
+const ticketToggleBtn = document.getElementById("ticketToggleBtn");
 const agentLevelEl = document.getElementById("agentLevel");
-const agentXpLabelEl = document.getElementById("agentXpLabel");
 const agentXpToNextEl = document.getElementById("agentXpToNext");
-const agentXpBarFillEl = document.getElementById("agentXpBarFill");
 const agentEnergyLabelEl = document.getElementById("agentEnergyLabel");
 const agentEnergyBarFillEl = document.getElementById("agentEnergyBarFill");
 const taskCardEl = document.getElementById("taskCard");
@@ -338,6 +322,24 @@ const taskObjectiveListEl = document.getElementById("taskObjectiveList");
 const taskRewardLabelEl = document.getElementById("taskRewardLabel");
 const taskStatusLabelEl = document.getElementById("taskStatusLabel");
 const closeTaskDetailBtn = document.getElementById("closeTaskDetailBtn");
+const footerButtons = {
+  hub: cityHubBtn,
+  timetable: ticketToggleBtn,
+  info: infoCenterBtn,
+};
+let activeFooterButton = null;
+
+function setActiveFooterButton(key) {
+  activeFooterButton = key;
+  Object.entries(footerButtons).forEach(([btnKey, btn]) => {
+    if (!btn) return;
+    const isActive = btnKey === key;
+    btn.classList.toggle("is-active", isActive);
+    btn.setAttribute("aria-pressed", isActive ? "true" : "false");
+  });
+}
+
+setActiveFooterButton(null);
 
 if (canvas) {
   canvas.addEventListener("mousemove", (e) => {
@@ -353,15 +355,23 @@ if (canvas) {
   canvas.addEventListener("mouseleave", () => {
     hoveredCity = null;
   });
-}
 
+  canvas.addEventListener("click", () => {
+    const timetableWasActive = activeFooterButton === "timetable";
+    showTimetablePanel(false);
+    showTaskDetailPanel(false);
+    if (timetableWasActive) {
+      setActiveFooterButton(null);
+    }
+  });
+}
 // ----------------------------------------
 // POST-APO MLHA – základní systém
 // ----------------------------------------
 
 const fogSpreadSpeed = 0.001; // základní rychlost šíření mlhy
-let fogTiles = new Set();     // tile indexy mlhy
-let fogFrontier = [];         // fronta okrajových tileů pro nerovnoměrné šíření
+let fogTiles = new Set(); // tile indexy mlhy
+let fogFrontier = []; // fronta okrajových tileů pro nerovnoměrné šíření
 
 // vlakové linky z backendu
 let trainLines = []; // naplní se v init()
@@ -924,20 +934,11 @@ function updateAgentHeader() {
   const prevXpThreshold = currentCfg._xp_total ?? cumulativeXpForLevel(agentStats.level);
   const nextXpThreshold = nextCfg ? nextCfg._xp_total ?? cumulativeXpForLevel(agentStats.level + 1) : prevXpThreshold;
   const stepTotal = Math.max(1, nextXpThreshold - prevXpThreshold);
-  const xpInStep = Math.max(0, agentStats.xp - prevXpThreshold);
-  const xpPct = Math.min(100, (xpInStep / stepTotal) * 100);
   const xpRemaining = Math.max(0, nextXpThreshold - agentStats.xp);
 
   agentLevelEl.textContent = agentStats.level;
-  if (agentXpLabelEl) {
-    const capValue = nextCfg ? nextXpThreshold : agentStats.xp;
-    agentXpLabelEl.textContent = `${agentStats.xp} / ${capValue}`;
-  }
   if (agentXpToNextEl) {
     agentXpToNextEl.textContent = nextCfg ? `${xpRemaining} XP` : "MAX";
-  }
-  if (agentXpBarFillEl) {
-    agentXpBarFillEl.style.width = `${xpPct}%`;
   }
 
   const energyMax = currentCfg.energy_max || 5;
@@ -1281,6 +1282,9 @@ function showTaskDetailPanel(show) {
     canvasBlock.classList.toggle("hidden", shouldShow);
   }
   if (shouldShow) {
+    if (activeFooterButton) {
+      setActiveFooterButton(null);
+    }
     if (cityInfoPanel) {
       cityInfoPanel.classList.add("hidden");
     }
@@ -1303,9 +1307,6 @@ function showCanvasView() {
   if (cityBackdropEl) {
     cityBackdropEl.classList.add("opacity-0");
   }
-  if (visualFrameEl) {
-    visualFrameEl.style.aspectRatio = "";
-  }
 }
 
 function renderCityInfo() {
@@ -1316,6 +1317,7 @@ function renderCityInfo() {
     cityInfoNameEl.textContent = "Neznámé město";
     cityInfoMetaEl.textContent = "Agent není ve městě";
     cityInfoDescEl.textContent = "Přesuň se do města pro detailní přehled.";
+    renderCityInfoMap(null);
     return;
   }
 
@@ -1333,20 +1335,162 @@ function renderCityInfo() {
   const metaParts = [statePart, regionPart, importancePart].filter(Boolean);
   cityInfoMetaEl.textContent = metaParts.join(" • ") || "-";
   cityInfoDescEl.textContent = city.description || "Chybí popis pro toto město.";
+  renderCityInfoMap(city);
+}
+
+function renderCityInfoMap(city) {
+  if (!cityInfoMapCtx || !cityInfoMapCanvas) return;
+  cityInfoMapTargets = [];
+  const ctx = cityInfoMapCtx;
+  const width = cityInfoMapCanvas.width;
+  const height = cityInfoMapCanvas.height;
+
+  ctx.save();
+  ctx.clearRect(0, 0, width, height);
+
+  // podklad
+  ctx.fillStyle = "#030617";
+  ctx.fillRect(0, 0, width, height);
+
+  if (mapLoaded && mapImage.complete) {
+    ctx.globalAlpha = 0.92;
+    ctx.drawImage(mapImage, 0, 0, width, height);
+    ctx.globalAlpha = 1;
+  }
+
+  if (!city) {
+    ctx.fillStyle = "rgba(248, 250, 252, 0.75)";
+    ctx.font = "16px 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("Vyber město pro zobrazení tras", width / 2, height / 2);
+    hideCityInfoMapTooltip();
+    ctx.restore();
+    return;
+  }
+
+  const baseWidth = canvas ? canvas.width : 1024;
+  const baseHeight = canvas ? canvas.height : 576;
+  const scaleX = width / baseWidth;
+  const scaleY = height / baseHeight;
+  const cx = city.px * scaleX;
+  const cy = city.py * scaleY;
+
+  const connections = getConnections(city.name);
+
+  // trasy
+  ctx.strokeStyle = "rgba(248, 250, 252, 0.65)";
+  ctx.lineWidth = 2;
+  ctx.lineCap = "round";
+  connections.forEach((target) => {
+    if (!target) return;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo((target.px || 0) * scaleX, (target.py || 0) * scaleY);
+    ctx.stroke();
+  });
+
+  const drawCityDot = (c, color, baseRadius, glow = false) => {
+    if (!c) return;
+    const px = (c.px || 0) * scaleX;
+    const py = (c.py || 0) * scaleY;
+    const radius = c.importance === 1 ? baseRadius + 2 : baseRadius;
+    if (glow) {
+      ctx.shadowColor = color;
+      ctx.shadowBlur = 12;
+    } else {
+      ctx.shadowBlur = 0;
+    }
+    ctx.beginPath();
+    ctx.fillStyle = color;
+    ctx.strokeStyle = "#0f172a";
+    ctx.lineWidth = 1.2;
+    ctx.arc(px, py, radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+  };
+
+  const registerTarget = (c, label) => {
+    if (!c) return;
+    cityInfoMapTargets.push({
+      name: label || c.name,
+      x: (c.px || 0) * scaleX,
+      y: (c.py || 0) * scaleY,
+    });
+  };
+
+  connections.forEach((target) => {
+    drawCityDot(target, "#38bdf8", 4);
+    registerTarget(target);
+  });
+  drawCityDot(city, "#fbbf24", 6, true);
+  registerTarget(city);
+
+  if (connections.length === 0) {
+    ctx.fillStyle = "rgba(248, 250, 252, 0.8)";
+    ctx.font = "14px 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("Žádné přímé linky z tohoto města", width / 2, height - 24);
+  }
+
+  ctx.restore();
+}
+
+function showCityInfoMapTooltip(target, clientX, clientY) {
+  if (!cityInfoMapTooltip || !cityInfoMapWrapper || !target) return;
+  const wrapperRect = cityInfoMapWrapper.getBoundingClientRect();
+  cityInfoMapTooltip.textContent = target.name || "-";
+  cityInfoMapTooltip.style.left = `${clientX - wrapperRect.left + 12}px`;
+  cityInfoMapTooltip.style.top = `${clientY - wrapperRect.top - 10}px`;
+  cityInfoMapTooltip.classList.remove("hidden");
+}
+
+function hideCityInfoMapTooltip() {
+  if (!cityInfoMapTooltip) return;
+  cityInfoMapTooltip.classList.add("hidden");
+}
+
+function handleCityInfoMapHover(event) {
+  if (!cityInfoMapCanvas || cityInfoMapTargets.length === 0) {
+    hideCityInfoMapTooltip();
+    return;
+  }
+  const rect = cityInfoMapCanvas.getBoundingClientRect();
+  const scaleX = cityInfoMapCanvas.width / rect.width;
+  const scaleY = cityInfoMapCanvas.height / rect.height;
+  const x = (event.clientX - rect.left) * scaleX;
+  const y = (event.clientY - rect.top) * scaleY;
+
+  let nearest = null;
+  let bestDist = Infinity;
+  const threshold = 14;
+  for (const target of cityInfoMapTargets) {
+    const dx = x - target.x;
+    const dy = y - target.y;
+    const dist = Math.hypot(dx, dy);
+    if (dist < bestDist) {
+      bestDist = dist;
+      nearest = target;
+    }
+  }
+
+  if (nearest && bestDist <= threshold) {
+    showCityInfoMapTooltip(nearest, event.clientX, event.clientY);
+  } else {
+    hideCityInfoMapTooltip();
+  }
 }
 
 function showCityInfoPanel(show) {
   if (!cityInfoPanel) return;
   const shouldShow = !!show;
   cityInfoPanel.classList.toggle("hidden", !shouldShow);
-  if (cityBackdropEl) {
-    cityBackdropEl.classList.toggle("hidden", shouldShow);
-  }
   if (shouldShow) {
     showTimetablePanel(false);
     showTaskDetailPanel(false);
-    showCanvasView();
     renderCityInfo();
+    maybeShowCityImage(getCityAt(agent.x, agent.y));
   }
 }
 
@@ -1356,57 +1500,66 @@ function hideCityInfoPanel() {
     cityBackdropEl.classList.remove("hidden");
   }
   maybeShowCityImage(getCityAt(agent.x, agent.y));
+  hideCityInfoMapTooltip();
 }
 
 async function maybeShowCityImage(city) {
   if (!canvas || !cityBackdropEl) return;
   const imgUrl = await findCityImageUrl(city);
-  const infoPanelVisible = cityInfoPanel && !cityInfoPanel.classList.contains("hidden");
 
   if (imgUrl) {
-    cityBackdropEl.onload = () => setFrameAspectFromImage(cityBackdropEl);
     cityBackdropEl.src = imgUrl;
-    if (infoPanelVisible) {
-      cityBackdropEl.classList.add("opacity-0");
-      canvas.classList.remove("hidden");
-      if (visualFrameEl) {
-        visualFrameEl.style.aspectRatio = "";
-      }
-    } else {
-      cityBackdropEl.classList.remove("opacity-0");
-      canvas.classList.add("hidden");
-    }
+    cityBackdropEl.classList.remove("opacity-0");
+    canvas.classList.add("hidden");
   } else {
     cityBackdropEl.src = "";
     cityBackdropEl.classList.add("opacity-0");
     canvas.classList.remove("hidden");
-    if (visualFrameEl) {
-      visualFrameEl.style.aspectRatio = "";
-    }
   }
 }
 
-// Vysunutí tabule při nákupu jízdenek, schování po kliknutí na mapu
-const ticketToggleBtn = document.getElementById("ticketToggleBtn");
 if (ticketToggleBtn) {
   ticketToggleBtn.addEventListener("click", (e) => {
     e.preventDefault();
-    showTimetablePanel(true);
+    const isVisible = timetableCardEl && !timetableCardEl.classList.contains("hidden");
+    if (activeFooterButton === "timetable" && isVisible) {
+      showTimetablePanel(false);
+      setActiveFooterButton(null);
+    } else {
+      showTimetablePanel(true);
+      setActiveFooterButton("timetable");
+    }
   });
+}
+if (cityInfoMapCanvas) {
+  cityInfoMapCanvas.addEventListener("mousemove", handleCityInfoMapHover);
+  cityInfoMapCanvas.addEventListener("mouseleave", hideCityInfoMapTooltip);
 }
 if (cityHubBtn) {
   cityHubBtn.addEventListener("click", (e) => {
     e.preventDefault();
+    if (activeFooterButton === "hub") {
+      setActiveFooterButton(null);
+      return;
+    }
     showTimetablePanel(false);
     showTaskDetailPanel(false);
     hideCityInfoPanel();
     maybeShowCityImage(getCityAt(agent.x, agent.y));
+    setActiveFooterButton("hub");
   });
 }
 if (infoCenterBtn) {
   infoCenterBtn.addEventListener("click", (e) => {
     e.preventDefault();
-    showCityInfoPanel(true);
+    const isVisible = cityInfoPanel && !cityInfoPanel.classList.contains("hidden");
+    if (activeFooterButton === "info" && isVisible) {
+      hideCityInfoPanel();
+      setActiveFooterButton(null);
+    } else {
+      showCityInfoPanel(true);
+      setActiveFooterButton("info");
+    }
   });
 }
 if (taskCardEl) {
@@ -1422,13 +1575,6 @@ if (closeTaskDetailBtn) {
     showTaskDetailPanel(false);
   });
 }
-if (canvas) {
-  canvas.addEventListener("click", () => {
-    showTimetablePanel(false);
-    showTaskDetailPanel(false);
-  });
-}
-
 // Cestování vlakem z aktuálního města
 function travelFromCurrentCity() {
   const currentCity = getCityAt(agent.x, agent.y);
@@ -1719,25 +1865,24 @@ function startTravelAnimation(travel) {
     meta: {
       fromName: travel.fromName,
       toName: travel.toName,
-      lineType: travel.lineType,
-      distance: distance,
-      departLabel: formatGameTime(travel.departureMinutes),
-      arriveLabel: formatGameTime(arrivalMinutes),
     },
   };
 
   // vyplnit overlay statické údaje
-  if (travelFromLabel) travelFromLabel.textContent = travel.fromName || "-";
-  if (travelToLabel) travelToLabel.textContent = travel.toName || "-";
-  if (travelLineLabel) travelLineLabel.textContent = formatLineTypeLabel(travel.lineType);
+  const lineLabel = formatLineTypeLabel(travel.lineType);
+  const trainLevel = getTrainLevel(travel.lineType);
+  const trainSpeed = getTrainSpeedMph(trainLevel);
+
+  if (travelTopType) {
+    travelTopType.textContent = lineLabel;
+  }
+  if (travelTopSpeed) {
+    travelTopSpeed.textContent = `${trainSpeed} mph`;
+  }
   if (travelTrainImg) {
-    const level = getTrainLevel(travel.lineType);
-    const speed = getTrainSpeedMph(level);
-    if (travelTopType) travelTopType.textContent = formatLineTypeLabel(travel.lineType);
-    if (travelTopSpeed) travelTopSpeed.textContent = `${speed} mph`;
-    if (level === 1) {
+    if (trainLevel === 1) {
       travelTrainImg.src = "/static/assets/train_1.png";
-    } else if (level === 2) {
+    } else if (trainLevel === 2) {
       travelTrainImg.src = "/static/assets/train_2.png";
     } else {
       travelTrainImg.src = "/static/assets/train_3.png";
@@ -1749,8 +1894,6 @@ function startTravelAnimation(travel) {
   if (travelDurationLabel) {
     travelDurationLabel.textContent = formatTravelDuration(travel.travelMinutes);
   }
-  if (travelDepartLabel) travelDepartLabel.textContent = travelAnimation.meta.departLabel;
-  if (travelArriveLabel) travelArriveLabel.textContent = travelAnimation.meta.arriveLabel;
 
   renderTravelOverlay(0, startMinutes);
 }
@@ -2187,6 +2330,7 @@ async function init() {
 
   // 6) postavíme mapu spojů podle názvu města
   buildConnectionsMap();
+  renderCityInfoMap(getCityAt(agent.x, agent.y));
 
   // 7) UI – sidebar + tabulka
   updateSidebar();

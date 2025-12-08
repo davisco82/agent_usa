@@ -100,6 +100,11 @@
         border-radius: 32px;
       }
 
+      #currentTimeLabel {
+        font-variant-numeric: tabular-nums;
+        font-feature-settings: "tnum";
+      }
+
       .location-bar {
         border-radius: 0;
         border-left: 0;
@@ -152,6 +157,11 @@
         color: #f5f3ff;
         font-size: 1.25rem;
         transition: transform 0.2s ease, box-shadow 0.2s ease;
+      }
+
+      .location-pill.is-active {
+        border-color: rgba(255, 255, 255, 0.75);
+        box-shadow: 0 12px 30px rgba(76, 29, 149, 0.55);
       }
 
       .location-pill::after {
@@ -390,8 +400,33 @@
         top: 50%;
         bottom: auto;
         transform: translate(0, -50%);
-        width: 70%;
+        width: 75%;
         max-width: 960px;
+      }
+
+      #cityInfoPanel {
+        left: 4%;
+        right: auto;
+        top: 50%;
+        bottom: auto;
+        transform: translate(0, -50%);
+        width: 75%;
+        max-width: 960px;
+      }
+
+      #taskDetailPanel {
+        left: auto;
+        right: 4%;
+        top: 50%;
+        bottom: auto;
+        transform: translate(0, -50%);
+        width: 30%;
+        max-width: 420px;
+      }
+
+      #cityInfoMapWrapper {
+        width: 100%;
+        max-width: 520px;
       }
 
       #timetableCard table {
@@ -473,7 +508,7 @@
               <div class="flex items-center gap-4">
                 <div class="text-right leading-tight">
                   <p class="text-[10px] uppercase tracking-[0.35em] text-slate-400" id="currentWeekLabel">Týden 1</p>
-                  <p id="currentTimeLabel" class="text-sm font-semibold tracking-[0.2em] text-slate-100">
+                  <p id="currentTimeLabel" class="text-xl font-semibold tracking-[0.2em] text-slate-100">
                     Po 08:00
                   </p>
                 </div>
@@ -538,18 +573,40 @@
         </div>
       </div>
 
-      <div id="cityInfoPanel" class="panel-card hidden space-y-4">
-        <div class="flex items-center justify-between">
-          <div>
-            <p class="text-[11px] uppercase tracking-[0.3em] text-amber-200/70">Informační centrum</p>
-            <h3 id="cityInfoName" class="text-lg font-semibold">-</h3>
-            <p id="cityInfoMeta" class="text-sm text-slate-300">Vyber město na mapě</p>
+      <div id="cityInfoPanel" class="panel-card hidden">
+        <div class="flex flex-col gap-6 lg:flex-row lg:items-start">
+          <div class="flex-1 space-y-4">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-[11px] uppercase tracking-[0.3em] text-amber-200/70">Informační centrum</p>
+                <h3 id="cityInfoName" class="text-lg font-semibold">-</h3>
+                <p id="cityInfoMeta" class="text-sm text-slate-300">Vyber město na mapě</p>
+              </div>
+            </div>
+            <p id="cityInfoDesc" class="text-sm leading-relaxed text-slate-200 whitespace-pre-line">
+              Přepni na město a ukážeme ti detaily.
+            </p>
+            <div id="cityInfoDetails" class="space-y-3 text-sm text-slate-200">
+              <!-- Budoucí doplňující informace -->
+            </div>
           </div>
-          <span class="text-2xl">🗺️</span>
+          <div
+            id="cityInfoMapWrapper"
+            class="rounded-2xl overflow-hidden relative max-w-[520px] w-full lg:w-auto"
+          >
+            <canvas
+              id="cityInfoMap"
+              width="520"
+              height="300"
+              class="block max-w-full"
+              aria-label="Mapa města a přilehlých tras"
+            ></canvas>
+            <div
+              id="cityInfoMapTooltip"
+              class="absolute pointer-events-none px-2 py-1 rounded-md text-[11px] tracking-wide uppercase bg-slate-900/90 border border-white/20 text-slate-100 shadow-lg hidden"
+            ></div>
+          </div>
         </div>
-        <p id="cityInfoDesc" class="text-sm leading-relaxed text-slate-200 whitespace-pre-line">
-          Přepni na město a ukážeme ti detaily.
-        </p>
       </div>
 
       <div id="timetableCard" class="panel-card hidden space-y-4">
