@@ -334,6 +334,7 @@ const agentXpToNextEl = document.getElementById("agentXpToNext");
 const agentLevelProgressFillEl = document.getElementById("agentLevelProgress");
 const agentEnergyLabelEl = document.getElementById("agentEnergyLabel");
 const agentEnergyBarFillEl = document.getElementById("agentEnergyBarFill");
+const ticketSound = new Audio("/static/sounds/click/pay.mp3");
 const taskCardEl = document.getElementById("taskCard");
 const currentTaskTitleEl = document.getElementById("currentTaskTitle");
 const currentTaskSummaryEl = document.getElementById("currentTaskSummary");
@@ -2514,6 +2515,14 @@ function renderTimetablePage() {
         }
 
         purchasedTicketKey = depKey;
+        if (ticketSound) {
+          try {
+            ticketSound.currentTime = 0;
+            ticketSound.play().catch(() => {});
+          } catch (err) {
+            console.warn("Ticket sound playback failed", err);
+          }
+        }
         scheduleTravelFromDeparture(dep);
         renderTimetablePage();
       });
