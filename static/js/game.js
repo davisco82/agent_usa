@@ -338,7 +338,9 @@ const ticketSound = new Audio("/static/sounds/click/pay.mp3");
 const taskCardEl = document.getElementById("taskCard");
 const currentTaskTitleEl = document.getElementById("currentTaskTitle");
 const currentTaskSummaryEl = document.getElementById("currentTaskSummary");
-const currentTaskMetaEl = document.getElementById("currentTaskMeta");
+const currentTaskLocationEl = document.getElementById("currentTaskLocation");
+const currentTaskPriorityBadgeEl = document.getElementById("currentTaskPriorityBadge");
+const currentTaskRewardEl = document.getElementById("currentTaskReward");
 const currentTaskProgressBarEl = document.getElementById("currentTaskProgressBar");
 const currentTaskProgressLabelEl = document.getElementById("currentTaskProgressLabel");
 const taskDetailPanelEl = document.getElementById("taskDetailPanel");
@@ -1176,12 +1178,14 @@ function evaluateVisitObjectives(city) {
 }
 
 function renderTaskCard() {
-  if (!taskCardEl || !currentTaskTitleEl || !currentTaskSummaryEl || !currentTaskMetaEl) return;
+  if (!taskCardEl || !currentTaskTitleEl || !currentTaskSummaryEl) return;
   const task = getActiveTask();
   if (!task) {
     currentTaskTitleEl.textContent = "Žádné zadání";
     currentTaskSummaryEl.textContent = "Velitelství zatím neposlalo žádnou operaci. Sleduj kanál HQ.";
-    currentTaskMetaEl.textContent = "-";
+    if (currentTaskLocationEl) currentTaskLocationEl.textContent = "-";
+    if (currentTaskRewardEl) currentTaskRewardEl.textContent = "0 XP";
+    currentTaskPriorityBadgeEl?.classList.add("hidden");
     if (currentTaskProgressBarEl) currentTaskProgressBarEl.style.width = "0%";
     if (currentTaskProgressLabelEl) currentTaskProgressLabelEl.textContent = "0%";
     taskCardEl.classList.add("opacity-60");
@@ -1193,9 +1197,17 @@ function renderTaskCard() {
   taskCardEl.removeAttribute("aria-disabled");
   currentTaskTitleEl.textContent = task.title;
   currentTaskSummaryEl.textContent = task.summary;
-  const priorityLabel = task.priority ? `${task.priority} priorita` : "Bez priority";
-  const metaParts = [task.location, priorityLabel, task.eta ? `ETA ${task.eta}` : null].filter(Boolean);
-  currentTaskMetaEl.textContent = metaParts.join(" • ");
+  if (currentTaskLocationEl) currentTaskLocationEl.textContent = task.location || "-";
+  if (currentTaskRewardEl) {
+    currentTaskRewardEl.textContent = task.reward || "XP";
+  }
+  if (currentTaskPriorityBadgeEl) {
+    if ((task.priority || "").toLowerCase() === "vysoká") {
+      currentTaskPriorityBadgeEl.classList.remove("hidden");
+    } else {
+      currentTaskPriorityBadgeEl.classList.add("hidden");
+    }
+  }
   const progressPercent = Math.max(0, Math.min(100, Math.round((task.progress || 0) * 100)));
   if (currentTaskProgressBarEl) currentTaskProgressBarEl.style.width = `${progressPercent}%`;
   if (currentTaskProgressLabelEl) currentTaskProgressLabelEl.textContent = `${progressPercent}%`;

@@ -280,38 +280,58 @@
         pointer-events: auto;
         width: 100%;
         text-align: left;
-        border-radius: 20px;
-        border: 1px solid rgba(147, 197, 253, 0.45);
-        background: linear-gradient(135deg, rgba(74, 43, 177, 0.6), rgba(22, 27, 54, 0.85));
-        padding: 1rem;
+        border-radius: 18px;
+        border: 1px solid rgba(147, 197, 253, 0.3);
+        background: linear-gradient(160deg, rgba(55, 114, 244, 0.85), rgba(39, 54, 120, 0.9));
+        padding: 0.9rem 1rem;
         display: flex;
         flex-direction: column;
-        gap: 0.75rem;
-        box-shadow: 0 22px 45px rgba(6, 10, 25, 0.65);
+        gap: 0.4rem;
+        box-shadow: 0 16px 30px rgba(4, 9, 25, 0.55);
         transition: transform 0.2s ease, box-shadow 0.2s ease;
+        min-height: 115px;
+        position: relative;
       }
 
       .task-card:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 25px 50px rgba(2, 6, 23, 0.7);
+        transform: translateY(-1px);
+        box-shadow: 0 20px 36px rgba(2, 6, 23, 0.55);
       }
 
-      .task-card__meta {
-        font-size: 0.7rem;
+      .task-card__location {
+        font-size: 0.58rem;
         letter-spacing: 0.25em;
         text-transform: uppercase;
-        color: rgba(148, 163, 184, 0.8);
+        color: rgba(226, 232, 240, 0.85);
+      }
+
+      .task-card__location span {
+        white-space: nowrap;
+      }
+
+      .task-card__reward-pill {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0.2rem 0.7rem;
+        border-radius: 999px;
+        border: 1px solid rgba(248, 250, 252, 0.35);
+        background: rgba(15, 23, 42, 0.35);
+        font-size: 0.65rem;
+        font-weight: 600;
+        color: #fefce8;
+        width: fit-content;
       }
 
       .task-card__title {
-        font-size: 1rem;
-        font-weight: 600;
-        color: #e2e8f0;
+        font-size: 0.95rem;
+        font-weight: 700;
+        color: #f8fafc;
       }
 
       .task-card__summary {
-        font-size: 0.85rem;
-        color: rgba(226, 232, 240, 0.85);
+        font-size: 0.75rem;
+        color: rgba(248, 250, 252, 0.82);
       }
 
       .task-card__progress {
@@ -464,6 +484,14 @@
         z-index: 20;
       }
 
+      #taskDetailPanel.panel-card {
+        background: rgba(5, 10, 24, 0.82);
+        border-radius: 20px;
+        border: 1px solid rgba(148, 163, 184, 0.18);
+        box-shadow: 0 20px 60px rgba(2, 6, 23, 0.55);
+        padding: 1.4rem 1.6rem;
+      }
+
       .lab-action-btn[disabled] {
         opacity: 0.45;
         cursor: not-allowed;
@@ -551,6 +579,45 @@
         transform: translate(0, -50%);
         width: 75%;
         max-width: 960px;
+      }
+
+      .task-card__priority-dot {
+        position: absolute;
+        top: 0.45rem;
+        right: 0.45rem;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: radial-gradient(circle, #fff 0%, #f59e0b 45%, #f97316 100%);
+        box-shadow: 0 0 14px rgba(249, 115, 22, 0.8);
+        cursor: help;
+      }
+
+      .task-detail-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        border-radius: 999px;
+        border: 1px solid rgba(148, 163, 184, 0.25);
+        padding: 0.25rem 0.75rem;
+        font-size: 0.65rem;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: rgba(248, 250, 252, 0.75);
+        background: rgba(15, 23, 42, 0.35);
+      }
+
+      .task-detail-desc {
+        font-size: 0.9rem;
+        line-height: 1.6;
+        color: rgba(226, 232, 240, 0.88);
+      }
+
+      .task-detail-pill {
+        border-radius: 12px;
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        padding: 0.65rem 0.9rem;
+        background: rgba(15, 23, 42, 0.35);
       }
 
       #cityInfoMapWrapper {
@@ -670,33 +737,34 @@
             Zpět
           </button>
         </div>
-        <div class="grid gap-4 md:grid-cols-[220px_1fr]">
+        <div class="grid gap-5 lg:grid-cols-[220px_1fr]">
           <div id="taskListContainer" class="space-y-3 text-sm text-slate-200">
             <p>Žádné aktivní úkoly.</p>
           </div>
-          <div class="space-y-4">
-            <div class="flex flex-wrap items-center gap-3 text-sm text-slate-300">
-              <div class="rounded-full border border-white/20 px-3 py-1 text-[10px] uppercase tracking-[0.3em] text-slate-200">
-                <span id="taskDetailLocation">---</span>
-              </div>
-              <span>Priorita: <span id="taskDetailPriority" class="text-slate-50 font-semibold">-</span></span>
-              <span>Časový rámec: <span id="taskDetailEta" class="text-slate-50 font-semibold">-</span></span>
+          <div class="space-y-5">
+            <div class="flex flex-wrap items-center gap-2 text-sm text-slate-300">
+              <span class="task-detail-chip" id="taskDetailLocation">---</span>
+              <span class="task-detail-chip">Priorita: <span id="taskDetailPriority" class="text-slate-50 font-semibold ml-1">-</span></span>
+              <span class="task-detail-chip">ETA: <span id="taskDetailEta" class="text-slate-50 font-semibold ml-1">-</span></span>
             </div>
-            <p id="taskDetailDesc" class="text-sm leading-relaxed text-slate-200">
+            <p id="taskDetailDesc" class="task-detail-desc">
               Vyber úkol z nabídky vlevo a zobrazí se ti kompletní podklady.
             </p>
             <div>
-              <p class="text-[11px] uppercase tracking-[0.3em] text-slate-400 mb-2">Kroky operace</p>
+              <div class="flex items-center justify-between mb-2">
+                <p class="text-[11px] uppercase tracking-[0.3em] text-slate-400">Kroky operace</p>
+                <span class="text-[10px] uppercase tracking-[0.3em] text-slate-400">XP po dokončení</span>
+              </div>
               <ul id="taskObjectiveList" class="space-y-2 text-sm text-slate-100">
                 <li class="text-slate-400">Žádný úkol není aktivní.</li>
               </ul>
             </div>
             <div class="grid sm:grid-cols-2 gap-4 text-sm">
-              <div class="rounded-xl border border-emerald-400/30 bg-emerald-500/10 px-3 py-2">
+              <div class="task-detail-pill">
                 <p class="text-[10px] uppercase tracking-[0.3em] text-emerald-200/80">Odměna</p>
                 <p id="taskRewardLabel" class="text-base font-semibold text-emerald-100">-</p>
               </div>
-              <div class="rounded-xl border border-slate-400/30 bg-slate-500/10 px-3 py-2">
+              <div class="task-detail-pill">
                 <p class="text-[10px] uppercase tracking-[0.3em] text-slate-200/80">Status</p>
                 <p id="taskStatusLabel" class="text-base font-semibold text-slate-100">-</p>
               </div>
@@ -945,13 +1013,10 @@
 
     <div class="task-bar">
       <button id="taskCard" type="button" class="task-card">
-        <div class="flex items-center gap-3">
-          <span class="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-lg">📋</span>
-          <div>
-            <p class="task-card__meta" id="currentTaskMeta">-</p>
-            <p class="task-card__title" id="currentTaskTitle">Žádné zadání</p>
-          </div>
-        </div>
+        <div class="task-card__priority-dot hidden" id="currentTaskPriorityBadge" title="Vysoká"></div>
+        <p class="task-card__location" id="currentTaskLocation">-</p>
+        <span class="task-card__reward-pill" id="currentTaskReward">0 XP</span>
+        <p class="task-card__title" id="currentTaskTitle">Žádné zadání</p>
         <p class="task-card__summary" id="currentTaskSummary">
           Velitelství zatím neposlalo žádnou operaci. Sleduj kanál HQ.
         </p>

@@ -49,17 +49,31 @@ def _format_template_value(value: Any, replacements: Dict[str, str]) -> Any:
     return value
 
 
+def _all_region_codes(exclude: Optional[str] = None) -> List[str]:
+    query = Region.query
+    if exclude:
+        query = query.filter(Region.code != exclude)
+    return [region.code for region in query.all()]
+
+
 def _load_city_names(
     region_codes: Optional[Iterable[str]],
     *,
     importance_max: Optional[int] = None,
+    importance_exact: Optional[int] = None,
+    exclude_region_code: Optional[str] = None,
 ) -> List[str]:
-    if not region_codes:
+    if not region_codes and not exclude_region_code:
         return []
 
     query = City.query.join(Region)
-    query = query.filter(Region.code.in_(list(region_codes)))
-    if importance_max is not None:
+    if region_codes:
+        query = query.filter(Region.code.in_(list(region_codes)))
+    if exclude_region_code:
+        query = query.filter(Region.code != exclude_region_code)
+    if importance_exact is not None:
+        query = query.filter(City.importance == importance_exact)
+    elif importance_max is not None:
         query = query.filter(City.importance <= importance_max)
     return [city.name for city in query.all()]
 
@@ -80,10 +94,16 @@ def _resolve_placeholder_value(
         preferred = [agent_region_code]
     elif not preferred and fallback_regions:
         preferred = fallback_regions
+    elif not preferred and cfg.get("use_all_regions"):
+        preferred = _all_region_codes(
+            agent_region_code if cfg.get("exclude_agent_region") else None
+        )
 
     candidates = _load_city_names(
         preferred,
         importance_max=cfg.get("importance_max"),
+        importance_exact=cfg.get("importance_exact"),
+        exclude_region_code=agent_region_code if cfg.get("exclude_agent_region") else None,
     )
 
     if not candidates:
@@ -108,56 +128,144 @@ def _resolve_placeholder_value(
 
 AGENT_TASK_TEMPLATES = [
     {
-        "id": "mission-city-intel-01",
-        "title": "První stopa: {entry_city}",
-        "location": "{entry_city} – Záchytné středisko",
+        "id": "mission-rook-intro-01",
+        "title": "Setkání s Dr. Rookem ve městě {rook_city}",
+        "location": "{rook_city} – Místní laboratoř",
         "summary": (
-            "Agent má vyrazit do {entry_city}, aby rozkryl první indicie o podivné aktivitě v regionu."
+            "Cestuj do města {rook_city} a setkej se s Dr. Rookem. Zjisti detaily o anomálii "
+            "a naplánujte společně terénní měření."
         ),
         "description": (
-            "Z centrály přišla zpráva o nestandardních radarových odchylkách, které se objevují "
-            "v okolí jednoho z nejbližších epicenter formující se mlhy. Agent je vyslán do města "
-            "{entry_city}, aby navštívil místní záchytné středisko a získal detaily o posledních "
-            "měřeních.\n\n"
-            "Klíčové informace drží biolog **Dr. Elias Rook**, který se aktuálně nachází ve městě "
-            "{doctor_city}. Rook má svědectví o zvláštní anomálii – periodické pulzy energie, které "
-            "nesouhlasí s žádnými známými přírodními jevy.\n\n"
-            "Úkolem agenta je dorazit do {entry_city}, najít Dr. Rooka v {doctor_city}, vyslechnout "
-            "ho a připravit další kroky vyšetřování."
+            "Ve městě {rook_city} působí vědec Dr. Elias Rook, který hlásil první známky nestability "
+            "v energetických pulzech blížící se mlhy. Je nutné jej navštívit a zjistit detaily.\n\n"
+            "Po příjezdu ti Dr. Rook vysvětluje, že nedaleko se nachází město {target_city}, které je již "
+            "částečně zasažené mlhou. Infrastruktura kolabuje a měření nelze provést bez vlastní energie.\n\n"
+            "Dr. Rook navrhuje společnou výpravu do postižené oblasti, ale nejprve je potřeba získat "
+            "startovní vybavení a vyrobit přenosný energetický modul."
         ),
         "objectives": [
-            "Navštiv {entry_city} a prohledej Záchytné středisko pro první indicie. (50 XP)",
-            "Najdi Dr. Eliase Rooka ve městě {doctor_city} a získej jeho důvěru. (50 XP)",
-            "Zjisti přesný výskyt popisované anomálie a odnes kompletní data. (50 XP)",
+            "Cestuj do {rook_city} a najdi laboratoř Dr. Rooka. (15 XP)",
+            "Vyslechni Dr. Rooka a zjisti detaily o anomálii. (15 XP)",
         ],
-        "reward": "50 XP za splněnou podčást (celkem 150 XP) + zpřístupnění další dějové linie",
+        "reward": "30 XP",
         "status": "Probíhá",
         "priority": "Vysoká",
-        "eta": "2–3 hodiny",
+        "eta": "1–2 hodiny",
         "progress": 0.0,
-        "objective_rewards": [10, 20, 30],
+        "objective_rewards": [15, 15],
         "objective_triggers": [
-            {"type": "visit_city", "city_name": "{entry_city}"},
-            {"type": "visit_city", "city_name": "{doctor_city}"},
-            {"type": "manual", "action": "report_anomaly"},
+            {"type": "visit_city", "city_name": "{rook_city}"},
+            {"type": "talk_to_npc", "npc": "Dr. Rook"},
         ],
         "dynamic_placeholders": {
-            "entry_city": {
-                "preferred_regions": ["southwest"],
-                "allow_agent_region_fallback": True,
-                "importance_max": 2,
-                "fallback_names": ["Albuquerque", "Santa Fe", "Phoenix"],
+            "rook_city": {
+                "preferred_regions": [],
+                "importance_exact": 1,
+                "exclude_agent_region": True,
+                "use_all_regions": True,
             },
-            "doctor_city": {
-                "preferred_regions": ["southwest"],
-                "allow_agent_region_fallback": True,
+            "target_city": {
+                "preferred_regions": [],
+                "importance_min": 1,
                 "importance_max": 2,
-                "fallback_names": ["Santa Fe", "Phoenix", "Albuquerque"],
-                "avoid_duplicates_of": ["entry_city"],
+                "exclude_agent_region": False,
+                "use_all_regions": True,
+            }
+        },
+    },
+    {
+        "id": "mission-equipment-01",
+        "title": "Získej vybavení a vyrob přenosnou energii",
+        "location": "{rook_city} → Centrála → Trh",
+        "summary": (
+            "Získej základní výbavu z centrály, zakup výrobní nástroje na trhu "
+            "a vyrob svůj první Energy Module."
+        ),
+        "description": (
+            "Dr. Rook tě požádal, abys zajistil energii nutnou k měření v městě {target_city}. "
+            "To vyžaduje startovní vybavení, výrobní nástroje a výrobu prvního energetického modulu.\n\n"
+            "V centrále získáš základní gear. Na trhu musíš zakoupit Energy Generator a materiály. "
+            "Použitím generátoru následně vytvoříš svůj první Energy Module, který bude sloužit jako "
+            "zdroj energie pro měření v zasaženém městě."
+        ),
+        "objectives": [
+            "Navštiv centrálu a vyzvedni Startovní Toolkit. (10 XP)",
+            "Navštiv trh a zakup Energy Generator. (10 XP)",
+            "Doplň materiál potřebný k výrobě (+10 MATERIAL). (10 XP)",
+            "Vyrob svůj první Energy Module. (20 XP)",
+        ],
+        "reward": "50 XP, +1 Energy Module, odemknutí měření",
+        "status": "Čeká na dokončení",
+        "priority": "Střední",
+        "eta": "1–2 hodiny",
+        "progress": 0.0,
+        "objective_rewards": [10, 10, 10, 20],
+        "objective_triggers": [
+            {"type": "visit_city", "city_name": "HQ"},
+            {"type": "buy_item", "item": "energy_generator"},
+            {"type": "gain_material", "amount": 10},
+            {"type": "craft_item", "item": "energy_module"},
+        ],
+        "dynamic_placeholders": {
+            "rook_city": {
+                "preferred_regions": [],
+                "importance_exact": 1,
+                "use_all_regions": True,
+                "exclude_agent_region": False,
             },
+            "target_city": {
+                "preferred_regions": [],
+                "importance_min": 1,
+                "importance_max": 2,
+                "exclude_agent_region": False,
+                "use_all_regions": True,
+            }
+        },
+    },
+    {
+        "id": "mission-measurement-01",
+        "title": "První měření anomálie ve městě {target_city}",
+        "location": "{target_city} – Zasažená zóna",
+        "summary": (
+            "Vydej se s Dr. Rookem do města {target_city}, použij Energy Module "
+            "a aktivuj Pulse Detector k prvnímu měření mlhy."
+        ),
+        "description": (
+            "Město {target_city} je již částečně pohlceno mlhou a trpí energetickými výpadky. "
+            "Aby bylo možné provést měření, musíš doručit vlastní přenosný zdroj energie.\n\n"
+            "Dr. Rook tě doprovodí k místu měření, kde společně aktivujete Pulse Detector. "
+            "Je to první real-time měření anomálie a jeho výsledky budou klíčové pro další operace."
+        ),
+        "objectives": [
+            "Cestuj do města {target_city} s Energy Module. (15 XP)",
+            "Setkej se s Dr. Rookem v postižené oblasti. (15 XP)",
+            "Použij Energy Module k napájení zařízení. (20 XP)",
+            "Aktivuj Pulse Detector a proveď měření. (30 XP)",
+        ],
+        "reward": "80 XP, +40 DATA",
+        "status": "Čeká na dokončení",
+        "priority": "Vysoká",
+        "eta": "1–2 hodiny",
+        "progress": 0.0,
+        "objective_rewards": [15, 15, 20, 30],
+        "objective_triggers": [
+            {"type": "visit_city", "city_name": "{target_city}"},
+            {"type": "meet_npc", "npc": "Dr. Rook"},
+            {"type": "use_item", "item": "energy_module"},
+            {"type": "use_module", "module": "pulse_detector"},
+        ],
+        "dynamic_placeholders": {
+            "target_city": {
+                "preferred_regions": [],
+                "importance_min": 1,
+                "importance_max": 2,
+                "exclude_agent_region": False,
+                "use_all_regions": True,
+            }
         },
     },
 ]
+
 
 
 def get_agent_tasks(agent_region_code: Optional[str] = None, *, rng: Optional[random.Random] = None) -> List[Dict[str, Any]]:

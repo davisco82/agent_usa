@@ -1,8 +1,6 @@
 # app.py
 from __future__ import annotations
 
-import random
-
 from flask import Flask, jsonify, render_template, request
 from flask_migrate import Migrate
 from models import db
@@ -31,8 +29,7 @@ def _agent_region_code(agent: Agent | None) -> str | None:
 
 def _resolve_tasks_for_agent(agent: Agent | None) -> list[dict]:
     region_code = _agent_region_code(agent)
-    rng_seed = agent.id if agent and agent.id is not None else 0
-    return get_agent_tasks(region_code, rng=random.Random(rng_seed))
+    return get_agent_tasks(region_code)
 
 
 def _inject_progress(tasks: list[dict], agent: Agent | None) -> list[dict]:
