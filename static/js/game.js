@@ -54,6 +54,11 @@ let agentTasks = [];
 let activeTaskId = null;
 const pendingObjectiveRequests = new Set();
 
+let agentCurrentCityId = null;
+let agentCurrentCityName = null;
+let serverKnownCityId = null;
+const RANDOM_START_FLAG_KEY = "agent_force_random_spawn";
+
 function formatGameTime(totalMinutes) {
   const dayNames = ["Po", "Út", "St", "Čt", "Pá", "So", "Ne"];
   const minutesNorm = ((totalMinutes % MINUTES_PER_WEEK) + MINUTES_PER_WEEK) % MINUTES_PER_WEEK;
@@ -296,6 +301,7 @@ const skyGradientEl = document.getElementById("skyGradient");
 const nightOverlayEl = document.getElementById("nightOverlay");
 const daySunOverlayEl = document.getElementById("daySunOverlay");
 const timetableCardEl = document.getElementById("timetableCard");
+const restartButton = document.getElementById("restartButton");
 const cityHubBtn = document.getElementById("cityHubBtn");
 const travelOverlayEl = document.getElementById("travelOverlay");
 const travelDistanceLabel = document.getElementById("travelDistanceLabel");
@@ -821,6 +827,63 @@ const agent = {
   color: "#38bdf8"
 };
 
+function setAgentPositionToCity(city, options = {}) {
+  if (!city) return false;
+  agent.x = city.x;
+  agent.y = city.y;
+  agentCurrentCityId = city.id ?? null;
+  agentCurrentCityName = city.name ?? null;
+
+  if (options.persist) {
+    persistAgentLocation(city.id);
+  }
+
+  return true;
+}
+
+function persistAgentLocation(cityId) {
+  if (!cityId || cityId === serverKnownCityId) {
+    return;
+  }
+
+  fetch("/api/agent/location", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ city_id: cityId }),
+  })
+    .then((res) => {
+      if (!res.ok) {
+        throw new Error(`Failed to persist agent location (status ${res.status})`);
+      }
+      return res.json();
+    })
+    .then((data) => {
+      const updatedId = data?.agent?.current_city_id;
+      serverKnownCityId = updatedId ?? cityId;
+    })
+    .catch((err) => {
+      console.error("Agent location sync failed:", err);
+    });
+}
+
+function consumeRandomStartFlag() {
+  if (typeof window === "undefined" || !window.localStorage) {
+    return false;
+  }
+  try {
+    const flag = window.localStorage.getItem(RANDOM_START_FLAG_KEY);
+    if (flag) {
+      window.localStorage.removeItem(RANDOM_START_FLAG_KEY);
+      return true;
+    }
+  } catch (err) {
+    console.warn("Unable to read random start flag:", err);
+  }
+  return false;
+}
+
 // Náhodně "infikovaná" pole – jen vizuální ukázka
 const infectedTiles = [];
 for (let i = 0; i < 40; i++) {
@@ -846,8 +909,7 @@ function moveAgent(dx, dy) {
 function travelToCity(targetCity, options = {}) {
   if (!targetCity) return;
 
-  agent.x = targetCity.x;
-  agent.y = targetCity.y;
+  setAgentPositionToCity(targetCity, { persist: true });
   showTimetablePanel(false); // po přesunu zpět na úvodní pohled s obrázkem
   updateSidebar();
   updateTimetable();
@@ -1038,6 +1100,9 @@ async function loadAgentAndLevels() {
         xp: data.agent.xp ?? 0,
         energy_current: data.agent.energy_current ?? (data.agent.energy_max || 5),
       };
+      agentCurrentCityId = data.agent.current_city_id ?? null;
+      agentCurrentCityName = data.agent.current_city_name ?? null;
+      serverKnownCityId = agentCurrentCityId;
     }
   } catch (err) {
     console.error("Agent load failed, using defaults:", err);
@@ -1134,14 +1199,23 @@ async function completeTaskObjective(taskId, objectiveIndex) {
     });
     if (!res.ok) throw new Error("Objective completion failed");
     const data = await res.json();
+    let shouldReloadTasks = false;
     if (data?.task) {
       upsertTask(data.task);
+      if (data.task.status === "rewarded") {
+        shouldReloadTasks = true;
+      }
     }
     if (data?.xp_awarded) {
       grantTravelXp(data.xp_awarded);
+      shouldReloadTasks = true;
     }
-    renderTaskCard();
-    renderTaskDetailPanel();
+    if (shouldReloadTasks) {
+      await loadAgentTasks();
+    } else {
+      renderTaskCard();
+      renderTaskDetailPanel();
+    }
   } catch (err) {
     console.error("Objective completion failed:", err);
   } finally {
@@ -1819,6 +1893,29 @@ if (closeTaskDetailBtn) {
   closeTaskDetailBtn.addEventListener("click", (e) => {
     e.preventDefault();
     showTaskDetailPanel(false);
+  });
+}
+if (restartButton) {
+  restartButton.addEventListener("click", async (e) => {
+    e.preventDefault();
+    try {
+      if (window && window.localStorage) {
+        window.localStorage.setItem(RANDOM_START_FLAG_KEY, "1");
+      }
+    } catch (err) {
+      console.warn("Cannot store random start flag:", err);
+    }
+
+    try {
+      const res = await fetch("/api/tasks/reset", { method: "POST" });
+      if (!res.ok) {
+        console.warn("Task pipeline reset failed with status", res.status);
+      }
+    } catch (err) {
+      console.warn("Task pipeline reset request failed:", err);
+    } finally {
+      window.location.reload();
+    }
   });
 }
 // Cestování vlakem z aktuálního města
@@ -2592,13 +2689,24 @@ async function init() {
   // 3) vytvoříme mapu podle jména
   cityByName = new Map(cities.map((c) => [c.name, c]));
 
-  // 4) vybereme startovní město – dočasně může být libovolné
-  const startCity = cities[Math.floor(Math.random() * cities.length)];
+  const randomStartRequested = consumeRandomStartFlag();
+
+  // 4) vybereme startovní město – ideálně z API, jinak náhodné jako fallback
+  let startCity = null;
+  if (!randomStartRequested && agentCurrentCityId !== null) {
+    startCity = cities.find((c) => c.id === agentCurrentCityId) || null;
+  }
+  if (!startCity && !randomStartRequested && agentCurrentCityName) {
+    startCity = cityByName.get(agentCurrentCityName) || null;
+  }
+  if (!startCity && cities.length) {
+    startCity = cities[Math.floor(Math.random() * cities.length)] || null;
+  }
 
   if (startCity) {
-    agent.x = startCity.x;
-    agent.y = startCity.y;
-    console.log("Startovní město:", startCity.name);
+    const shouldPersist = randomStartRequested || agentCurrentCityId === null || startCity.id !== agentCurrentCityId;
+    setAgentPositionToCity(startCity, { persist: shouldPersist });
+    console.log("Startovní město:", startCity.name, randomStartRequested ? "(náhodný restart)" : "");
   }
 
   // 5) načteme vlakové trasy
@@ -2614,6 +2722,7 @@ async function init() {
   maybeShowCityImage(getCityAt(agent.x, agent.y));
   applySkyGradientForMinutes(gameMinutes);
   await updateTimetable();
+  notifyTaskLocationChange();
 
   gameLoop();
 }

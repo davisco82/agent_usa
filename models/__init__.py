@@ -10,3 +10,4 @@ from .agent import Agent  # noqa
 from .tool import Tool  # noqa
 from .agent_task_progress import AgentTaskProgress  # noqa
 from .lab_action import LabAction, LabActionState  # noqa
+from .active_task import ActiveTask  # noqa

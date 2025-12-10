@@ -26,7 +26,7 @@ Pole, která UI očekává na každém úkolu:
 from __future__ import annotations
 
 import random
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from models.city import City
 from models.region import Region
@@ -124,6 +124,31 @@ def _resolve_placeholder_value(
             break
 
     return value or default_value
+
+
+def build_template_from_placeholders(template: Dict[str, Any], replacements: Dict[str, Any]) -> Dict[str, Any]:
+    """Vrátí kopii templatu s aplikovanými placeholders."""
+    resolved: Dict[str, Any] = {}
+    for field, value in template.items():
+        if field == "dynamic_placeholders":
+            continue
+        resolved[field] = _format_template_value(value, replacements)
+    return resolved
+
+
+def resolve_template_for_agent(
+    template: Dict[str, Any],
+    agent_region_code: Optional[str] = None,
+    rng: Optional[random.Random] = None,
+) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    generator = rng or random
+    replacements: Dict[str, Any] = {}
+    for key, cfg in template.get("dynamic_placeholders", {}).items():
+        value = _resolve_placeholder_value(cfg, agent_region_code, replacements, generator)
+        if value is not None:
+            replacements[key] = value
+    resolved = build_template_from_placeholders(template, replacements)
+    return resolved, replacements
 
 
 AGENT_TASK_TEMPLATES = [
@@ -280,18 +305,11 @@ def get_agent_tasks(agent_region_code: Optional[str] = None, *, rng: Optional[ra
     resolved_tasks: List[Dict[str, Any]] = []
 
     for template in AGENT_TASK_TEMPLATES:
-        replacements: Dict[str, str] = {}
-        for key, cfg in template.get("dynamic_placeholders", {}).items():
-            value = _resolve_placeholder_value(cfg, agent_region_code, replacements, random_generator)
-            if value is not None:
-                replacements[key] = value
-
-        resolved_task: Dict[str, Any] = {}
-        for field, value in template.items():
-            if field == "dynamic_placeholders":
-                continue
-            resolved_task[field] = _format_template_value(value, replacements)
-
+        resolved_task, _ = resolve_template_for_agent(
+            template,
+            agent_region_code=agent_region_code,
+            rng=random_generator,
+        )
         resolved_tasks.append(resolved_task)
 
     return resolved_tasks
