@@ -1,5 +1,5 @@
 # models/region.py
-from models import db
+from app.extensions import db
 
 class Region(db.Model):
     __tablename__ = "regions"

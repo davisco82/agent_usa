@@ -1,10 +1,10 @@
 # seeds/trainlines_seed.py
 
 import math
-from models import db
-from models.city import City
-from models.region import Region
-from models.train_line import TrainLine
+from app.extensions import db
+from app.models.city import City
+from app.models.region import Region
+from app.models.train_line import TrainLine
 
 
 MIN_NEIGHBORS = 4  # minimální počet sousedních měst pro každé město (změň na 2, když chceš míň)

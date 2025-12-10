@@ -1,7 +1,7 @@
 # seeds/lab_seed.py
 
-from models import db
-from models.lab_action import LabAction
+from app.extensions import db
+from app.models.lab_action import LabAction
 
 
 LAB_ACTIONS = [

@@ -1,10 +1,8 @@
-# models/__init__.py
-from flask_sqlalchemy import SQLAlchemy
-
-db = SQLAlchemy()
+# app/models/__init__.py
+from app.extensions import db  # noqa
 
 from .region import Region  # noqa
-from .city import City      # noqa
+from .city import City  # noqa
 from .train_line import TrainLine  # noqa
 from .agent import Agent  # noqa
 from .tool import Tool  # noqa

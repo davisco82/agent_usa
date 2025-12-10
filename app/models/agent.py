@@ -1,6 +1,6 @@
 # models/agent.py
-from models import db
-from game.agent.level_config import AGENT_LEVELS
+from app.extensions import db
+from app.domain.agent.level_config import AGENT_LEVELS
 
 
 

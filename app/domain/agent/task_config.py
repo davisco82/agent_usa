@@ -28,8 +28,8 @@ from __future__ import annotations
 import random
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
-from models.city import City
-from models.region import Region
+from app.models.city import City
+from app.models.region import Region
 
 
 class _SafeFormatDict(dict):

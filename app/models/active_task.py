@@ -1,4 +1,4 @@
-from models import db
+from app.extensions import db
 from datetime import datetime
 
 class ActiveTask(db.Model):

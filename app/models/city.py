@@ -1,5 +1,5 @@
 # models/city.py
-from models import db
+from app.extensions import db
 
 class City(db.Model):
     __tablename__ = "cities"

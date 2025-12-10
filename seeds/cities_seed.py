@@ -1,8 +1,8 @@
 # cities_seed.py
 
-from models import db
-from models.region import Region
-from models.city import City
+from app.extensions import db
+from app.models.region import Region
+from app.models.city import City
 
 REGIONS = {
     "pacific_northwest": "Pacific Northwest",

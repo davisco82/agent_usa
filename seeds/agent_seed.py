@@ -3,9 +3,9 @@
 from flask.cli import with_appcontext
 import click
 
-from models import db
-from models.agent import Agent
-from models.city import City
+from app.extensions import db
+from app.models.agent import Agent
+from app.models.city import City
 
 
 def register_agent_seed_commands(app):

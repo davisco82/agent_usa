@@ -1,5 +1,5 @@
 # models/lab_action.py
-from models import db
+from app.extensions import db
 
 
 class LabAction(db.Model):

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import Dict, List
 
-from models.agent import Agent
-from models.lab_action import LabAction, LabActionState
+from app.models.agent import Agent
+from app.models.lab_action import LabAction, LabActionState
 
 
 CATEGORY_ORDER = {

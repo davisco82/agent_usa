@@ -10,10 +10,10 @@ from __future__ import annotations
 from typing import Optional, Dict, Any, List
 import re
 import random
-from models import db
-from models.active_task import ActiveTask
-from models.agent import Agent
-from game.agent.task_config import (
+from app.extensions import db
+from app.models.active_task import ActiveTask
+from app.models.agent import Agent
+from app.domain.agent.task_config import (
     AGENT_TASK_TEMPLATES,
     resolve_template_for_agent,
     build_template_from_placeholders,

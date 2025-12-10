@@ -2,9 +2,9 @@
 
 import math
 from typing import List, Dict, Any, Optional
-from models import db
-from models.city import City
-from models.train_line import TrainLine
+
+from app.models.city import City
+from app.models.train_line import TrainLine
 
 EARTH_RADIUS_MI = 3958.8
 # 1.18 (realismus) * 1.20 (neletíš vzdušnou čarou) = 1.416

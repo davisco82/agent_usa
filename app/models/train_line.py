@@ -1,7 +1,8 @@
 # models/train_line.py
-from models import db
-from models.city import City
 import math
+
+from app.extensions import db
+from app.models.city import City
 
 
 class TrainLine(db.Model):

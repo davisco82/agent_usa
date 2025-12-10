@@ -1,5 +1,5 @@
 # models/agent_task_progress.py
-from models import db
+from app.extensions import db
 
 
 class AgentTaskProgress(db.Model):

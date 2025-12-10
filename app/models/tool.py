@@ -1,6 +1,5 @@
 # models/tool.py
-
-from models import db
+from app.extensions import db
 
 class Tool(db.Model):
     __tablename__ = "tools"

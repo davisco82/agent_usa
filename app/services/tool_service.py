@@ -1,6 +1,6 @@
-from models.agent import Agent
-from models.tool import Tool
-from models import db
+from app.extensions import db
+from app.models.agent import Agent
+from app.models.tool import Tool
 
 def use_tool(agent: Agent, tool_code: str) -> bool:
     tool = Tool.query.filter_by(code=tool_code).first()
