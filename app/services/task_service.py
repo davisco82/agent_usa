@@ -207,13 +207,15 @@ def process_trigger(
                 }
 
     # >>> Pokud jsme došli sem, trigger sedí a objective se splnil <<<
-    completed_flags: List[bool] = active.objective_state.get("completed", [])
+    state = dict(active.objective_state or {})
+    completed_flags: List[bool] = list(state.get("completed") or [])
     # zajistíme, že pole má správnou délku
     if len(completed_flags) < len(objectives):
         completed_flags = (completed_flags + [False] * len(objectives))[: len(objectives)]
 
     completed_flags[current_step] = True
-    active.objective_state["completed"] = completed_flags
+    state["completed"] = completed_flags
+    active.objective_state = state
 
     # posuneme current objective na další
     active.current_objective = current_step + 1
@@ -276,7 +278,7 @@ def complete_objective_step(agent: Agent, task_id: str, objective_index: int) ->
     if objective_index < 0 or objective_index >= len(objectives):
         return {"ok": False, "reason": "objective_out_of_range"}
 
-    state = active.objective_state or {}
+    state = dict(active.objective_state or {})
     completed_flags = list(state.get("completed") or [])
     if len(completed_flags) < len(objectives):
         completed_flags.extend([False] * (len(objectives) - len(completed_flags)))
@@ -424,3 +426,76 @@ def unlock_next_tasks(agent: Agent, completed_task_id: str) -> List[ActiveTask]:
         created.append(assign_task(agent, next_id))
 
     return created
+
+
+def _normalize_completed_flags(active_task: ActiveTask, template: Dict[str, Any]) -> List[bool]:
+    objectives = template.get("objectives") or []
+    completed_flags = list((active_task.objective_state or {}).get("completed") or [])
+    if len(completed_flags) < len(objectives):
+        completed_flags.extend([False] * (len(objectives) - len(completed_flags)))
+    elif len(completed_flags) > len(objectives):
+        completed_flags = completed_flags[: len(objectives)]
+    return completed_flags
+
+
+def _build_rook_intro_story_dialog(
+    agent: Agent | None,
+    active_task: ActiveTask,
+    template: Dict[str, Any],
+) -> Optional[Dict[str, Any]]:
+    completed_flags = _normalize_completed_flags(active_task, template)
+    if not completed_flags or len(completed_flags) < 2:
+        return None
+
+    # potřebujeme splněný první krok (příjezd) a čekáme na krok s doktorem
+    if not completed_flags[0] or completed_flags[1]:
+        return None
+
+    placeholders = (active_task.objective_state or {}).get("placeholders") or {}
+    rook_city = placeholders.get("rook_city")
+
+    if agent and rook_city and agent.current_city and agent.current_city.name:
+        if agent.current_city.name.lower() != rook_city.lower():
+            return None
+
+    city_label = rook_city or "laboratoři"
+    body = (
+        f"Dr. Rook tě vítá ve své laboratoři v {city_label}. "
+        "Probírá měření mlhy a čeká na potvrzení, že společně pokračujete v dalším kroku mise."
+    )
+
+    return {
+        "panel": "lab",
+        "task_id": active_task.task_id,
+        "objective_index": 1,
+        "title": "Brífink Dr. Rooka",
+        "body": body,
+        "confirm_label": "Dokončit briefing",
+    }
+
+
+def _build_story_dialog_for_task(
+    agent: Agent | None,
+    active_task: ActiveTask,
+    template: Dict[str, Any],
+) -> Optional[Dict[str, Any]]:
+    if active_task.task_id == "mission-rook-intro-01":
+        return _build_rook_intro_story_dialog(agent, active_task, template)
+    return None
+
+
+def get_pending_story_dialogs(agent: Agent | None) -> List[Dict[str, Any]]:
+    """Vrátí seznam dialogů, které má FE zobrazit (např. brífing v laboratoři)."""
+    if not agent:
+        return []
+
+    dialogs: List[Dict[str, Any]] = []
+    for active in ensure_task_pipeline(agent):
+        template = get_task_template(active.task_id)
+        if not template:
+            continue
+        dialog = _build_story_dialog_for_task(agent, active, template)
+        if dialog:
+            dialogs.append(dialog)
+
+    return dialogs

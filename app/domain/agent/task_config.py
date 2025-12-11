@@ -162,11 +162,11 @@ AGENT_TASK_TEMPLATES = [
         ),
         "description": (
             "Ve městě {rook_city} působí vědec Dr. Elias Rook, který hlásil první známky nestability "
-            "v energetických pulzech blížící se mlhy. Je nutné jej navštívit a zjistit detaily.\n\n"
-            "Po příjezdu ti Dr. Rook vysvětluje, že nedaleko se nachází město {target_city}, které je již "
-            "částečně zasažené mlhou. Infrastruktura kolabuje a měření nelze provést bez vlastní energie.\n\n"
-            "Dr. Rook navrhuje společnou výpravu do postižené oblasti, ale nejprve je potřeba získat "
-            "startovní vybavení a vyrobit přenosný energetický modul."
+            "v energetických pulzech blížící se hmoty vypadající jako mlha. \n\n"
+            "Je nutné jej navštívit a zjistit detaily."
+            # ""
+            # "Dr. Rook navrhuje společnou výpravu do postižené oblasti, ale nejprve je potřeba získat "
+            # "startovní vybavení a vyrobit přenosný energetický modul."
         ),
         "objectives": [
             "Cestuj do {rook_city} a najdi laboratoř Dr. Rooka. (15 XP)",
@@ -175,7 +175,7 @@ AGENT_TASK_TEMPLATES = [
         "reward": "30 XP",
         "status": "Probíhá",
         "priority": "Vysoká",
-        "eta": "1–2 hodiny",
+        "eta": "1 den",
         "progress": 0.0,
         "objective_rewards": [15, 15],
         "objective_triggers": [

@@ -6,6 +6,7 @@ from app.models.agent import Agent
 from app.services.task_service import (
     complete_objective_step,
     ensure_task_pipeline,
+    get_pending_story_dialogs,
     list_task_payloads,
     reset_task_pipeline,
 )
@@ -22,6 +23,16 @@ def api_tasks():
         return jsonify({"tasks": []})
     tasks = list_task_payloads(agent)
     return jsonify({"tasks": tasks})
+
+
+@bp.get("/story-dialogs")
+def api_story_dialogs():
+    """Return dialogs that should appear in contextual panels (lab, HQ, ...)."""
+    agent = Agent.query.order_by(Agent.id.asc()).first()
+    if not agent:
+        return jsonify({"dialogs": []})
+    dialogs = get_pending_story_dialogs(agent)
+    return jsonify({"dialogs": dialogs})
 
 
 @bp.post("/<task_id>/objectives/<int:objective_index>/complete")

@@ -8,8 +8,13 @@ from app.domain.agent.level_config import AGENT_LEVELS
 from app.extensions import db
 from app.models.agent import Agent
 from app.models.city import City
+from app.models.agent_travel_log import AgentTravelLog
 
 bp = Blueprint("agent", __name__, url_prefix="/api")
+
+MINUTES_PER_DAY = 24 * 60
+MINUTES_PER_WEEK = MINUTES_PER_DAY * 7
+DAY_NAMES = ["Po", "Út", "St", "Čt", "Pá", "So", "Ne"]
 
 
 def _level_cfg(level: int) -> Dict[str, Any] | None:
@@ -60,6 +65,55 @@ def _serialize_agent(agent: Agent | None) -> Dict[str, Any]:
     return payload
 
 
+def _safe_int(value: Any, default: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _compute_game_clock(minutes: int) -> Dict[str, Any]:
+    safe_minutes = max(0, int(minutes))
+    week_index = (safe_minutes // MINUTES_PER_WEEK) + 1
+    minute_of_week = safe_minutes % MINUTES_PER_WEEK
+    day_index = minute_of_week // MINUTES_PER_DAY
+    minute_of_day = minute_of_week % MINUTES_PER_DAY
+    hours = minute_of_day // 60
+    mins = minute_of_day % 60
+    day_label = DAY_NAMES[day_index] if 0 <= day_index < len(DAY_NAMES) else "Po"
+    time_label = f"{hours:02d}:{mins:02d}"
+    return {
+        "minutes": safe_minutes,
+        "week_index": week_index,
+        "day_index": day_index,
+        "day_label": day_label,
+        "time_label": time_label,
+    }
+
+
+def _extract_game_clock(payload: Dict[str, Any]) -> Dict[str, Any]:
+    minutes = _safe_int(payload.get("game_minutes"), default=0)
+    computed = _compute_game_clock(minutes)
+
+    week_override = payload.get("game_week")
+    if isinstance(week_override, int):
+        computed["week_index"] = week_override
+
+    day_index_override = payload.get("game_day_index")
+    if isinstance(day_index_override, int):
+        computed["day_index"] = day_index_override
+
+    day_label_override = payload.get("game_day_label")
+    if isinstance(day_label_override, str) and day_label_override:
+        computed["day_label"] = day_label_override
+
+    time_label_override = payload.get("game_time_label")
+    if isinstance(time_label_override, str) and time_label_override:
+        computed["time_label"] = time_label_override
+
+    return computed
+
+
 @bp.get("/agent")
 def api_agent():
     """Return the active agent and level configuration for the UI."""
@@ -83,10 +137,48 @@ def api_agent_update_location():
     if not city:
         return jsonify({"error": "city_not_found"}), 404
 
-    agent.last_city_id = agent.current_city_id
+    clock = _extract_game_clock(payload)
+
+    previous_city_id = agent.current_city_id
+    agent.last_city_id = previous_city_id
     agent.current_city_id = city.id
     agent.current_city = city
 
-    db.session.commit()
+    travel_log = AgentTravelLog(
+        agent_id=agent.id,
+        from_city_id=previous_city_id,
+        to_city_id=city.id,
+        action="travel",
+        game_minutes=clock["minutes"],
+        game_week=clock["week_index"],
+        game_day_index=clock["day_index"],
+        game_day_label=clock["day_label"],
+        game_time_label=clock["time_label"],
+    )
 
-    return jsonify({"agent": _serialize_agent(agent)})
+    db.session.add(travel_log)
+    db.session.commit()
+    db.session.refresh(travel_log)
+
+    return jsonify({"agent": _serialize_agent(agent), "travel_log": travel_log.serialize()})
+
+
+@bp.get("/agent/travel-log")
+def api_agent_travel_log():
+    """Return the latest logged travels for the agent."""
+    agent = Agent.query.order_by(Agent.id.asc()).first()
+    if not agent:
+        return jsonify({"logs": []})
+
+    limit = request.args.get("limit", default=25, type=int)
+    if limit is None or limit <= 0:
+        limit = 25
+    limit = min(limit, 200)
+
+    logs = (
+        AgentTravelLog.query.filter_by(agent_id=agent.id)
+        .order_by(AgentTravelLog.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+    return jsonify({"logs": [log.serialize() for log in logs]})

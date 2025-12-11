@@ -18,6 +18,7 @@ const GRID_ROWS = 72;  // 576 / 8
 
 const MINUTES_PER_DAY = 24 * 60;
 const MINUTES_PER_WEEK = MINUTES_PER_DAY * 7;
+const DAY_NAMES = ["Po", "Út", "St", "Čt", "Pá", "So", "Ne"];
 
 // Po 08:00 = start
 let gameMinutes = 8 * 60; // 8:00 první den (Po)
@@ -41,6 +42,10 @@ let hoveredLineKey = null;
 let timetableRaised = false;
 let labOverview = null;
 let labOverviewLoading = false;
+let labStoryConfirmHandler = null;
+let storyDialogs = [];
+let storyDialogsLoading = false;
+let storyDialogsPromise = null;
 
 // Jednoduchá lokální reprezentace agenta (pro UI panel nahoře)
 let levelConfig = [];
@@ -53,6 +58,7 @@ let agentStats = {
 let agentTasks = [];
 let activeTaskId = null;
 const pendingObjectiveRequests = new Set();
+const objectiveCompletionPromises = new Map();
 
 let agentCurrentCityId = null;
 let agentCurrentCityName = null;
@@ -60,7 +66,6 @@ let serverKnownCityId = null;
 const RANDOM_START_FLAG_KEY = "agent_force_random_spawn";
 
 function formatGameTime(totalMinutes) {
-  const dayNames = ["Po", "Út", "St", "Čt", "Pá", "So", "Ne"];
   const minutesNorm = ((totalMinutes % MINUTES_PER_WEEK) + MINUTES_PER_WEEK) % MINUTES_PER_WEEK;
 
   const dayIndex = Math.floor(minutesNorm / MINUTES_PER_DAY);
@@ -71,7 +76,7 @@ function formatGameTime(totalMinutes) {
   const hh = String(hours).padStart(2, "0");
   const mm = String(minutes).padStart(2, "0");
 
-  return `${dayNames[dayIndex]} ${hh}:${mm}`;
+  return `${DAY_NAMES[dayIndex]} ${hh}:${mm}`;
 }
 
 function formatGameTimeHHMM(totalMinutes) {
@@ -92,6 +97,25 @@ function formatWeekAndTime(totalMinutes) {
   return {
     weekText: `Týden ${weekLabel}`,
     timeText: formatGameTime(totalMinutes),
+  };
+}
+
+function buildGameTimeSnapshot(totalMinutes) {
+  const safeMinutes = Math.max(0, Math.round(totalMinutes ?? 0));
+  const rawWeekIndex = Math.floor(safeMinutes / MINUTES_PER_WEEK) + 1;
+  const minuteOfWeek = ((safeMinutes % MINUTES_PER_WEEK) + MINUTES_PER_WEEK) % MINUTES_PER_WEEK;
+  const dayIndex = Math.floor(minuteOfWeek / MINUTES_PER_DAY);
+  const minuteOfDay = minuteOfWeek % MINUTES_PER_DAY;
+  const hours = Math.floor(minuteOfDay / 60);
+  const minutes = minuteOfDay % 60;
+
+  return {
+    minutes: safeMinutes,
+    weekIndex: Math.max(1, rawWeekIndex),
+    weekLabel: `Týden ${Math.max(1, rawWeekIndex)}`,
+    dayIndex,
+    dayLabel: DAY_NAMES[dayIndex] || DAY_NAMES[0],
+    timeLabel: `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`,
   };
 }
 
@@ -143,7 +167,7 @@ function getLineTypeInfo(lineType) {
 
 function formatCityLabel(name) {
   if (!name) return "-";
-  const city = cityByName.get(name);
+  const city = getCityByNameInsensitive(name);
   if (city) {
     const state = city.state_shortcut || city.state;
     if (state) return `${city.name}, ${state}`;
@@ -179,6 +203,57 @@ function getTrainSpeedMph(level) {
   if (level === 1) return 190;
   if (level === 2) return 100;
   return 60;
+}
+
+function getCityByNameInsensitive(name) {
+  if (!name) return null;
+  const direct = cityByName.get(name);
+  if (direct) return direct;
+  return cityByName.get(name.toLowerCase()) || null;
+}
+
+function isAgentInCityByName(name) {
+  if (!name) return false;
+  const target = getCityByNameInsensitive(name);
+  if (!target) {
+    const normalized = name.toLowerCase();
+    const fallbackName = (agentCurrentCityName || "").toLowerCase();
+    if (fallbackName && fallbackName === normalized) {
+      return true;
+    }
+    const currentCity = getCityAt(agent.x, agent.y);
+    if (currentCity && (currentCity.name || "").toLowerCase() === normalized) {
+      return true;
+    }
+    return false;
+  }
+
+  if (agentCurrentCityId && target.id === agentCurrentCityId) {
+    return true;
+  }
+  const currentCity = getCityAt(agent.x, agent.y);
+  if (currentCity && currentCity.id === target.id) {
+    return true;
+  }
+  if ((currentCity?.name || "").toLowerCase() === (name || "").toLowerCase()) {
+    return true;
+  }
+  if ((agentCurrentCityName || "").toLowerCase() === (name || "").toLowerCase()) {
+    return true;
+  }
+  return false;
+}
+
+function getCurrentCitySnapshot() {
+  const currentCity = getCityAt(agent.x, agent.y);
+  if (currentCity) return currentCity;
+  if (agentCurrentCityName) {
+    const fallback = getCityByNameInsensitive(agentCurrentCityName);
+    if (fallback) {
+      return fallback;
+    }
+  }
+  return null;
 }
 
 let lastSkyPhase = null;
@@ -329,11 +404,115 @@ const labActionElements = document.querySelectorAll("[data-action-code]");
 const labFogLevelLabel = document.getElementById("labFogLevelLabel");
 const labFogLevelDesc = document.getElementById("labFogLevelDesc");
 const labFogLevelBar = document.getElementById("labFogLevelBar");
+const labStoryNoticeEl = document.getElementById("labStoryNotice");
+const labStoryTitleEl = document.getElementById("labStoryTitle");
+const labStoryBodyEl = document.getElementById("labStoryBody");
+const labStoryConfirmEl = document.getElementById("labStoryConfirm");
 const cityInfoMapCanvas = document.getElementById("cityInfoMap");
 const cityInfoMapCtx = cityInfoMapCanvas ? cityInfoMapCanvas.getContext("2d") : null;
 const cityInfoMapWrapper = document.getElementById("cityInfoMapWrapper");
 const cityInfoMapTooltip = document.getElementById("cityInfoMapTooltip");
 let cityInfoMapTargets = [];
+
+function hideLabStoryNotice() {
+  if (labStoryNoticeEl) {
+    labStoryNoticeEl.classList.add("hidden");
+  }
+  labStoryConfirmHandler = null;
+  if (labStoryConfirmEl) {
+    labStoryConfirmEl.disabled = false;
+  }
+}
+
+function showLabStoryNotice(options = {}) {
+  if (!labStoryNoticeEl) return;
+  const { title, body, confirmLabel = "Pokračovat", onConfirm } = options;
+  if (labStoryTitleEl) {
+    labStoryTitleEl.textContent = title || "Laboratorní briefing";
+  }
+  if (labStoryBodyEl) {
+    labStoryBodyEl.textContent =
+      body ||
+      "Dr. Rook sdílí aktuální data o mlze. Potvrď, že pokračujete společně v další fázi mise.";
+  }
+  if (labStoryConfirmEl) {
+    labStoryConfirmEl.textContent = confirmLabel;
+  }
+  labStoryConfirmHandler = typeof onConfirm === "function" ? onConfirm : null;
+  labStoryNoticeEl.classList.remove("hidden");
+}
+
+if (labStoryConfirmEl) {
+  labStoryConfirmEl.addEventListener("click", (e) => {
+    e.preventDefault();
+    const handler = labStoryConfirmHandler;
+    if (typeof handler === "function") {
+      handler();
+    }
+  });
+}
+
+function getStoryDialogForPanel(panel) {
+  return storyDialogs.find((dialog) => dialog.panel === panel);
+}
+
+async function loadStoryDialogs(force = false) {
+  if (storyDialogsLoading) return storyDialogsPromise;
+  if (!force && storyDialogs.length > 0) {
+    renderLabStoryDialog();
+    return Promise.resolve();
+  }
+  storyDialogsLoading = true;
+  storyDialogsPromise = (async () => {
+    try {
+      const res = await fetch("/api/tasks/story-dialogs");
+      if (!res.ok) throw new Error("Failed to fetch story dialogs");
+      const data = await res.json();
+      storyDialogs = Array.isArray(data?.dialogs) ? data.dialogs : [];
+    } catch (err) {
+      console.error("Story dialog load failed:", err);
+      storyDialogs = [];
+    } finally {
+      storyDialogsLoading = false;
+      storyDialogsPromise = null;
+      renderLabStoryDialog();
+    }
+  })();
+  return storyDialogsPromise;
+}
+
+function renderLabStoryDialog() {
+  const dialog = getStoryDialogForPanel("lab");
+  if (!dialog) {
+    hideLabStoryNotice();
+    return;
+  }
+  showLabStoryNotice({
+    title: dialog.title,
+    body: dialog.body,
+    confirmLabel: dialog.confirm_label || "Pokračovat",
+    onConfirm: () => handleStoryDialogConfirm(dialog),
+  });
+}
+
+async function handleStoryDialogConfirm(dialog) {
+  if (!dialog || !dialog.task_id) {
+    hideLabStoryNotice();
+    return;
+  }
+  try {
+    if (labStoryConfirmEl) {
+      labStoryConfirmEl.disabled = true;
+    }
+    await completeTaskObjective(dialog.task_id, dialog.objective_index);
+  } finally {
+    if (labStoryConfirmEl) {
+      labStoryConfirmEl.disabled = false;
+    }
+    hideLabStoryNotice();
+    await loadStoryDialogs(true);
+  }
+}
 const ticketToggleBtn = document.getElementById("ticketToggleBtn");
 const agentLevelEl = document.getElementById("agentLevel");
 const agentXpToNextEl = document.getElementById("agentXpToNext");
@@ -846,12 +1025,22 @@ function persistAgentLocation(cityId) {
     return;
   }
 
+  const timeSnapshot = buildGameTimeSnapshot(gameMinutes);
+  const payload = {
+    city_id: cityId,
+    game_minutes: timeSnapshot.minutes,
+    game_week: timeSnapshot.weekIndex,
+    game_day_index: timeSnapshot.dayIndex,
+    game_day_label: timeSnapshot.dayLabel,
+    game_time_label: timeSnapshot.timeLabel,
+  };
+
   fetch("/api/agent/location", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ city_id: cityId }),
+    body: JSON.stringify(payload),
   })
     .then((res) => {
       if (!res.ok) {
@@ -1132,6 +1321,7 @@ async function loadAgentTasks() {
   renderTaskCard();
   renderTaskDetailPanel();
   notifyTaskLocationChange();
+  await loadStoryDialogs(true);
 }
 
 function getActiveTask() {
@@ -1187,48 +1377,56 @@ function upsertTask(updatedTask) {
   }
 }
 
-async function completeTaskObjective(taskId, objectiveIndex) {
-  if (!taskId || objectiveIndex === undefined || objectiveIndex === null) return;
+function completeTaskObjective(taskId, objectiveIndex) {
+  if (!taskId || objectiveIndex === undefined || objectiveIndex === null) return null;
   const key = `${taskId}:${objectiveIndex}`;
-  if (pendingObjectiveRequests.has(key)) return;
+  if (objectiveCompletionPromises.has(key)) {
+    return objectiveCompletionPromises.get(key);
+  }
 
-  pendingObjectiveRequests.add(key);
-  try {
-    const res = await fetch(`/api/tasks/${taskId}/objectives/${objectiveIndex}/complete`, {
-      method: "POST",
-    });
-    if (!res.ok) throw new Error("Objective completion failed");
-    const data = await res.json();
-    let shouldReloadTasks = false;
-    if (data?.task) {
-      upsertTask(data.task);
-      if (data.task.status === "rewarded") {
+  const promise = (async () => {
+    pendingObjectiveRequests.add(key);
+    try {
+      const res = await fetch(`/api/tasks/${taskId}/objectives/${objectiveIndex}/complete`, {
+        method: "POST",
+      });
+      if (!res.ok) throw new Error("Objective completion failed");
+      const data = await res.json();
+      let shouldReloadTasks = false;
+      if (data?.task) {
+        upsertTask(data.task);
+        if (data.task.status === "rewarded") {
+          shouldReloadTasks = true;
+        }
+      }
+      if (data?.xp_awarded) {
+        grantTravelXp(data.xp_awarded);
         shouldReloadTasks = true;
       }
+      if (shouldReloadTasks) {
+        await loadAgentTasks();
+      } else {
+        renderTaskCard();
+        renderTaskDetailPanel();
+      }
+    } catch (err) {
+      console.error("Objective completion failed:", err);
+    } finally {
+      pendingObjectiveRequests.delete(key);
+      objectiveCompletionPromises.delete(key);
     }
-    if (data?.xp_awarded) {
-      grantTravelXp(data.xp_awarded);
-      shouldReloadTasks = true;
-    }
-    if (shouldReloadTasks) {
-      await loadAgentTasks();
-    } else {
-      renderTaskCard();
-      renderTaskDetailPanel();
-    }
-  } catch (err) {
-    console.error("Objective completion failed:", err);
-  } finally {
-    pendingObjectiveRequests.delete(key);
-  }
+  })();
+
+  objectiveCompletionPromises.set(key, promise);
+  return promise;
 }
 
 function triggerObjectiveCompletion(taskId, objectiveIndex) {
-  completeTaskObjective(taskId, objectiveIndex);
+  return completeTaskObjective(taskId, objectiveIndex);
 }
 
 function notifyTaskLocationChange() {
-  const city = getCityAt(agent.x, agent.y);
+  const city = getCurrentCitySnapshot();
   if (!city) return;
   evaluateVisitObjectives(city);
 }
@@ -1766,7 +1964,10 @@ function showLabPanel(show) {
     showTaskDetailPanel(false);
     showWorkshopPanel(false);
     loadLabPanelData();
+    notifyTaskLocationChange();
+    loadStoryDialogs(true);
   } else {
+    hideLabStoryNotice();
     maybeShowCityImage(getCityAt(agent.x, agent.y));
   }
 }
@@ -2686,8 +2887,13 @@ async function init() {
     };
   });
 
-  // 3) vytvoříme mapu podle jména
-  cityByName = new Map(cities.map((c) => [c.name, c]));
+  // 3) vytvoříme mapu podle jména (citlivou i na lowercase)
+  cityByName = new Map();
+  cities.forEach((city) => {
+    if (!city || !city.name) return;
+    cityByName.set(city.name, city);
+    cityByName.set(city.name.toLowerCase(), city);
+  });
 
   const randomStartRequested = consumeRandomStartFlag();
 
