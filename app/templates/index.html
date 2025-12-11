@@ -358,6 +358,71 @@
         background: linear-gradient(90deg, #a855f7, #22d3ee);
       }
 
+      .task-card--celebrating {
+        animation: taskCardGlow 0.9s ease-out forwards;
+      }
+
+      @keyframes taskCardGlow {
+        0% {
+          transform: scale(1);
+          box-shadow: 0 16px 30px rgba(4, 9, 25, 0.55);
+        }
+        40% {
+          transform: scale(1.02);
+          box-shadow: 0 30px 45px rgba(59, 130, 246, 0.55);
+        }
+        100% {
+          transform: scale(1);
+          box-shadow: 0 18px 34px rgba(4, 9, 25, 0.6);
+        }
+      }
+
+      .task-card__celebration {
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        padding: 1rem;
+        background: rgba(2, 6, 23, 0.75);
+        backdrop-filter: blur(8px);
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: 0.35rem;
+        pointer-events: none;
+        opacity: 0;
+        transform: translateY(8px);
+        transition: opacity 0.25s ease, transform 0.25s ease;
+      }
+
+      .task-card--celebrating .task-card__celebration {
+        opacity: 1;
+        transform: translateY(0);
+      }
+
+      .task-card__celebration-label {
+        font-size: 0.65rem;
+        letter-spacing: 0.3em;
+        text-transform: uppercase;
+        color: rgba(248, 250, 252, 0.75);
+      }
+
+      .task-card__celebration-title {
+        font-size: 1rem;
+        font-weight: 700;
+        color: #fefce8;
+      }
+
+      .task-card__celebration-xp {
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: #bef264;
+      }
+
+      .task-card__celebration-next {
+        font-size: 0.78rem;
+        color: rgba(226, 232, 240, 0.85);
+      }
+
       .location-bar {
         pointer-events: auto;
         width: 100%;
@@ -1085,6 +1150,12 @@
 
     <div class="task-bar">
       <button id="taskCard" type="button" class="task-card">
+        <div id="taskCelebration" class="task-card__celebration hidden">
+          <p class="task-card__celebration-label">Operace dokončena</p>
+          <p id="taskCelebrationCompleted" class="task-card__celebration-title">Úkol splněn</p>
+          <p id="taskCelebrationXp" class="task-card__celebration-xp hidden">+0 XP</p>
+          <p id="taskCelebrationNext" class="task-card__celebration-next hidden">Nová mise:</p>
+        </div>
         <div class="task-card__priority-dot hidden" id="currentTaskPriorityBadge" title="Vysoká"></div>
         <p class="task-card__location" id="currentTaskLocation">-</p>
         <span class="task-card__reward-pill" id="currentTaskReward">0 XP</span>

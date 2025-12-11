@@ -64,6 +64,8 @@ let agentCurrentCityId = null;
 let agentCurrentCityName = null;
 let serverKnownCityId = null;
 const RANDOM_START_FLAG_KEY = "agent_force_random_spawn";
+let pendingTaskCelebration = null;
+let taskCelebrationTimeout = null;
 
 function formatGameTime(totalMinutes) {
   const minutesNorm = ((totalMinutes % MINUTES_PER_WEEK) + MINUTES_PER_WEEK) % MINUTES_PER_WEEK;
@@ -520,6 +522,7 @@ const agentLevelProgressFillEl = document.getElementById("agentLevelProgress");
 const agentEnergyLabelEl = document.getElementById("agentEnergyLabel");
 const agentEnergyBarFillEl = document.getElementById("agentEnergyBarFill");
 const ticketSound = new Audio("/static/sounds/click/pay.mp3");
+const travelSound = new Audio("/static/sounds/travel/travelling.mp3");
 const taskCardEl = document.getElementById("taskCard");
 const currentTaskTitleEl = document.getElementById("currentTaskTitle");
 const currentTaskSummaryEl = document.getElementById("currentTaskSummary");
@@ -528,6 +531,10 @@ const currentTaskPriorityBadgeEl = document.getElementById("currentTaskPriorityB
 const currentTaskRewardEl = document.getElementById("currentTaskReward");
 const currentTaskProgressBarEl = document.getElementById("currentTaskProgressBar");
 const currentTaskProgressLabelEl = document.getElementById("currentTaskProgressLabel");
+const taskCelebrationEl = document.getElementById("taskCelebration");
+const taskCelebrationCompletedEl = document.getElementById("taskCelebrationCompleted");
+const taskCelebrationXpEl = document.getElementById("taskCelebrationXp");
+const taskCelebrationNextEl = document.getElementById("taskCelebrationNext");
 const taskDetailPanelEl = document.getElementById("taskDetailPanel");
 const taskListContainerEl = document.getElementById("taskListContainer");
 const taskDetailTitleEl = document.getElementById("taskDetailTitle");
@@ -1082,6 +1089,19 @@ for (let i = 0; i < 40; i++) {
   });
 }
 
+function playTravelSound() {
+  if (!travelSound) return;
+  try {
+    travelSound.currentTime = 0;
+    const playPromise = travelSound.play();
+    if (playPromise && typeof playPromise.catch === "function") {
+      playPromise.catch(() => {});
+    }
+  } catch (err) {
+    console.warn("Travel sound playback failed:", err);
+  }
+}
+
 function moveAgent(dx, dy) {
   const newX = agent.x + dx;
   const newY = agent.y + dy;
@@ -1097,6 +1117,11 @@ function moveAgent(dx, dy) {
 
 function travelToCity(targetCity, options = {}) {
   if (!targetCity) return;
+  const { silent = false } = options;
+
+  if (!silent) {
+    playTravelSound();
+  }
 
   setAgentPositionToCity(targetCity, { persist: true });
   showTimetablePanel(false); // po přesunu zpět na úvodní pohled s obrázkem
@@ -1322,6 +1347,7 @@ async function loadAgentTasks() {
   renderTaskDetailPanel();
   notifyTaskLocationChange();
   await loadStoryDialogs(true);
+  maybeShowPendingTaskCelebration();
 }
 
 function getActiveTask() {
@@ -1404,6 +1430,12 @@ function completeTaskObjective(taskId, objectiveIndex) {
         shouldReloadTasks = true;
       }
       if (shouldReloadTasks) {
+        if (!pendingTaskCelebration && (data?.task?.status === "rewarded" || data?.xp_awarded)) {
+          pendingTaskCelebration = {
+            completedTitle: data?.task?.title || null,
+            xpAwarded: data?.xp_awarded || 0,
+          };
+        }
         await loadAgentTasks();
       } else {
         renderTaskCard();
@@ -1483,6 +1515,62 @@ function renderTaskCard() {
   const progressPercent = Math.max(0, Math.min(100, Math.round((task.progress || 0) * 100)));
   if (currentTaskProgressBarEl) currentTaskProgressBarEl.style.width = `${progressPercent}%`;
   if (currentTaskProgressLabelEl) currentTaskProgressLabelEl.textContent = `${progressPercent}%`;
+}
+
+function hideTaskCelebration() {
+  if (taskCelebrationTimeout) {
+    clearTimeout(taskCelebrationTimeout);
+    taskCelebrationTimeout = null;
+  }
+  if (taskCelebrationEl) {
+    taskCelebrationEl.classList.add("hidden");
+  }
+  if (taskCardEl) {
+    taskCardEl.classList.remove("task-card--celebrating");
+  }
+}
+
+function showTaskCompletionCelebration(payload = {}) {
+  if (!taskCelebrationEl || !taskCardEl) return;
+  const { completedTitle, xpAwarded, nextTitle } = payload;
+  if (taskCelebrationCompletedEl) {
+    taskCelebrationCompletedEl.textContent = completedTitle || "Úkol dokončen";
+  }
+  if (taskCelebrationXpEl) {
+    if (typeof xpAwarded === "number" && xpAwarded > 0) {
+      taskCelebrationXpEl.textContent = `+${xpAwarded} XP`;
+      taskCelebrationXpEl.classList.remove("hidden");
+    } else {
+      taskCelebrationXpEl.classList.add("hidden");
+    }
+  }
+  if (taskCelebrationNextEl) {
+    if (nextTitle) {
+      taskCelebrationNextEl.textContent = `Nová mise: ${nextTitle}`;
+      taskCelebrationNextEl.classList.remove("hidden");
+    } else {
+      taskCelebrationNextEl.classList.add("hidden");
+    }
+  }
+  taskCardEl.classList.add("task-card--celebrating");
+  taskCelebrationEl.classList.remove("hidden");
+  if (taskCelebrationTimeout) {
+    clearTimeout(taskCelebrationTimeout);
+  }
+  taskCelebrationTimeout = setTimeout(() => {
+    hideTaskCelebration();
+  }, 3600);
+}
+
+function maybeShowPendingTaskCelebration() {
+  if (!pendingTaskCelebration) return;
+  const active = getActiveTask();
+  showTaskCompletionCelebration({
+    completedTitle: pendingTaskCelebration.completedTitle,
+    xpAwarded: pendingTaskCelebration.xpAwarded,
+    nextTitle: active ? active.title : null,
+  });
+  pendingTaskCelebration = null;
 }
 
 function renderTaskList() {
@@ -1698,6 +1786,7 @@ function renderCityInfoMap(city) {
   const cy = city.py * scaleY;
 
   const connections = getConnections(city.name);
+  const metroCities = Array.isArray(cities) ? cities.filter((c) => c && c.importance === 1) : [];
 
   // trasy
   ctx.strokeStyle = "rgba(248, 250, 252, 0.65)";
@@ -1731,14 +1820,28 @@ function renderCityInfoMap(city) {
     ctx.stroke();
   };
 
+  const seenMapTargets = new Set();
   const registerTarget = (c, label) => {
     if (!c) return;
+    const key = c.id ?? (c.name || "").toLowerCase();
+    if (!key || seenMapTargets.has(key)) return;
+    seenMapTargets.add(key);
     cityInfoMapTargets.push({
       name: label || c.name,
       x: (c.px || 0) * scaleX,
       y: (c.py || 0) * scaleY,
     });
   };
+
+  metroCities.forEach((metro) => {
+    const isCurrentCity = metro.id === city.id;
+    const alreadyConnection = connections.some((conn) => conn && conn.id === metro.id);
+    const color = isCurrentCity ? "#fbbf24" : alreadyConnection ? "#38bdf8" : "#a5b4fc";
+    const radius = isCurrentCity ? 6 : 3.5;
+    const glow = isCurrentCity;
+    drawCityDot(metro, color, radius, glow);
+    registerTarget(metro);
+  });
 
   connections.forEach((target) => {
     drawCityDot(target, "#38bdf8", 4);
@@ -2080,6 +2183,7 @@ if (workshopBtn) {
 if (taskCardEl) {
   taskCardEl.addEventListener("click", (e) => {
     e.preventDefault();
+    hideTaskCelebration();
     const isVisible = taskDetailPanelEl && !taskDetailPanelEl.classList.contains("hidden");
     if (isVisible) {
       showTaskDetailPanel(false);
@@ -2381,13 +2485,14 @@ function renderTravelOverlay(progress, currentMinutes) {
 function completeTravel(targetCity) {
   if (!targetCity) return;
   grantTravelXp(5);
-  travelToCity(targetCity);
+  travelToCity(targetCity, { silent: true });
   renderTimetablePage();
 }
 
 function startTravelAnimation(travel) {
   if (!travel) return;
   console.log("Start animace cestovani", travel);
+  playTravelSound();
 
   // zajisti, že případný čekající timer nezůstane viset
   if (pendingTravelTimer) {
