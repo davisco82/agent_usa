@@ -69,6 +69,13 @@ let serverKnownCityId = null;
 const RANDOM_START_FLAG_KEY = "agent_force_random_spawn";
 let pendingTaskCelebration = null;
 let taskCelebrationTimeout = null;
+const revealedTaskIds = new Set();
+let taskCardIntroTimeout = null;
+let pendingTaskCardIntroId = null;
+let xpGainHideTimeout = null;
+let taskCardExitCleanupTimeout = null;
+let pendingXpReward = 0;
+const xpGainBadgeEl = document.getElementById("xpGainBadge");
 
 function formatGameTime(totalMinutes) {
   const minutesNorm = ((totalMinutes % MINUTES_PER_WEEK) + MINUTES_PER_WEEK) % MINUTES_PER_WEEK;
@@ -605,6 +612,8 @@ const agentEnergyLabelEl = document.getElementById("agentEnergyLabel");
 const agentEnergyBarFillEl = document.getElementById("agentEnergyBarFill");
 const ticketSound = new Audio("/static/sounds/click/pay.mp3");
 const travelSound = new Audio("/static/sounds/travel/travelling.mp3");
+const taskCompleteSound = new Audio("/static/sounds/ambient/task_finished.mp3");
+const levelUpSound = new Audio("/static/sounds/ambient/level_up.mp3");
 const taskCardEl = document.getElementById("taskCard");
 const currentTaskTitleEl = document.getElementById("currentTaskTitle");
 const currentTaskSummaryEl = document.getElementById("currentTaskSummary");
@@ -613,10 +622,6 @@ const currentTaskPriorityBadgeEl = document.getElementById("currentTaskPriorityB
 const currentTaskRewardEl = document.getElementById("currentTaskReward");
 const currentTaskProgressBarEl = document.getElementById("currentTaskProgressBar");
 const currentTaskProgressLabelEl = document.getElementById("currentTaskProgressLabel");
-const taskCelebrationEl = document.getElementById("taskCelebration");
-const taskCelebrationCompletedEl = document.getElementById("taskCelebrationCompleted");
-const taskCelebrationXpEl = document.getElementById("taskCelebrationXp");
-const taskCelebrationNextEl = document.getElementById("taskCelebrationNext");
 const taskDetailPanelEl = document.getElementById("taskDetailPanel");
 const taskListContainerEl = document.getElementById("taskListContainer");
 const taskDetailTitleEl = document.getElementById("taskDetailTitle");
@@ -1357,6 +1362,7 @@ function updateAgentHeader() {
 
 function grantTravelXp(amount = 5) {
   if (!amount || amount <= 0) return;
+  showXpGain(amount);
   agentStats.xp = Math.max(0, (agentStats.xp || 0) + amount);
 
   // postupné level-upy dle configu
@@ -1367,6 +1373,14 @@ function grantTravelXp(amount = 5) {
     if (agentStats.xp < nextThreshold) break;
     agentStats.level = nextCfg.level;
     agentStats.energy_current = nextCfg.energy_max;
+    if (levelUpSound) {
+      try {
+        levelUpSound.currentTime = 0;
+        levelUpSound.play().catch(() => {});
+      } catch (err) {
+        console.warn("Level-up sound failed:", err);
+      }
+    }
   }
 
   // po level-upu/XP vždy srovnej energii na maximum aktuálního levelu
@@ -1378,6 +1392,32 @@ function grantTravelXp(amount = 5) {
   }
 
   updateAgentHeader();
+}
+
+function showXpGain(amount = 0) {
+  if (!xpGainBadgeEl || !amount || amount <= 0) return;
+  xpGainBadgeEl.textContent = `+${amount} XP`;
+  xpGainBadgeEl.setAttribute("aria-hidden", "false");
+  xpGainBadgeEl.classList.add("xp-gain-badge--visible");
+  if (xpGainHideTimeout) {
+    clearTimeout(xpGainHideTimeout);
+  }
+  xpGainHideTimeout = setTimeout(() => {
+    xpGainBadgeEl.classList.remove("xp-gain-badge--visible");
+    xpGainBadgeEl.setAttribute("aria-hidden", "true");
+  }, 1600);
+}
+
+function enqueueXpReward(amount = 0) {
+  if (!amount || amount <= 0) return;
+  pendingXpReward += amount;
+}
+
+function flushPendingXpRewards() {
+  if (!pendingXpReward) return;
+  const amount = pendingXpReward;
+  pendingXpReward = 0;
+  grantTravelXp(amount);
 }
 
 async function loadAgentAndLevels() {
@@ -1421,8 +1461,20 @@ async function loadAgentTasks() {
   agentTasks = tasks.map((task) => normalizeTaskPayload(task)).filter(Boolean);
   if (!agentTasks.length) {
     activeTaskId = null;
-  } else if (!activeTaskId || !agentTasks.some((task) => task.id === activeTaskId)) {
-    activeTaskId = agentTasks[0].id;
+  } else {
+    const currentTask = activeTaskId ? agentTasks.find((task) => task.id === activeTaskId) : null;
+    const hasCurrentActive = currentTask && currentTask.status === "active";
+    if (!hasCurrentActive) {
+      const nextActive = agentTasks.find((task) => task.status === "active");
+      if (nextActive) {
+        activeTaskId = nextActive.id;
+      } else if (!currentTask) {
+        activeTaskId = agentTasks[0].id;
+      }
+    }
+    if (activeTaskId && !agentTasks.some((task) => task.id === activeTaskId)) {
+      activeTaskId = agentTasks[0].id;
+    }
   }
 
   renderTaskCard();
@@ -1508,7 +1560,7 @@ function completeTaskObjective(taskId, objectiveIndex) {
         }
       }
       if (data?.xp_awarded) {
-        grantTravelXp(data.xp_awarded);
+        enqueueXpReward(data.xp_awarded);
         shouldReloadTasks = true;
       }
       if (shouldReloadTasks) {
@@ -1516,6 +1568,7 @@ function completeTaskObjective(taskId, objectiveIndex) {
           pendingTaskCelebration = {
             completedTitle: data?.task?.title || null,
             xpAwarded: data?.xp_awarded || 0,
+            rewardText: data?.task?.reward || null,
           };
         }
         await loadAgentTasks();
@@ -1563,10 +1616,43 @@ function evaluateVisitObjectives(city) {
   });
 }
 
+function scheduleTaskCardIntro(taskId) {
+  if (!taskCardEl || !taskId) return;
+  if (taskCardIntroTimeout) {
+    clearTimeout(taskCardIntroTimeout);
+  }
+  pendingTaskCardIntroId = taskId;
+  taskCardEl.classList.add("task-card--intro-hidden");
+  taskCardEl.classList.remove("task-card--intro-animating");
+  taskCardIntroTimeout = setTimeout(() => {
+    if (pendingTaskCardIntroId !== taskId) {
+      return;
+    }
+    revealedTaskIds.add(taskId);
+    taskCardEl.classList.remove("task-card--intro-hidden");
+    taskCardEl.classList.add("task-card--intro-animating");
+    taskCardIntroTimeout = null;
+  }, 2000);
+}
+
+function cancelTaskCardIntro() {
+  if (!taskCardEl) return;
+  pendingTaskCardIntroId = null;
+  if (taskCardIntroTimeout) {
+    clearTimeout(taskCardIntroTimeout);
+    taskCardIntroTimeout = null;
+  }
+  taskCardEl.classList.remove("task-card--intro-hidden");
+  taskCardEl.classList.remove("task-card--intro-animating");
+}
+
 function renderTaskCard() {
   if (!taskCardEl || !currentTaskTitleEl || !currentTaskSummaryEl) return;
   const task = getActiveTask();
   if (!task) {
+    if (revealedTaskIds.size > 0) {
+      cancelTaskCardIntro();
+    }
     currentTaskTitleEl.textContent = "Žádné zadání";
     currentTaskSummaryEl.textContent = "Velitelství zatím neposlalo žádnou operaci. Sleduj kanál HQ.";
     if (currentTaskLocationEl) currentTaskLocationEl.textContent = "-";
@@ -1577,6 +1663,19 @@ function renderTaskCard() {
     taskCardEl.classList.add("opacity-60");
     taskCardEl.setAttribute("aria-disabled", "true");
     return;
+  }
+
+  const shouldHoldIntro =
+    !!pendingTaskCelebration ||
+    (taskCardEl && (taskCardEl.classList.contains("task-card--celebrating") || taskCardEl.classList.contains("task-card--exit-right")));
+  if (!shouldHoldIntro) {
+    const isIntroPending = task && pendingTaskCardIntroId === task.id;
+    const hasBeenRevealed = task && revealedTaskIds.has(task.id);
+    if (task && !hasBeenRevealed && !isIntroPending) {
+      scheduleTaskCardIntro(task.id);
+    } else if (!isIntroPending) {
+      cancelTaskCardIntro();
+    }
   }
 
   taskCardEl.classList.remove("opacity-60");
@@ -1599,49 +1698,78 @@ function renderTaskCard() {
   if (currentTaskProgressLabelEl) currentTaskProgressLabelEl.textContent = `${progressPercent}%`;
 }
 
-function hideTaskCelebration() {
+function hideTaskCelebration(flushXp = false) {
   if (taskCelebrationTimeout) {
     clearTimeout(taskCelebrationTimeout);
     taskCelebrationTimeout = null;
   }
-  if (taskCelebrationEl) {
-    taskCelebrationEl.classList.add("hidden");
+  if (taskCardExitCleanupTimeout) {
+    clearTimeout(taskCardExitCleanupTimeout);
+    taskCardExitCleanupTimeout = null;
   }
   if (taskCardEl) {
     taskCardEl.classList.remove("task-card--celebrating");
+    taskCardEl.classList.remove("task-card--exit-right");
   }
+  if (flushXp) {
+    flushPendingXpRewards();
+  }
+  renderTaskCard();
+}
+
+function scheduleTaskCardExit() {
+  if (!taskCardEl) return;
+  taskCardEl.classList.add("task-card--exit-right");
+  if (taskCardExitCleanupTimeout) {
+    clearTimeout(taskCardExitCleanupTimeout);
+  }
+  taskCardExitCleanupTimeout = setTimeout(() => {
+    taskCardExitCleanupTimeout = null;
+    hideTaskCelebration(true);
+  }, 600);
 }
 
 function showTaskCompletionCelebration(payload = {}) {
-  if (!taskCelebrationEl || !taskCardEl) return;
-  const { completedTitle, xpAwarded, nextTitle } = payload;
-  if (taskCelebrationCompletedEl) {
-    taskCelebrationCompletedEl.textContent = completedTitle || "Úkol dokončen";
+  if (!taskCardEl) return;
+  const { completedTitle, xpAwarded, rewardText } = payload;
+  const rewardLabel =
+    rewardText || (typeof xpAwarded === "number" && xpAwarded > 0 ? `+${xpAwarded} XP` : null);
+
+  if (currentTaskTitleEl) {
+    currentTaskTitleEl.textContent = completedTitle || currentTaskTitleEl.textContent || "Úkol dokončen";
   }
-  if (taskCelebrationXpEl) {
-    if (typeof xpAwarded === "number" && xpAwarded > 0) {
-      taskCelebrationXpEl.textContent = `+${xpAwarded} XP`;
-      taskCelebrationXpEl.classList.remove("hidden");
-    } else {
-      taskCelebrationXpEl.classList.add("hidden");
+  if (currentTaskSummaryEl) {
+    currentTaskSummaryEl.textContent = rewardLabel ? `Odměna: ${rewardLabel}` : "Úkol dokončen.";
+  }
+  if (currentTaskRewardEl && rewardLabel) {
+    currentTaskRewardEl.textContent = rewardLabel;
+  }
+  if (currentTaskProgressLabelEl) {
+    currentTaskProgressLabelEl.textContent = "100%";
+  }
+  if (currentTaskProgressBarEl) {
+    currentTaskProgressBarEl.style.width = "100%";
+  }
+
+  if (taskCompleteSound) {
+    try {
+      taskCompleteSound.currentTime = 0;
+      taskCompleteSound.play().catch(() => {});
+    } catch (err) {
+      console.warn("Task completion sound failed:", err);
     }
   }
-  if (taskCelebrationNextEl) {
-    if (nextTitle) {
-      taskCelebrationNextEl.textContent = `Nová mise: ${nextTitle}`;
-      taskCelebrationNextEl.classList.remove("hidden");
-    } else {
-      taskCelebrationNextEl.classList.add("hidden");
-    }
-  }
+
+  taskCardEl.classList.remove("task-card--exit-right");
   taskCardEl.classList.add("task-card--celebrating");
-  taskCelebrationEl.classList.remove("hidden");
+
   if (taskCelebrationTimeout) {
     clearTimeout(taskCelebrationTimeout);
   }
   taskCelebrationTimeout = setTimeout(() => {
-    hideTaskCelebration();
-  }, 3600);
+    taskCelebrationTimeout = null;
+    scheduleTaskCardExit();
+  }, 2000);
 }
 
 function maybeShowPendingTaskCelebration() {
@@ -1650,6 +1778,7 @@ function maybeShowPendingTaskCelebration() {
   showTaskCompletionCelebration({
     completedTitle: pendingTaskCelebration.completedTitle,
     xpAwarded: pendingTaskCelebration.xpAwarded,
+    rewardText: pendingTaskCelebration.rewardText,
     nextTitle: active ? active.title : null,
   });
   pendingTaskCelebration = null;
@@ -2263,6 +2392,17 @@ if (workshopBtn) {
   });
 }
 if (taskCardEl) {
+  taskCardEl.addEventListener("animationend", (event) => {
+    if (event.animationName === "taskCardSlideIn") {
+      taskCardEl.classList.remove("task-card--intro-animating");
+      taskCardEl.classList.remove("task-card--intro-hidden");
+      pendingTaskCardIntroId = null;
+    }
+    if (event.animationName === "taskCardExitRight") {
+      hideTaskCelebration(true);
+    }
+  });
+
   taskCardEl.addEventListener("click", (e) => {
     e.preventDefault();
     hideTaskCelebration();
