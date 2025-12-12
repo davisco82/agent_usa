@@ -1,6 +1,8 @@
 
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
+const BASE_MAP_WIDTH = canvas?.width || 1024;
+const BASE_MAP_HEIGHT = canvas?.height || 576;
 
 const mapImage = new Image();
 let mapLoaded = false;
@@ -135,6 +137,12 @@ function formatTravelDuration(totalMinutes) {
   }
 
   return `${hours} h ${minutes} min`;
+}
+
+function clamp(value, min, max) {
+  if (value < min) return min;
+  if (value > max) return max;
+  return value;
 }
 
 function formatLineTypeLabel(lineType) {
@@ -383,13 +391,12 @@ const cityHubBtn = document.getElementById("cityHubBtn");
 const travelOverlayEl = document.getElementById("travelOverlay");
 const travelDistanceLabel = document.getElementById("travelDistanceLabel");
 const travelClockLabel = document.getElementById("travelClockLabel");
-const travelProgressBar = document.getElementById("travelProgressBar");
-const travelProgressFrom = document.getElementById("travelProgressFrom");
-const travelProgressTo = document.getElementById("travelProgressTo");
 const travelTrainImg = document.getElementById("travelTrainImg");
 const travelTopType = document.getElementById("travelTopType");
 const travelTopSpeed = document.getElementById("travelTopSpeed");
 const travelDurationLabel = document.getElementById("travelDurationLabel");
+const travelMapCanvas = document.getElementById("travelMapCanvas");
+const travelMapCtx = travelMapCanvas ? travelMapCanvas.getContext("2d") : null;
 const infoCenterBtn = document.getElementById("infoCenterBtn");
 const labBtn = document.getElementById("labBtn");
 const bankBtn = document.getElementById("bankBtn");
@@ -2458,7 +2465,7 @@ function drawTrainLines(ctx, trainLines) {
 }
 
 function renderTravelOverlay(progress, currentMinutes) {
-  if (!travelOverlayEl || !travelProgressBar) return;
+  if (!travelOverlayEl) return;
   if (!travelAnimation) {
     travelOverlayEl.classList.add("hidden");
     return;
@@ -2467,19 +2474,259 @@ function renderTravelOverlay(progress, currentMinutes) {
   travelOverlayEl.classList.remove("hidden");
 
   const p = Math.min(1, Math.max(0, progress));
-  travelProgressBar.style.width = `${p * 100}%`;
+  travelAnimation.currentProgress = p;
+  renderTravelMap(p);
 
   if (travelClockLabel) {
     const displayMinutes = Math.floor(currentMinutes);
     travelClockLabel.textContent = formatGameTime(displayMinutes);
   }
+}
 
-  if (travelProgressFrom) {
-    travelProgressFrom.textContent = formatCityLabel(travelAnimation.meta.fromName);
+function buildTravelMapView(fromCity, toCity) {
+  if (!fromCity || !toCity || !travelMapCanvas) return null;
+  const paddingX = 240;
+  const paddingY = 200;
+  const minX = Math.min(fromCity.px, toCity.px);
+  const maxX = Math.max(fromCity.px, toCity.px);
+  const minY = Math.min(fromCity.py, toCity.py);
+  const maxY = Math.max(fromCity.py, toCity.py);
+  const centerX = (minX + maxX) / 2;
+  const centerY = (minY + maxY) / 2;
+  const spanX = maxX - minX;
+  const spanY = maxY - minY;
+  const availableWidth = Math.max(20, LAND_MAX_X - LAND_MIN_X);
+  const availableHeight = Math.max(20, LAND_MAX_Y - LAND_MIN_Y);
+  const maxWidth = Math.min(BASE_MAP_WIDTH, availableWidth);
+  const maxHeight = Math.min(BASE_MAP_HEIGHT, availableHeight);
+  const viewWidth = clamp(spanX + paddingX, 260, maxWidth);
+  const viewHeight = clamp(spanY + paddingY, 220, maxHeight);
+  const halfWidth = viewWidth / 2;
+  const halfHeight = viewHeight / 2;
+  const minCenterX = LAND_MIN_X + halfWidth;
+  const maxCenterX = LAND_MAX_X - halfWidth;
+  const minCenterY = LAND_MIN_Y + halfHeight;
+  const maxCenterY = LAND_MAX_Y - halfHeight;
+  const clampedCenterX = clamp(centerX, minCenterX, maxCenterX);
+  const clampedCenterY = clamp(centerY, minCenterY, maxCenterY);
+  const minViewX = clamp(clampedCenterX - halfWidth, LAND_MIN_X, LAND_MAX_X - viewWidth);
+  const minViewY = clamp(clampedCenterY - halfHeight, LAND_MIN_Y, LAND_MAX_Y - viewHeight);
+
+  return {
+    centerX: clampedCenterX,
+    centerY: clampedCenterY,
+    minX: minViewX,
+    minY: minViewY,
+    width: viewWidth,
+    height: viewHeight,
+    halfWidth,
+    halfHeight,
+  };
+}
+
+function projectTravelCityPosition(city, view) {
+  if (!city || !view || !travelMapCanvas) return null;
+  const scaleX = travelMapCanvas.width / view.width;
+  const scaleY = travelMapCanvas.height / view.height;
+  return {
+    x: (city.px - view.minX) * scaleX,
+    y: (city.py - view.minY) * scaleY,
+  };
+}
+
+function drawTravelCityNode(ctx, pos, label, options = {}) {
+  if (!ctx || !pos) return;
+  const radius = options.radius ?? 9;
+  ctx.save();
+  ctx.fillStyle = options.fill || "rgba(248, 250, 252, 0.95)";
+  ctx.strokeStyle = options.stroke || "rgba(15, 23, 42, 0.9)";
+  ctx.lineWidth = options.lineWidth || 2;
+  if (options.shadowColor) {
+    ctx.shadowColor = options.shadowColor;
+    ctx.shadowBlur = options.shadowBlur ?? 18;
   }
-  if (travelProgressTo) {
-    travelProgressTo.textContent = formatCityLabel(travelAnimation.meta.toName);
+  ctx.beginPath();
+  ctx.arc(pos.x, pos.y, radius, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
+
+  if (label) {
+    ctx.save();
+    ctx.font = "600 12px 'Inter', sans-serif";
+    ctx.fillStyle = options.textColor || "rgba(248, 250, 252, 0.95)";
+    ctx.textAlign = "center";
+    ctx.textBaseline = options.textBaseline || "top";
+    const offsetY = options.textOffsetY ?? radius + 8;
+    ctx.fillText(label, pos.x, pos.y + offsetY);
+    ctx.restore();
   }
+}
+
+function renderTravelMap(progress) {
+  if (!travelMapCtx || !travelMapCanvas || !travelAnimation) return;
+  const width = travelMapCanvas.width;
+  const height = travelMapCanvas.height;
+  travelMapCtx.clearRect(0, 0, width, height);
+
+  const meta = travelAnimation.meta || {};
+  let fromCity = meta.fromCity || getCityByNameInsensitive(meta.fromName);
+  let toCity = meta.toCity || getCityByNameInsensitive(meta.toName);
+
+  if (!meta.fromCity && fromCity) {
+    travelAnimation.meta.fromCity = fromCity;
+  }
+  if (!meta.toCity && toCity) {
+    travelAnimation.meta.toCity = toCity;
+  }
+
+  if (!travelAnimation.mapView && fromCity && toCity) {
+    travelAnimation.mapView = buildTravelMapView(fromCity, toCity);
+  }
+
+  const view = travelAnimation.mapView;
+  if (!fromCity || !toCity || !view) {
+    travelMapCtx.fillStyle = "rgba(15, 23, 42, 0.9)";
+    travelMapCtx.fillRect(0, 0, width, height);
+    travelMapCtx.fillStyle = "rgba(148, 163, 184, 0.7)";
+    travelMapCtx.font = "12px 'Inter', sans-serif";
+    travelMapCtx.textAlign = "center";
+    travelMapCtx.textBaseline = "middle";
+    travelMapCtx.fillText("Čekám na mapu cesty...", width / 2, height / 2);
+    return;
+  }
+
+  if (mapLoaded && mapImage.width && mapImage.height) {
+    const baseWidth = BASE_MAP_WIDTH || mapImage.width;
+    const baseHeight = BASE_MAP_HEIGHT || mapImage.height;
+    const sourceX = (view.minX / baseWidth) * mapImage.width;
+    const sourceY = (view.minY / baseHeight) * mapImage.height;
+    const sourceWidth = (view.width / baseWidth) * mapImage.width;
+    const sourceHeight = (view.height / baseHeight) * mapImage.height;
+    travelMapCtx.save();
+    travelMapCtx.globalAlpha = 0.95;
+    travelMapCtx.drawImage(
+      mapImage,
+      sourceX,
+      sourceY,
+      sourceWidth,
+      sourceHeight,
+      0,
+      0,
+      width,
+      height
+    );
+    travelMapCtx.restore();
+  } else {
+    const gradient = travelMapCtx.createLinearGradient(0, 0, width, height);
+    gradient.addColorStop(0, "#0f172a");
+    gradient.addColorStop(1, "#1e293b");
+    travelMapCtx.fillStyle = gradient;
+    travelMapCtx.fillRect(0, 0, width, height);
+  }
+
+  travelMapCtx.fillStyle = "rgba(2, 6, 23, 0.55)";
+  travelMapCtx.fillRect(0, 0, width, height);
+
+  if (Array.isArray(cities) && cities.length) {
+    const viewMinX = view.minX ?? view.centerX - (view.width || 0) / 2;
+    const viewMaxX = viewMinX + (view.width || 0);
+    const viewMinY = view.minY ?? view.centerY - (view.height || 0) / 2;
+    const viewMaxY = viewMinY + (view.height || 0);
+    travelMapCtx.save();
+    for (const city of cities) {
+      if (city.px < viewMinX || city.px > viewMaxX || city.py < viewMinY || city.py > viewMaxY) {
+        continue;
+      }
+      const projected = projectTravelCityPosition(city, view);
+      if (!projected) continue;
+      travelMapCtx.globalAlpha = city.importance === 1 ? 0.5 : 0.25;
+      travelMapCtx.fillStyle = "rgba(148, 163, 184, 0.5)";
+      travelMapCtx.beginPath();
+      travelMapCtx.arc(projected.x, projected.y, city.importance === 1 ? 3.5 : 2, 0, Math.PI * 2);
+      travelMapCtx.fill();
+    }
+    travelMapCtx.restore();
+  }
+
+  const fromPos = projectTravelCityPosition(fromCity, view);
+  const toPos = projectTravelCityPosition(toCity, view);
+  if (!fromPos || !toPos) return;
+
+  travelMapCtx.save();
+  travelMapCtx.strokeStyle = "rgba(94, 234, 212, 0.3)";
+  travelMapCtx.lineWidth = 8;
+  travelMapCtx.lineCap = "round";
+  travelMapCtx.globalAlpha = 0.35;
+  travelMapCtx.beginPath();
+  travelMapCtx.moveTo(fromPos.x, fromPos.y);
+  travelMapCtx.lineTo(toPos.x, toPos.y);
+  travelMapCtx.stroke();
+  travelMapCtx.restore();
+
+  travelMapCtx.save();
+  travelMapCtx.strokeStyle = "rgba(56, 189, 248, 0.95)";
+  travelMapCtx.lineWidth = 2.5;
+  travelMapCtx.setLineDash([10, 8]);
+  travelMapCtx.beginPath();
+  travelMapCtx.moveTo(fromPos.x, fromPos.y);
+  travelMapCtx.lineTo(toPos.x, toPos.y);
+  travelMapCtx.stroke();
+  travelMapCtx.restore();
+  travelMapCtx.setLineDash([]);
+
+  const indicatorPos = {
+    x: fromPos.x + (toPos.x - fromPos.x) * progress,
+    y: fromPos.y + (toPos.y - fromPos.y) * progress,
+  };
+
+  travelMapCtx.save();
+  const glow = travelMapCtx.createRadialGradient(
+    indicatorPos.x,
+    indicatorPos.y,
+    0,
+    indicatorPos.x,
+    indicatorPos.y,
+    28
+  );
+  glow.addColorStop(0, "rgba(14, 165, 233, 0.4)");
+  glow.addColorStop(1, "rgba(14, 165, 233, 0)");
+  travelMapCtx.fillStyle = glow;
+  travelMapCtx.fillRect(indicatorPos.x - 30, indicatorPos.y - 30, 60, 60);
+  travelMapCtx.restore();
+
+  travelMapCtx.save();
+  travelMapCtx.fillStyle = "#38bdf8";
+  travelMapCtx.shadowColor = "rgba(14, 165, 233, 0.9)";
+  travelMapCtx.shadowBlur = 22;
+  travelMapCtx.beginPath();
+  travelMapCtx.arc(indicatorPos.x, indicatorPos.y, 7, 0, Math.PI * 2);
+  travelMapCtx.fill();
+  travelMapCtx.restore();
+
+  travelMapCtx.save();
+  travelMapCtx.strokeStyle = "rgba(14, 165, 233, 0.9)";
+  travelMapCtx.lineWidth = 2;
+  travelMapCtx.beginPath();
+  travelMapCtx.arc(indicatorPos.x, indicatorPos.y, 10, 0, Math.PI * 2);
+  travelMapCtx.stroke();
+  travelMapCtx.restore();
+
+  drawTravelCityNode(travelMapCtx, fromPos, formatCityLabel(fromCity.name), {
+    fill: "rgba(251, 191, 36, 0.95)",
+    stroke: "rgba(2, 6, 23, 0.9)",
+    shadowColor: "rgba(251, 191, 36, 0.45)",
+    textBaseline: "top",
+    textOffsetY: 12,
+  });
+
+  drawTravelCityNode(travelMapCtx, toPos, formatCityLabel(toCity.name), {
+    fill: "rgba(248, 113, 113, 0.95)",
+    stroke: "rgba(2, 6, 23, 0.9)",
+    shadowColor: "rgba(248, 113, 113, 0.45)",
+    textBaseline: "bottom",
+    textOffsetY: -12,
+  });
 }
 
 function completeTravel(targetCity) {
@@ -2505,6 +2752,9 @@ function startTravelAnimation(travel) {
   const arrivalMinutes = startMinutes + durationMinutes;
   const distance = travel.distance || 0;
   const totalMinutes = Math.max(arrivalMinutes - startMinutes, 1);
+  const fromCityObj = getCityByNameInsensitive(travel.fromName);
+  const toCityObj = getCityByNameInsensitive(travel.toName);
+  const initialMapView = buildTravelMapView(fromCityObj, toCityObj);
 
   // Délka animace podle jízdní doby: 1 h ~ 5s, 7 h ~ 15s, min ~3s
   const travelHours = durationMinutes / 60;
@@ -2525,9 +2775,13 @@ function startTravelAnimation(travel) {
     totalMinutes,
     startMs: performance.now(),
     durationMs,
+    currentProgress: 0,
+    mapView: initialMapView,
     meta: {
       fromName: travel.fromName,
       toName: travel.toName,
+      fromCity: fromCityObj || null,
+      toCity: toCityObj || null,
     },
   };
 

@@ -358,6 +358,162 @@
         background: linear-gradient(90deg, #a855f7, #22d3ee);
       }
 
+      .travel-card {
+        width: min(620px, 88vw);
+        pointer-events: auto;
+        text-align: left;
+        border-radius: 26px;
+        padding: 1.5rem 1.5rem 1.4rem;
+        position: relative;
+        overflow: visible;
+        background: radial-gradient(circle at 0% 0%, rgba(124, 58, 237, 0.15), transparent 55%),
+          linear-gradient(165deg, rgba(10, 14, 28, 0.98), rgba(3, 6, 16, 0.96));
+        border: 1px solid rgba(148, 163, 184, 0.12);
+        box-shadow: 0 32px 65px rgba(2, 6, 23, 0.65);
+        display: flex;
+        flex-direction: column;
+        gap: 1.1rem;
+      }
+
+      .travel-hero {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 1rem;
+      }
+
+      .travel-hero__train img {
+        width: min(260px, 55vw);
+        filter: drop-shadow(0 18px 26px rgba(0, 0, 0, 0.55));
+      }
+
+      .travel-hero__info {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        min-width: 200px;
+      }
+
+      .travel-line-stack {
+        display: flex;
+        flex-direction: column;
+        gap: 0.4rem;
+      }
+
+      .travel-time {
+        display: flex;
+        flex-direction: column;
+        gap: 0.2rem;
+      }
+
+      .travel-time strong {
+        font-size: 2.4rem;
+        color: #f8fafc;
+        letter-spacing: 0.18em;
+        font-variant-numeric: tabular-nums;
+        font-feature-settings: "tnum";
+        font-family: inherit;
+        text-shadow: 0 6px 18px rgba(15, 23, 42, 0.55);
+      }
+
+      .travel-map-container {
+        margin-top: 0.4rem;
+      }
+
+      .travel-map-frame {
+        position: relative;
+        border-radius: 26px;
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        overflow: hidden;
+        background: radial-gradient(circle at 20% 20%, rgba(56, 189, 248, 0.3), transparent 45%),
+          radial-gradient(circle at 80% 0%, rgba(248, 113, 113, 0.25), transparent 40%),
+          rgba(2, 6, 23, 0.9);
+        box-shadow: inset 0 0 40px rgba(2, 6, 23, 0.55);
+      }
+
+      .travel-map-canvas {
+        display: block;
+        width: 100%;
+        height: 340px;
+      }
+
+      .travel-stats-row {
+        margin-top: 0.8rem;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 0.9rem;
+      }
+
+      .travel-stat-card {
+        border-radius: 18px;
+        padding: 0.85rem 1rem;
+        border: 1px solid rgba(248, 250, 252, 0.08);
+        background: rgba(2, 6, 23, 0.7);
+        backdrop-filter: blur(10px);
+      }
+
+      .travel-stat-card span {
+        display: block;
+        font-size: 0.6rem;
+        letter-spacing: 0.3em;
+        text-transform: uppercase;
+        color: rgba(226, 232, 240, 0.65);
+      }
+
+      .travel-stat-card strong {
+        display: block;
+        margin-top: 0.35rem;
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #f8fafc;
+      }
+
+      .travel-eyebrow {
+        font-size: 0.62rem;
+        letter-spacing: 0.35em;
+        text-transform: uppercase;
+        color: rgba(226, 232, 240, 0.75);
+      }
+
+      .travel-line-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.35rem 0.85rem;
+        border-radius: 999px;
+        border: 1px solid rgba(248, 250, 252, 0.2);
+        background: rgba(15, 23, 42, 0.35);
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: #f8fafc;
+      }
+
+      .travel-clock-card {
+        border-radius: 24px;
+        padding: 0;
+        background: transparent;
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+        min-width: 240px;
+      }
+
+      .travel-clock-card span {
+        font-size: 0.65rem;
+        letter-spacing: 0.32em;
+        text-transform: uppercase;
+        color: rgba(148, 163, 184, 0.85);
+      }
+
+      .travel-clock-card strong {
+        font-size: 2.4rem;
+        color: #e0f2fe;
+        letter-spacing: 0.2em;
+        font-variant-numeric: tabular-nums;
+        font-feature-settings: "tnum";
+        font-family: "JetBrains Mono", "Fira Code", "Roboto Mono", monospace;
+      }
+
       .task-card--celebrating {
         animation: taskCardGlow 0.9s ease-out forwards;
       }
@@ -1268,34 +1424,48 @@
       id="travelOverlay"
       class="fixed inset-0 bg-slate-950/90 backdrop-blur hidden z-50 flex items-center justify-center px-4"
     >
-      <div class="travel-card bg-slate-900/90 border border-slate-800 rounded-2xl shadow-[0_20px_80px_rgba(0,0,0,0.6)] relative overflow-visible w-[min(720px,90vw)] px-6 pt-24 pb-6">
-        <div class="travel-top-row flex justify-between items-end">
-          <div class="travel-top-info flex flex-col gap-1">
-            <div class="travel-top-type text-lg font-bold text-slate-100" id="travelTopType">-</div>
-            <div class="travel-top-speed text-sm text-slate-300" id="travelTopSpeed">-</div>
+      <div class="travel-card">
+        <div class="travel-hero">
+          <div class="travel-hero__train">
+            <img id="travelTrainImg" src="/static/assets/train_1.png" alt="Train" />
           </div>
-          <div class="travel-train-wrap pointer-events-none absolute -top-16 right-2 opacity-95 rotate-[-2deg]">
-            <img id="travelTrainImg" src="/static/assets/train_1.png" alt="Train" class="max-w-[440px] drop-shadow-[0_18px_22px_rgba(0,0,0,0.55)]" />
+          <div class="travel-hero__info">
+            <p class="travel-eyebrow">Aktuální spoj</p>
+            <div class="travel-line-stack">
+              <span class="travel-line-chip" id="travelTopType">-</span>
+              <span class="travel-line-chip border-sky-300/30 text-sky-100" id="travelTopSpeed">-</span>
+            </div>
           </div>
         </div>
 
-        <div class="travel-clock text-center text-5xl font-extrabold text-sky-100 mt-6 mb-3 leading-tight" id="travelClockLabel">-</div>
-        <div class="travel-progress-header flex justify-between text-2xl text-slate-100 font-bold tracking-tight">
-          <div id="travelProgressFrom" class="text-left">-</div>
-          <div id="travelProgressTo" class="text-right">-</div>
-        </div>
-        <div class="travel-progress h-3 bg-slate-800 rounded-full overflow-hidden mt-2">
-          <div id="travelProgressBar" class="travel-progress-bar h-full bg-gradient-to-r from-sky-400 via-slate-100 to-red-400 w-0"></div>
+        <div class="travel-hero-divider"></div>
+
+        <div class="travel-time">
+          <strong id="travelClockLabel">-</strong>
         </div>
 
-        <div class="mt-6 grid grid-cols-2 gap-4 text-sm text-slate-200">
-          <div>
-            <div class="travel-label text-xs uppercase tracking-[0.12em] text-slate-400">Vzdálenost</div>
-            <div class="travel-value text-base font-semibold" id="travelDistanceLabel">-</div>
+        <div class="travel-map-container">
+          <div class="travel-map-frame relative">
+            <canvas
+              id="travelMapCanvas"
+              width="640"
+              height="340"
+              class="travel-map-canvas"
+              aria-label="Mapa cesty mezi městy"
+            >
+              Tvoje zařízení nepodporuje vykreslení mapy.
+            </canvas>
           </div>
-          <div>
-            <div class="travel-label text-xs uppercase tracking-[0.12em] text-slate-400">Čas jízdy</div>
-            <div class="travel-value text-base font-semibold" id="travelDurationLabel">-</div>
+        </div>
+
+        <div class="travel-stats-row">
+          <div class="travel-stat-card">
+            <span>Vzdálenost</span>
+            <strong id="travelDistanceLabel">-</strong>
+          </div>
+          <div class="travel-stat-card">
+            <span>Čas jízdy</span>
+            <strong id="travelDurationLabel">-</strong>
           </div>
         </div>
       </div>
@@ -1304,3 +1474,9 @@
     <script type="module" src="{{ url_for('static', filename='js/game.js') }}"></script>
   </body>
 </html>
+      .travel-hero-divider {
+        height: 1px;
+        width: 100%;
+        background: linear-gradient(90deg, rgba(148, 163, 184, 0.05), rgba(148, 163, 184, 0.35), rgba(148, 163, 184, 0.05));
+        margin-top: 0.6rem;
+      }
