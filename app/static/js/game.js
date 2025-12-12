@@ -35,6 +35,7 @@ const LAND_MAX_Y = 568;
 
 let cities = [];
 let cityByName = new Map();
+let cityById = new Map();
 let hoveredCity = null;
 let pendingTravel = null;
 let pendingTravelTimer = null;
@@ -222,6 +223,74 @@ function getCityByNameInsensitive(name) {
   return cityByName.get(name.toLowerCase()) || null;
 }
 
+function getCityById(id) {
+  if (id === undefined || id === null) return null;
+  return cityById.get(Number(id)) || null;
+}
+
+function populateTeleportSelect() {
+  if (!teleportCitySelect || !Array.isArray(cities) || cities.length === 0) return;
+  teleportCitySelect.innerHTML = "";
+  const placeholder = document.createElement("option");
+  placeholder.value = "";
+  placeholder.textContent = "Vyber město";
+  teleportCitySelect.appendChild(placeholder);
+
+  const sorted = [...cities].sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+  sorted.forEach((city) => {
+    if (!city || city.id === undefined || city.id === null) return;
+    const option = document.createElement("option");
+    option.value = city.id;
+    const stateLabel = city.state_shortcut || city.state || "";
+    option.textContent = stateLabel ? `${city.name}, ${stateLabel}` : city.name;
+    teleportCitySelect.appendChild(option);
+  });
+}
+
+function setTeleportStatus(message, variant = "muted") {
+  if (!teleportStatusEl) return;
+  teleportStatusEl.textContent = message || "";
+  teleportStatusEl.classList.remove("text-rose-300", "text-emerald-300", "text-slate-400");
+  if (variant === "error") {
+    teleportStatusEl.classList.add("text-rose-300");
+  } else if (variant === "success") {
+    teleportStatusEl.classList.add("text-emerald-300");
+  } else {
+    teleportStatusEl.classList.add("text-slate-400");
+  }
+}
+
+function showTeleportOverlay() {
+  if (!teleportOverlayEl) return;
+  populateTeleportSelect();
+  teleportOverlayEl.classList.remove("hidden");
+  setTeleportStatus("Přesun je okamžitý, využij jen pro testování.", "muted");
+}
+
+function hideTeleportOverlay() {
+  teleportOverlayEl?.classList.add("hidden");
+}
+
+function handleTeleportSubmit() {
+  if (!teleportCitySelect) return;
+  const rawValue = teleportCitySelect.value;
+  if (!rawValue) {
+    setTeleportStatus("Nejprve vyber město.", "error");
+    return;
+  }
+  let targetCity = getCityById(rawValue);
+  if (!targetCity) {
+    targetCity = getCityByNameInsensitive(rawValue);
+  }
+  if (!targetCity) {
+    setTeleportStatus("Město se nepodařilo načíst.", "error");
+    return;
+  }
+  travelToCity(targetCity, { silent: true });
+  setTeleportStatus(`Teleportováno do ${targetCity.name}.`, "success");
+  setTimeout(() => hideTeleportOverlay(), 600);
+}
+
 function isAgentInCityByName(name) {
   if (!name) return false;
   const target = getCityByNameInsensitive(name);
@@ -397,6 +466,12 @@ const travelTopSpeed = document.getElementById("travelTopSpeed");
 const travelDurationLabel = document.getElementById("travelDurationLabel");
 const travelMapCanvas = document.getElementById("travelMapCanvas");
 const travelMapCtx = travelMapCanvas ? travelMapCanvas.getContext("2d") : null;
+const teleportTesterBtn = document.getElementById("teleportTesterBtn");
+const teleportOverlayEl = document.getElementById("teleportOverlay");
+const teleportOverlayCloseBtn = document.getElementById("teleportOverlayClose");
+const teleportCitySelect = document.getElementById("teleportCitySelect");
+const teleportExecuteBtn = document.getElementById("teleportExecuteBtn");
+const teleportStatusEl = document.getElementById("teleportStatus");
 const infoCenterBtn = document.getElementById("infoCenterBtn");
 const labBtn = document.getElementById("labBtn");
 const bankBtn = document.getElementById("bankBtn");
@@ -2230,6 +2305,24 @@ if (restartButton) {
     }
   });
 }
+if (teleportTesterBtn && teleportOverlayEl) {
+  teleportTesterBtn.addEventListener("click", (e) => {
+    e.preventDefault();
+    showTeleportOverlay();
+  });
+}
+if (teleportOverlayCloseBtn) {
+  teleportOverlayCloseBtn.addEventListener("click", (e) => {
+    e.preventDefault();
+    hideTeleportOverlay();
+  });
+}
+if (teleportExecuteBtn) {
+  teleportExecuteBtn.addEventListener("click", (e) => {
+    e.preventDefault();
+    handleTeleportSubmit();
+  });
+}
 // Cestování vlakem z aktuálního města
 function travelFromCurrentCity() {
   const currentCity = getCityAt(agent.x, agent.y);
@@ -3248,11 +3341,16 @@ async function init() {
 
   // 3) vytvoříme mapu podle jména (citlivou i na lowercase)
   cityByName = new Map();
+  cityById = new Map();
   cities.forEach((city) => {
     if (!city || !city.name) return;
     cityByName.set(city.name, city);
     cityByName.set(city.name.toLowerCase(), city);
+    if (city.id !== undefined && city.id !== null) {
+      cityById.set(Number(city.id), city);
+    }
   });
+  populateTeleportSelect();
 
   const randomStartRequested = consumeRandomStartFlag();
 

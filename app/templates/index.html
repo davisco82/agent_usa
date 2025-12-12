@@ -468,6 +468,52 @@
         color: #f8fafc;
       }
 
+      .teleport-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(2, 6, 23, 0.8);
+        backdrop-filter: blur(10px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 60;
+      }
+
+      .teleport-panel {
+        width: min(420px, 90vw);
+        border-radius: 24px;
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        background: rgba(10, 15, 30, 0.95);
+        box-shadow: 0 30px 60px rgba(2, 6, 23, 0.65);
+        padding: 1.8rem;
+      }
+
+      .teleport-panel label {
+        display: block;
+        font-size: 0.7rem;
+        letter-spacing: 0.3em;
+        text-transform: uppercase;
+        color: rgba(148, 163, 184, 0.75);
+        margin-bottom: 0.6rem;
+      }
+
+      .teleport-panel select {
+        width: 100%;
+        border-radius: 14px;
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        background: rgba(15, 23, 42, 0.9);
+        color: #f8fafc;
+        padding: 0.6rem 0.8rem;
+      }
+
+      .teleport-panel button {
+        border-radius: 999px;
+        padding: 0.55rem 1.1rem;
+        font-size: 0.75rem;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+      }
+
       .travel-eyebrow {
         font-size: 0.62rem;
         letter-spacing: 0.35em;
@@ -990,6 +1036,13 @@
                   </div>
                 </div>
                 <button
+                  id="teleportTesterBtn"
+                  type="button"
+                  class="px-3 py-2 text-[10px] uppercase tracking-[0.3em] border border-white/20 text-slate-100/80 rounded-full hover:bg-white/10 transition"
+                >
+                  Test
+                </button>
+                <button
                   id="restartButton"
                   type="button"
                   class="h-10 w-10 flex items-center justify-center rounded-full border border-white/25 text-xs uppercase tracking-[0.25em] text-slate-100/80 hover:bg-white/10 transition"
@@ -1416,6 +1469,42 @@
               <span id="agentCreditsLabel">0</span>
             </div>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="teleportOverlay" class="teleport-overlay hidden">
+      <div class="teleport-panel space-y-5">
+        <div class="flex items-center justify-between gap-4">
+          <div>
+            <p class="text-[11px] uppercase tracking-[0.35em] text-slate-400">Testovací režim</p>
+            <h3 class="text-lg font-semibold text-slate-50">Simuluj přistání ve městě</h3>
+          </div>
+          <button
+            id="teleportOverlayClose"
+            type="button"
+            class="px-3 py-1.5 rounded-full border border-white/20 text-[10px] uppercase tracking-[0.3em] text-slate-100 hover:bg-white/10"
+          >
+            Zavřít
+          </button>
+        </div>
+        <div>
+          <label for="teleportCitySelect">Vyber město</label>
+          <select id="teleportCitySelect">
+            <option value="">Načítám...</option>
+          </select>
+        </div>
+        <div class="flex items-center justify-between gap-3">
+          <p id="teleportStatus" class="text-xs text-slate-400 flex-1">
+            Přesun je okamžitý, využij jen pro testování.
+          </p>
+          <button
+            id="teleportExecuteBtn"
+            type="button"
+            class="bg-white/10 text-slate-100 border border-white/15 hover:bg-white/20"
+          >
+            Teleportovat
+          </button>
         </div>
       </div>
     </div>
