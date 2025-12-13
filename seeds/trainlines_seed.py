@@ -3,15 +3,57 @@
 import math
 from app.extensions import db
 from app.models.city import City
-from app.models.region import Region
 from app.models.train_line import TrainLine
 
 
-MIN_CONNECTIONS_PER_CITY = 5
-MAX_CONNECTIONS_PER_CITY = 12
-MIN_NEIGHBORS = MIN_CONNECTIONS_PER_CITY  # každé město dostane alespoň 5 sousedů ještě před ořezem
+MIN_NEIGHBORS = 5  # každé město dostane alespoň 5 sousedů ještě před ořezem
 HUB_NEIGHBORS_ACROSS_REGIONS = 3  # kolik nejbližších hubů v jiných regionech
 TRIM_LINES_BY_IMPORTANCE = True  # nech původní logiku jen pokud chceš síť prořezat
+
+LEVEL_CONNECTION_RULES = {
+    1: {
+        "min_total": 8,
+        "max_total": 12,
+        "buckets": [
+            {"levels": {1}, "min": 3, "max": 5},
+            {"levels": {2, 3}, "min": 5, "max": 8},
+        ],
+    },
+    2: {
+        "min_total": 6,
+        "max_total": 10,
+        "buckets": [
+            {"levels": {1}, "min": 1, "max": 2},
+            {"levels": {2, 3}, "min": 5, "max": 8},
+        ],
+    },
+    3: {
+        "min_total": 4,
+        "max_total": 8,
+        "buckets": [
+            {"levels": {1}, "min": 0, "max": 2},
+            {"levels": {2, 3}, "min": 3, "max": 6},
+        ],
+    },
+}
+
+
+def _normalize_importance(value):
+    importance = value or 3
+    if importance not in LEVEL_CONNECTION_RULES:
+        return 3
+    return importance
+
+
+def _get_level_rules(importance):
+    return LEVEL_CONNECTION_RULES[_normalize_importance(importance)]
+
+
+def _find_bucket_index(buckets, importance):
+    for idx, bucket in enumerate(buckets):
+        if importance in bucket["levels"]:
+            return idx
+    return None
 
 
 def _compute_distance(city_a: City, city_b: City) -> float:
@@ -85,95 +127,70 @@ def _compute_line_type(imp_a: int, imp_b: int) -> str:
 
 def _select_neighbors(city: City, neighbor_ids, cities_by_id) -> set:
     """
-    Omezí počet sousedů podle importance města.
-    Globální pravidla: min 5 spojů, max 12 spojů pro každé město (po ořezu).
-      imp 3:
-        - min 5 spojů celkem
-        - alespoň 2 spoje do měst s vyšší úrovní (importance 1 nebo 2)
-      imp 2:
-        - min 7 spojů celkem
-        - alespoň 1 spoj do města importance 1
-      imp 1:
-        - max 10 spojů celkem (min držíme na vyšší z MIN_NEIGHBORS a 7)
-        - 2–3 spoje do dalších měst importance 1
+    Ořízne seznam sousedů podle nové logiky:
+      level 1 → 3–5 spojů do level 1 + 5–8 do level 2/3, max 12 celkem
+      level 2 → 1–2 do level 1 + 5–8 do level 2/3, max 10 celkem
+      level 3 → 0–2 do level 1 + 3–6 do level 2/3, min 4, max 8 celkem
     """
+    rules = _get_level_rules(city.importance)
+    min_total = rules["min_total"]
+    max_total = rules["max_total"]
+    buckets = rules["buckets"]
+
     entries = []
     for nid in neighbor_ids:
         other = cities_by_id[nid]
+        bucket_idx = _find_bucket_index(buckets, _normalize_importance(other.importance))
+        if bucket_idx is None:
+            continue
         dist = _compute_distance(city, other)
-        entries.append((nid, dist, other.importance))
+        entries.append((nid, dist, bucket_idx))
 
-    entries.sort(key=lambda x: x[1])  # nejbližší první
-
-    imp = city.importance or 3
-    if imp == 3:
-        min_total = max(MIN_NEIGHBORS, 5)
-        max_total = min(MAX_CONNECTIONS_PER_CITY, 7)
-        requirements = [{"importances": {1, 2}, "min": 2}]
-        per_importance_caps = {}
-    elif imp == 2:
-        min_total = max(MIN_NEIGHBORS, 7)
-        max_total = min(MAX_CONNECTIONS_PER_CITY, 9)
-        requirements = [{"importances": {1}, "min": 1}]
-        per_importance_caps = {}
-    else:  # imp == 1
-        min_total = max(MIN_NEIGHBORS, 7)
-        max_total = MAX_CONNECTIONS_PER_CITY
-        requirements = [{"importances": {1}, "min": 2}]
-        per_importance_caps = {1: 3}
+    entries.sort(key=lambda x: x[1])
 
     selected = set()
-    per_importance_counts = {1: 0, 2: 0, 3: 0}
+    bucket_counts = [0 for _ in buckets]
 
-    def _try_add(entry):
-        nid, _, other_imp = entry
+    def _try_add(entry, bucket_idx, force=False):
+        nid, _, _ = entry
         if nid in selected or len(selected) >= max_total:
             return False
 
-        max_cap = per_importance_caps.get(other_imp)
-        if max_cap is not None and per_importance_counts.get(other_imp, 0) >= max_cap:
+        bucket_max = buckets[bucket_idx].get("max")
+        if not force and bucket_max is not None and bucket_counts[bucket_idx] >= bucket_max:
             return False
 
         selected.add(nid)
-        per_importance_counts[other_imp] = per_importance_counts.get(other_imp, 0) + 1
+        bucket_counts[bucket_idx] += 1
         return True
 
-    for requirement in requirements:
-        taken = 0
-        desired_importances = requirement["importances"]
-        min_needed = requirement.get("min", 0)
-        max_allowed = requirement.get("max")
+    for idx, bucket in enumerate(buckets):
+        min_needed = bucket.get("min", 0)
+        max_allowed = bucket.get("max")
 
         for entry in entries:
-            if entry[2] not in desired_importances:
+            if entry[2] != idx:
                 continue
-            if not _try_add(entry):
+            if not _try_add(entry, idx):
                 continue
-            taken += 1
-            if (max_allowed is not None and taken >= max_allowed) or len(selected) >= max_total:
+            if max_allowed is not None and bucket_counts[idx] >= max_allowed:
+                break
+            if len(selected) >= max_total:
                 break
 
-        # pokud se nepodařilo splnit min kvůli kapacitám, nic dalšího s tím neuděláme –
-        # zbytek doplníme nejbližšími městy v další fázi.
-        if len(selected) < min_needed:
-            # přidej další města z požadovaných úrovní (byť to znamená překročit max)
+        if bucket_counts[idx] < min_needed:
             for entry in entries:
-                if entry[2] not in desired_importances:
+                if entry[2] != idx:
                     continue
-                if _try_add(entry):
-                    taken += 1
-                    if taken >= min_needed:
+                if _try_add(entry, idx, force=True):
+                    if bucket_counts[idx] >= min_needed:
                         break
 
-        if len(selected) >= max_total:
-            break
-
-    desired_total = min_total
-    if len(selected) < desired_total:
+    if len(selected) < min_total:
         for entry in entries:
-            if len(selected) >= desired_total:
+            if len(selected) >= min_total:
                 break
-            _try_add(entry)
+            _try_add(entry, entry[2])
 
     return selected
 
@@ -328,7 +345,8 @@ def register_trainlines_commands(app):
                 key=lambda other: _compute_distance(source_city, other),
             )
             for other in candidates:
-                if len(neighbors[other.id]) >= MAX_CONNECTIONS_PER_CITY:
+                other_rules = _get_level_rules(other.importance)
+                if len(neighbors[other.id]) >= other_rules["max_total"]:
                     continue
                 return other
             return None
@@ -337,7 +355,8 @@ def register_trainlines_commands(app):
         min_topups = 0
         stuck_cities = []
         for city in all_cities_list:
-            while len(neighbors[city.id]) < MIN_CONNECTIONS_PER_CITY:
+            min_required = _get_level_rules(city.importance)["min_total"]
+            while len(neighbors[city.id]) < min_required:
                 candidate = _find_min_candidate(city)
                 if not candidate:
                     stuck_cities.append(city.name)
