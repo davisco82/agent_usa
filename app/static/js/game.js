@@ -46,9 +46,6 @@ let timetableRaised = false;
 let labOverview = null;
 let labOverviewLoading = false;
 let labStoryConfirmHandler = null;
-let labStoryActiveDialog = null;
-let labStoryActiveDialogKey = null;
-let labStoryOverlayDismissed = false;
 let storyDialogs = [];
 let storyDialogsLoading = false;
 let storyDialogsPromise = null;
@@ -509,6 +506,7 @@ const labBtn = document.getElementById("labBtn");
 const bankBtn = document.getElementById("bankBtn");
 const hqBtn = document.getElementById("hqBtn");
 const workshopBtn = document.getElementById("workshopBtn");
+const marketBtn = document.getElementById("marketBtn");
 const cityInfoPanel = document.getElementById("cityInfoPanel");
 const cityInfoNameEl = document.getElementById("cityInfoName");
 const cityInfoMetaEl = document.getElementById("cityInfoMeta");
@@ -516,6 +514,7 @@ const cityInfoPopulationEl = document.getElementById("cityInfoPopulation");
 const cityInfoDescEl = document.getElementById("cityInfoDesc");
 const labPanelEl = document.getElementById("labPanel");
 const workshopPanelEl = document.getElementById("workshopPanel");
+const marketPanelEl = document.getElementById("marketPanel");
 const labActionElements = document.querySelectorAll("[data-action-code]");
 const labFogLevelLabel = document.getElementById("labFogLevelLabel");
 const labFogLevelDesc = document.getElementById("labFogLevelDesc");
@@ -526,6 +525,42 @@ const labStoryBodyEl = document.getElementById("labStoryBody");
 const labStoryConfirmEl = document.getElementById("labStoryConfirm");
 const labStoryCloseEl = document.getElementById("labStoryClose");
 const labStoryLaunchBtn = document.getElementById("labStoryLaunchBtn");
+const labStoryHeroNameEl = document.getElementById("labStoryHeroName");
+const labStoryHeroRoleEl = document.getElementById("labStoryHeroRole");
+const labStoryHeroImgEl = document.getElementById("labStoryHeroImg");
+const marketCityLabelEl = document.getElementById("marketCityLabel");
+const marketTierLabelEl = document.getElementById("marketTierLabel");
+const marketStatusLabelEl = document.getElementById("marketStatusLabel");
+const marketTipsListEl = document.getElementById("marketTipsList");
+const storyPanelState = {
+  lab: {
+    buttonEl: labStoryLaunchBtn,
+    defaultButtonLabel: "Brífink Dr. Rooka",
+    get isVisible() {
+      return isLabPanelVisible();
+    },
+    overlayDismissed: false,
+    activeDialog: null,
+    activeKey: null,
+  },
+  market: {
+    buttonEl: null,
+    defaultButtonLabel: null,
+    get isVisible() {
+      return isMarketPanelVisible();
+    },
+    overlayDismissed: false,
+    activeDialog: null,
+    activeKey: null,
+  },
+};
+let activeStoryPanel = null;
+const DEFAULT_LAB_STORY_CHARACTER = {
+  name: "Dr. Elias Rook",
+  role: "Vedoucí biometrického programu",
+  image_url: "/static/assets/figures/dr_rook.webp",
+  alt: "Dr. Elias Rook",
+};
 const cityInfoMapCanvas = document.getElementById("cityInfoMap");
 const cityInfoMapCtx = cityInfoMapCanvas ? cityInfoMapCanvas.getContext("2d") : null;
 const cityInfoMapWrapper = document.getElementById("cityInfoMapWrapper");
@@ -536,7 +571,11 @@ function isLabPanelVisible() {
   return labPanelEl && !labPanelEl.classList.contains("hidden");
 }
 
-function hideLabStoryNotice() {
+function isMarketPanelVisible() {
+  return marketPanelEl && !marketPanelEl.classList.contains("hidden");
+}
+
+function hideStoryNotice() {
   if (labStoryNoticeEl) {
     labStoryNoticeEl.classList.add("hidden");
     labStoryNoticeEl.setAttribute("aria-hidden", "true");
@@ -545,11 +584,12 @@ function hideLabStoryNotice() {
   if (labStoryConfirmEl) {
     labStoryConfirmEl.disabled = false;
   }
+  activeStoryPanel = null;
 }
 
-function showLabStoryNotice(options = {}) {
+function showStoryNotice(options = {}) {
   if (!labStoryNoticeEl) return;
-  const { title, body, confirmLabel = "Pokračovat", onConfirm } = options;
+  const { title, body, confirmLabel = "Pokračovat", onConfirm, character } = options;
   if (labStoryTitleEl) {
     labStoryTitleEl.textContent = title || "Laboratorní briefing";
   }
@@ -561,12 +601,33 @@ function showLabStoryNotice(options = {}) {
   if (labStoryConfirmEl) {
     labStoryConfirmEl.textContent = confirmLabel;
   }
+  const hero = {
+    ...DEFAULT_LAB_STORY_CHARACTER,
+    ...(character || {}),
+  };
+  if (labStoryHeroNameEl) {
+    labStoryHeroNameEl.textContent = hero.name || DEFAULT_LAB_STORY_CHARACTER.name;
+  }
+  if (labStoryHeroRoleEl) {
+    const roleText = hero.role || "";
+    if (roleText) {
+      labStoryHeroRoleEl.textContent = roleText;
+      labStoryHeroRoleEl.classList.remove("hidden");
+    } else {
+      labStoryHeroRoleEl.textContent = "";
+      labStoryHeroRoleEl.classList.add("hidden");
+    }
+  }
+  if (labStoryHeroImgEl) {
+    labStoryHeroImgEl.src = hero.image_url || DEFAULT_LAB_STORY_CHARACTER.image_url;
+    labStoryHeroImgEl.alt = hero.alt || hero.name || "Postava";
+  }
   labStoryConfirmHandler = typeof onConfirm === "function" ? onConfirm : null;
   labStoryNoticeEl.classList.remove("hidden");
   labStoryNoticeEl.setAttribute("aria-hidden", "false");
 }
 
-function getLabDialogKey(dialog) {
+function getStoryDialogKey(dialog) {
   if (!dialog) {
     return null;
   }
@@ -579,24 +640,37 @@ function getLabDialogKey(dialog) {
   return dialog.title || "lab-dialog";
 }
 
-function buildLabStoryDialogOptions(dialog) {
+function buildStoryDialogOptions(dialog) {
   if (!dialog) return null;
   return {
     title: dialog.title,
     body: dialog.body,
     confirmLabel: dialog.confirm_label || "Pokračovat",
+    character: dialog.character || null,
     onConfirm: () => handleStoryDialogConfirm(dialog),
   };
 }
 
-function maybeShowLabStoryOverlay() {
-  if (!labStoryActiveDialog || !isLabPanelVisible() || labStoryOverlayDismissed) {
-    hideLabStoryNotice();
+function maybeShowStoryOverlay(panel) {
+  const state = storyPanelState[panel];
+  if (!state) return;
+  const dialog = state.activeDialog;
+  if (!dialog) {
+    if (activeStoryPanel === panel) {
+      hideStoryNotice();
+    }
     return;
   }
-  const options = buildLabStoryDialogOptions(labStoryActiveDialog);
+  if (!state.isVisible || state.overlayDismissed) {
+    if (activeStoryPanel === panel) {
+      hideStoryNotice();
+    }
+    return;
+  }
+  const options = buildStoryDialogOptions(dialog);
   if (options) {
-    showLabStoryNotice(options);
+    activeStoryPanel = panel;
+    showStoryNotice(options);
   }
 }
 
@@ -613,16 +687,20 @@ if (labStoryConfirmEl) {
 if (labStoryCloseEl) {
   labStoryCloseEl.addEventListener("click", (e) => {
     e.preventDefault();
-    labStoryOverlayDismissed = true;
-    hideLabStoryNotice();
+    if (activeStoryPanel && storyPanelState[activeStoryPanel]) {
+      storyPanelState[activeStoryPanel].overlayDismissed = true;
+    }
+    hideStoryNotice();
   });
 }
 
 if (labStoryNoticeEl) {
   labStoryNoticeEl.addEventListener("click", (event) => {
     if (event.target === labStoryNoticeEl) {
-      labStoryOverlayDismissed = true;
-      hideLabStoryNotice();
+      if (activeStoryPanel && storyPanelState[activeStoryPanel]) {
+        storyPanelState[activeStoryPanel].overlayDismissed = true;
+      }
+      hideStoryNotice();
     }
   });
 }
@@ -630,9 +708,10 @@ if (labStoryNoticeEl) {
 if (labStoryLaunchBtn) {
   labStoryLaunchBtn.addEventListener("click", (e) => {
     e.preventDefault();
-    if (!labStoryActiveDialog) return;
-    labStoryOverlayDismissed = false;
-    maybeShowLabStoryOverlay();
+    const state = storyPanelState.lab;
+    if (!state || !state.activeDialog) return;
+    state.overlayDismissed = false;
+    maybeShowStoryOverlay("lab");
   });
 }
 
@@ -643,7 +722,7 @@ function getStoryDialogForPanel(panel) {
 async function loadStoryDialogs(force = false) {
   if (storyDialogsLoading) return storyDialogsPromise;
   if (!force && storyDialogs.length > 0) {
-    renderLabStoryDialog();
+    renderStoryDialogs();
     return Promise.resolve();
   }
   storyDialogsLoading = true;
@@ -659,38 +738,43 @@ async function loadStoryDialogs(force = false) {
     } finally {
       storyDialogsLoading = false;
       storyDialogsPromise = null;
-      renderLabStoryDialog();
+      renderStoryDialogs();
     }
   })();
   return storyDialogsPromise;
 }
 
-function renderLabStoryDialog() {
-  const dialog = getStoryDialogForPanel("lab");
-  const nextKey = getLabDialogKey(dialog);
-  if (nextKey !== labStoryActiveDialogKey) {
-    labStoryOverlayDismissed = false;
+function updateStoryDialogForPanel(panel) {
+  const state = storyPanelState[panel];
+  if (!state) return;
+  const dialog = getStoryDialogForPanel(panel);
+  const nextKey = getStoryDialogKey(dialog);
+  if (nextKey !== state.activeKey) {
+    state.overlayDismissed = false;
   }
-  labStoryActiveDialogKey = nextKey;
-  labStoryActiveDialog = dialog || null;
-  if (labStoryLaunchBtn) {
+  state.activeKey = nextKey;
+  state.activeDialog = dialog || null;
+  if (state.buttonEl) {
     const hasDialog = !!dialog;
-    labStoryLaunchBtn.classList.toggle("hidden", !hasDialog);
+    state.buttonEl.classList.toggle("hidden", !hasDialog);
     if (hasDialog) {
-      labStoryLaunchBtn.textContent = dialog?.button_label || "Brífink Dr. Rooka";
+      state.buttonEl.textContent =
+        dialog?.button_label || state.defaultButtonLabel || "Story dialog";
     }
+  } else if (!dialog && activeStoryPanel === panel) {
+    hideStoryNotice();
   }
-  if (!dialog) {
-    labStoryOverlayDismissed = false;
-    hideLabStoryNotice();
-    return;
-  }
-  maybeShowLabStoryOverlay();
+  maybeShowStoryOverlay(panel);
+}
+
+function renderStoryDialogs() {
+  updateStoryDialogForPanel("lab");
+  updateStoryDialogForPanel("market");
 }
 
 async function handleStoryDialogConfirm(dialog) {
   if (!dialog || !dialog.task_id) {
-    hideLabStoryNotice();
+    hideStoryNotice();
     return;
   }
   try {
@@ -702,7 +786,7 @@ async function handleStoryDialogConfirm(dialog) {
     if (labStoryConfirmEl) {
       labStoryConfirmEl.disabled = false;
     }
-    hideLabStoryNotice();
+    hideStoryNotice();
     await loadStoryDialogs(true);
   }
 }
@@ -742,6 +826,7 @@ const footerButtons = {
   info: infoCenterBtn,
   lab: labBtn,
   workshop: workshopBtn,
+  market: marketBtn,
 };
 let activeFooterButton = null;
 
@@ -1395,6 +1480,9 @@ function showTimetablePanel(show) {
     if (workshopPanelEl) {
       workshopPanelEl.classList.add("hidden");
     }
+    if (marketPanelEl) {
+      marketPanelEl.classList.add("hidden");
+    }
     if (taskDetailPanelEl) {
       taskDetailPanelEl.classList.add("hidden");
     }
@@ -2041,6 +2129,9 @@ function showTaskDetailPanel(show) {
     if (workshopPanelEl) {
       workshopPanelEl.classList.add("hidden");
     }
+    if (marketPanelEl) {
+      marketPanelEl.classList.add("hidden");
+    }
     showTimetablePanel(false);
     if (taskListContainerEl && !taskListContainerEl.children.length) {
       renderTaskDetailPanel();
@@ -2203,8 +2294,15 @@ function updateLabAvailability(city) {
   labBtn.setAttribute("aria-disabled", allowed ? "false" : "true");
   if (!allowed && labPanelEl) {
     labPanelEl.classList.add("hidden");
-    hideLabStoryNotice();
-    labStoryOverlayDismissed = false;
+    if (activeStoryPanel === "lab") {
+      hideStoryNotice();
+    }
+    const labState = storyPanelState.lab;
+    if (labState) {
+      labState.overlayDismissed = false;
+      labState.activeDialog = null;
+      labState.activeKey = null;
+    }
   }
   if (!allowed && activeFooterButton === "lab") {
     setActiveFooterButton(null);
@@ -2376,6 +2474,9 @@ function showCityInfoPanel(show) {
     if (workshopPanelEl) {
       workshopPanelEl.classList.add("hidden");
     }
+    if (marketPanelEl) {
+      marketPanelEl.classList.add("hidden");
+    }
     renderCityInfo();
     maybeShowCityImage(getCityAt(agent.x, agent.y));
   }
@@ -2388,6 +2489,97 @@ function hideCityInfoPanel() {
   }
   maybeShowCityImage(getCityAt(agent.x, agent.y));
   hideCityInfoMapTooltip();
+}
+
+function describeMarketTier(city) {
+  if (!city) {
+    return {
+      tier: "-",
+      status: "Vydej se do města a zkontroluj nabídku.",
+    };
+  }
+  const importance = city.importance ?? 3;
+  if (importance === 1) {
+    return {
+      tier: "Hlavní uzel",
+      status: "Zásoby se průběžně doplňují, ale poptávka je vysoká.",
+    };
+  }
+  if (importance === 2) {
+    return {
+      tier: "Regionální sklad",
+      status: "Dodávky dorážejí nepravidelně, sleduj vlakové spoje.",
+    };
+  }
+  return {
+    tier: "Lokální trh",
+    status: "Omezené zásoby, spolehni se na sousední města.",
+  };
+}
+
+function buildMarketTips(city) {
+  if (!city) {
+    return [
+      {
+        title: "Žádná lokace",
+        body: "Přesuň se do města, abys mohl kontaktovat obchodníky.",
+      },
+    ];
+  }
+  const tips = [];
+  const connections = getConnections(city.name);
+  if (connections.length === 0) {
+    tips.push({
+      title: "Bez přímých linek",
+      body: "Z tohoto města nevedou aktivní tratě. Zvaž teleport test nebo návrat na hlavní trať.",
+    });
+  } else {
+    const targets = connections
+      .slice(0, 3)
+      .map((c) => c.name)
+      .join(", ");
+    tips.push({
+      title: "Dostupné tratě",
+      body: targets || "Spoje se načítají…",
+    });
+  }
+  tips.push({
+    title: "Doporučení HQ",
+    body:
+      city.importance <= 2
+        ? "Zaměř se na Energy Generatory, zásoby se vyprodávají během hodin."
+        : "Hledej doplňky a materiál – pro generátor vyraž do většího města.",
+  });
+  tips.push({
+    title: "Regionální vazby",
+    body: city.region ? `Město patří do regionu ${city.region}.` : "Region se načítá…",
+  });
+  return tips;
+}
+
+function renderMarketPanel(city) {
+  if (!marketPanelEl) return;
+  const referenceCity = city || getCityAt(agent.x, agent.y);
+  const tierInfo = describeMarketTier(referenceCity);
+  if (marketCityLabelEl) {
+    marketCityLabelEl.textContent = referenceCity?.name || "-";
+  }
+  if (marketTierLabelEl) {
+    marketTierLabelEl.textContent = tierInfo.tier;
+  }
+  if (marketStatusLabelEl) {
+    marketStatusLabelEl.textContent = tierInfo.status;
+  }
+  if (marketTipsListEl) {
+    const tips = buildMarketTips(referenceCity);
+    marketTipsListEl.innerHTML = "";
+    tips.forEach((tip) => {
+      const card = document.createElement("div");
+      card.className = "rounded-2xl border border-white/10 bg-slate-900/70 p-4 text-sm text-slate-200";
+      card.innerHTML = `<p class="text-xs uppercase tracking-[0.3em] text-slate-400 mb-1">${tip.title}</p><p class="text-slate-100">${tip.body}</p>`;
+      marketTipsListEl.appendChild(card);
+    });
+  }
 }
 
 function showLabPanel(show) {
@@ -2403,13 +2595,19 @@ function showLabPanel(show) {
     showTimetablePanel(false);
     showTaskDetailPanel(false);
     showWorkshopPanel(false);
+    showMarketPanel(false);
     loadLabPanelData();
     notifyTaskLocationChange();
     loadStoryDialogs(true);
-    maybeShowLabStoryOverlay();
+    maybeShowStoryOverlay("lab");
   } else {
-    hideLabStoryNotice();
-    labStoryOverlayDismissed = false;
+    if (activeStoryPanel === "lab") {
+      hideStoryNotice();
+    }
+    const labState = storyPanelState.lab;
+    if (labState) {
+      labState.overlayDismissed = false;
+    }
     maybeShowCityImage(getCityAt(agent.x, agent.y));
   }
 }
@@ -2427,7 +2625,37 @@ function showWorkshopPanel(show) {
     showTimetablePanel(false);
     showTaskDetailPanel(false);
     showLabPanel(false);
+    showMarketPanel(false);
   } else {
+    maybeShowCityImage(getCityAt(agent.x, agent.y));
+  }
+}
+
+function showMarketPanel(show) {
+  if (!marketPanelEl) return;
+  const shouldShow = !!show;
+  marketPanelEl.classList.toggle("hidden", !shouldShow);
+  if (shouldShow) {
+    hideCityInfoPanel();
+    showTimetablePanel(false);
+    showTaskDetailPanel(false);
+    if (labPanelEl) {
+      labPanelEl.classList.add("hidden");
+    }
+    if (workshopPanelEl) {
+      workshopPanelEl.classList.add("hidden");
+    }
+    renderMarketPanel(getCityAt(agent.x, agent.y));
+    loadStoryDialogs(true);
+    maybeShowStoryOverlay("market");
+  } else {
+    if (activeStoryPanel === "market") {
+      hideStoryNotice();
+    }
+    const marketState = storyPanelState.market;
+    if (marketState) {
+      marketState.overlayDismissed = false;
+    }
     maybeShowCityImage(getCityAt(agent.x, agent.y));
   }
 }
@@ -2516,6 +2744,19 @@ if (workshopBtn) {
     } else {
       showWorkshopPanel(true);
       setActiveFooterButton("workshop");
+    }
+  });
+}
+if (marketBtn) {
+  marketBtn.addEventListener("click", (e) => {
+    e.preventDefault();
+    const isVisible = marketPanelEl && !marketPanelEl.classList.contains("hidden");
+    if (activeFooterButton === "market" && isVisible) {
+      showMarketPanel(false);
+      setActiveFooterButton(null);
+    } else {
+      showMarketPanel(true);
+      setActiveFooterButton("market");
     }
   });
 }
@@ -3363,6 +3604,7 @@ function updateSidebar() {
     updateWorkshopAvailability(null);
     updateBankAvailability(null);
     updateHqAvailability(null);
+    renderMarketPanel(null);
     if (timeEl || weekEl) {
       const { weekText, timeText } = formatWeekAndTime(gameMinutes);
       if (weekEl) weekEl.textContent = weekText;
@@ -3388,6 +3630,7 @@ function updateSidebar() {
   updateWorkshopAvailability(city);
   updateBankAvailability(city);
   updateHqAvailability(city);
+  renderMarketPanel(city);
   renderCityInfo();
   maybeShowCityImage(city);
 

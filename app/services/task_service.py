@@ -90,6 +90,7 @@ def assign_task(
         _, resolved_placeholders = resolve_template_for_agent(
             template,
             agent_region_code=region_code,
+            agent_city=agent.current_city,
             rng=rng or random,
         )
         placeholders = resolved_placeholders
@@ -438,50 +439,75 @@ def _normalize_completed_flags(active_task: ActiveTask, template: Dict[str, Any]
     return completed_flags
 
 
-def _build_rook_intro_story_dialog(
+def _format_story_value(value: Any, placeholders: Dict[str, Any]) -> Any:
+    if isinstance(value, dict):
+        return {key: _format_story_value(val, placeholders) for key, val in value.items()}
+    if isinstance(value, list):
+        return [_format_story_value(item, placeholders) for item in value]
+    return resolve_placeholders_in_value(value, placeholders)
+
+
+def _build_story_dialogs_for_task(
     agent: Agent | None,
     active_task: ActiveTask,
     template: Dict[str, Any],
-) -> Optional[Dict[str, Any]]:
-    completed_flags = _normalize_completed_flags(active_task, template)
-    if not completed_flags or len(completed_flags) < 2:
-        return None
-
-    # potřebujeme splněný první krok (příjezd) a čekáme na krok s doktorem
-    if not completed_flags[0] or completed_flags[1]:
-        return None
+) -> List[Dict[str, Any]]:
+    story_entries = template.get("story_dialogs") or []
+    if not story_entries:
+        return []
 
     placeholders = (active_task.objective_state or {}).get("placeholders") or {}
-    rook_city = placeholders.get("rook_city")
+    completed_flags = _normalize_completed_flags(active_task, template)
 
-    if agent and rook_city and agent.current_city and agent.current_city.name:
-        if agent.current_city.name.lower() != rook_city.lower():
-            return None
+    dialogs: List[Dict[str, Any]] = []
+    for entry in story_entries:
+        panel = entry.get("panel")
+        if not panel:
+            continue
 
-    city_label = rook_city or "laboratoři"
-    body = (
-        f"Dr. Rook tě vítá ve své laboratoři v {city_label}. "
-        "Probírá měření mlhy a čeká na potvrzení, že společně pokračujete v dalším kroku mise."
-    )
+        objective_index = entry.get("objective_index")
+        if objective_index is not None:
+            if objective_index < len(completed_flags) and completed_flags[objective_index]:
+                continue
 
-    return {
-        "panel": "lab",
-        "task_id": active_task.task_id,
-        "objective_index": 1,
-        "title": "Brífink Dr. Rooka",
-        "body": body,
-        "confirm_label": "Dokončit briefing",
-    }
+        requires_completed = entry.get("requires_completed_indices") or []
+        requirement_failed = False
+        for required_idx in requires_completed:
+            if required_idx >= len(completed_flags) or not completed_flags[required_idx]:
+                requirement_failed = True
+                break
+        if requirement_failed:
+            continue
 
+        required_city_placeholder = entry.get("requires_agent_in_city_placeholder")
+        if required_city_placeholder:
+            required_city = placeholders.get(required_city_placeholder)
+            if (
+                agent
+                and required_city
+                and agent.current_city
+                and agent.current_city.name
+                and agent.current_city.name.lower() != required_city.lower()
+            ):
+                continue
 
-def _build_story_dialog_for_task(
-    agent: Agent | None,
-    active_task: ActiveTask,
-    template: Dict[str, Any],
-) -> Optional[Dict[str, Any]]:
-    if active_task.task_id == "mission-rook-intro-01":
-        return _build_rook_intro_story_dialog(agent, active_task, template)
-    return None
+        payload: Dict[str, Any] = {
+            "panel": panel,
+            "task_id": active_task.task_id,
+            "objective_index": objective_index,
+        }
+
+        for key in ("cache_key", "title", "body", "confirm_label", "button_label"):
+            if key in entry:
+                payload[key] = _format_story_value(entry[key], placeholders)
+
+        character_data = entry.get("character")
+        if character_data:
+            payload["character"] = _format_story_value(character_data, placeholders)
+
+        dialogs.append(payload)
+
+    return dialogs
 
 
 def get_pending_story_dialogs(agent: Agent | None) -> List[Dict[str, Any]]:
@@ -494,8 +520,6 @@ def get_pending_story_dialogs(agent: Agent | None) -> List[Dict[str, Any]]:
         template = get_task_template(active.task_id)
         if not template:
             continue
-        dialog = _build_story_dialog_for_task(agent, active, template)
-        if dialog:
-            dialogs.append(dialog)
+        dialogs.extend(_build_story_dialogs_for_task(agent, active, template))
 
     return dialogs

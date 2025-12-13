@@ -30,6 +30,8 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from app.models.city import City
 from app.models.region import Region
+from app.models.train_line import TrainLine
+from sqlalchemy import or_
 
 
 class _SafeFormatDict(dict):
@@ -62,11 +64,19 @@ def _load_city_names(
     importance_max: Optional[int] = None,
     importance_exact: Optional[int] = None,
     exclude_region_code: Optional[str] = None,
+    include_city_ids: Optional[Iterable[int]] = None,
 ) -> List[str]:
-    if not region_codes and not exclude_region_code:
+    if not region_codes and not exclude_region_code and not include_city_ids:
         return []
 
     query = City.query.join(Region)
+
+    if include_city_ids is not None:
+        ids = list(include_city_ids)
+        if not ids:
+            return []
+        query = query.filter(City.id.in_(ids))
+
     if region_codes:
         query = query.filter(Region.code.in_(list(region_codes)))
     if exclude_region_code:
@@ -78,11 +88,19 @@ def _load_city_names(
     return [city.name for city in query.all()]
 
 
+def _get_city_by_name(city_name: Optional[str]) -> Optional[City]:
+    if not city_name:
+        return None
+    return City.query.filter(City.name == city_name).first()
+
+
 def _resolve_placeholder_value(
     cfg: Dict[str, Any],
     agent_region_code: Optional[str],
     replacements: Dict[str, str],
     rng: random.Random,
+    *,
+    agent_city: Optional[City] = None,
 ) -> Optional[str]:
     preferred = list(cfg.get("preferred_regions") or [])
     overrides = cfg.get("agent_region_overrides") or {}
@@ -99,12 +117,67 @@ def _resolve_placeholder_value(
             agent_region_code if cfg.get("exclude_agent_region") else None
         )
 
+    include_city_ids: Optional[List[int]] = None
+    source = cfg.get("source")
+    if source == "agent_city":
+        if agent_city:
+            include_city_ids = [agent_city.id]
+        else:
+            include_city_ids = None
+
+    connected_placeholder = cfg.get("connected_to_placeholder")
+    if connected_placeholder:
+        anchor_name = replacements.get(connected_placeholder)
+        anchor_city = _get_city_by_name(anchor_name)
+        if anchor_city:
+            lines = (
+                TrainLine.query.filter(
+                    TrainLine.is_active == True,
+                    or_(
+                        TrainLine.from_city_id == anchor_city.id,
+                        TrainLine.to_city_id == anchor_city.id,
+                    ),
+                ).all()
+            )
+            neighbor_ids = set()
+            for line in lines:
+                if line.from_city_id == anchor_city.id:
+                    neighbor_ids.add(line.to_city_id)
+                else:
+                    neighbor_ids.add(line.from_city_id)
+            if include_city_ids is None:
+                include_city_ids = list(neighbor_ids)
+            else:
+                include_city_ids = [cid for cid in include_city_ids if cid in neighbor_ids]
+
     candidates = _load_city_names(
         preferred,
         importance_max=cfg.get("importance_max"),
         importance_exact=cfg.get("importance_exact"),
         exclude_region_code=agent_region_code if cfg.get("exclude_agent_region") else None,
+        include_city_ids=include_city_ids,
     )
+
+    if source == "agent_city" and agent_city and agent_city.name and not candidates:
+        candidates = [agent_city.name]
+
+    exclusion_values = set()
+    if cfg.get("exclude_agent_city") and agent_city and agent_city.name:
+        exclusion_values.add(agent_city.name)
+
+    if connected_placeholder and replacements.get(connected_placeholder):
+        exclusion_values.add(replacements[connected_placeholder])
+
+    for key in cfg.get("avoid_duplicates_of") or []:
+        value = replacements.get(key)
+        if value:
+            exclusion_values.add(value)
+
+    extra_excluded = cfg.get("exclude_names") or []
+    exclusion_values.update(extra_excluded)
+
+    if exclusion_values:
+        candidates = [c for c in candidates if c not in exclusion_values]
 
     if not candidates:
         fallback_names = cfg.get("fallback_names") or []
@@ -139,12 +212,20 @@ def build_template_from_placeholders(template: Dict[str, Any], replacements: Dic
 def resolve_template_for_agent(
     template: Dict[str, Any],
     agent_region_code: Optional[str] = None,
+    *,
+    agent_city: Optional[City] = None,
     rng: Optional[random.Random] = None,
 ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     generator = rng or random
     replacements: Dict[str, Any] = {}
     for key, cfg in template.get("dynamic_placeholders", {}).items():
-        value = _resolve_placeholder_value(cfg, agent_region_code, replacements, generator)
+        value = _resolve_placeholder_value(
+            cfg,
+            agent_region_code,
+            replacements,
+            generator,
+            agent_city=agent_city,
+        )
         if value is not None:
             replacements[key] = value
     resolved = build_template_from_placeholders(template, replacements)
@@ -154,33 +235,65 @@ def resolve_template_for_agent(
 AGENT_TASK_TEMPLATES = [
     {
         "id": "mission-rook-intro-01",
-        "title": "Setkání s Dr. Rookem ve městě {rook_city}",
+        "title": "Nový případ ve městě {rook_city}",
         "location": "{rook_city} – Místní laboratoř",
         "summary": (
-            "Cestuj do města {rook_city} a setkej se s Dr. Rookem. Zjisti detaily o anomálii "
-            "a naplánujte společně terénní měření."
+            "Byl jsi vyslán do města {rook_city}, kde vědec Dr. Rook zaznamenal "
+            "neznámou energetickou anomálii. Tvým úkolem je zjistit, co objevil, "
+            "a rozhodnout o dalším postupu."
         ),
         "description": (
-            "Ve městě {rook_city} působí vědec Dr. Elias Rook, který hlásil první známky nestability "
-            "v energetických pulzech blížící se hmoty vypadající jako mlha. \n\n"
-            "Je nutné jej navštívit a zjistit detaily."
-            # ""
-            # "Dr. Rook navrhuje společnou výpravu do postižené oblasti, ale nejprve je potřeba získat "
-            # "startovní vybavení a vyrobit přenosný energetický modul."
+            "Z centrály přichází jasný rozkaz: najít Dr. Eliase Rooka. "
+            "Jeho zprávy o nestabilní mlze a energetických výpadcích "
+            "byly natolik znepokojivé, že byl případ předán tobě, agente\n\n"
+            "V laboratoři v {rook_city} na Tebe Dr. Rook čeká. Pospěš si!\n\n"
+            "Hodně štěstí!"
         ),
         "objectives": [
             "Cestuj do {rook_city} a najdi laboratoř Dr. Rooka. (15 XP)",
-            "Vyslechni Dr. Rooka a zjisti detaily o anomálii. (15 XP)",
+            "Vyslechni Dr. Rooka a převezmi tento případ. (15 XP)",
         ],
         "reward": "30 XP",
         "status": "Probíhá",
         "priority": "Vysoká",
-        "eta": "1 den",
+        "eta": "24 hodin",
         "progress": 0.0,
         "objective_rewards": [15, 15],
         "objective_triggers": [
             {"type": "visit_city", "city_name": "{rook_city}"},
             {"type": "talk_to_npc", "npc": "Dr. Rook"},
+        ],
+        "story_dialogs": [
+            {
+                "panel": "lab",
+                "objective_index": 1,
+                "requires_completed_indices": [0],
+                "requires_agent_in_city_placeholder": "rook_city",
+                "button_label": "Brífink Dr. Rooka",
+                "title": "Brífink Dr. Rooka",
+                "body": (
+                    "„Dobře, agente… to, co vám teď ukážu, jsem zatím nikomu neposílal.“\n\n"
+                    "Dr. Rook přepne projekci a na obrazovce se rozběhnou nestabilní křivky.\n"
+                    "„Ty pulzy se objevují vždy těsně předtím, než se mlha zahustí. Nejde jen o ztrátu energie — "
+                    "mlha ji aktivně narušuje. Jako by… ji rozkládala.“\n\n"
+                    "Na chvíli se odmlčí.\n\n"
+                    "„Zkoušel jsem tam dostat standardní měřicí zařízení. Selhala během několika sekund. "
+                    "Všechno, co není energeticky izolované, je v té zóně nepoužitelné.“\n\n"
+                    "„Pokud chceme provést skutečné měření přímo v terénu, budeme potřebovat vlastní zdroj energie. "
+                    "Něco přenosného. Něco, co dokáže udržet stabilní výkon i v přítomnosti mlhy.“\n\n"
+                    "Podívá se na tebe.\n"
+                    "„Já vám dodám data a výpočty. Ale vybavení… to už je na vás. Sežeňte, co bude potřeba. "
+                    "Až budete mít energii pod kontrolou, dejte mi vědět. Pak se můžeme sejít na místě "
+                    "a konečně zjistit, s čím máme tu čest.“\n"
+                    "„A věřte mi — čím dřív, tím lépe. Mám takový dojem, že to nechce zůstat na jednom místě.“"
+                ),
+                "confirm_label": "Dokončit briefing",
+                "character": {
+                    "name": "Dr. Elias Rook",
+                    "role": "Vedoucí biometrického programu",
+                    "image_url": "/static/assets/figures/dr_rook.webp",
+                },
+            }
         ],
         "dynamic_placeholders": {
             "rook_city": {
@@ -200,70 +313,171 @@ AGENT_TASK_TEMPLATES = [
     },
     {
         "id": "mission-equipment-01",
-        "title": "Získej vybavení a vyrob přenosnou energii",
-        "location": "{rook_city} → Centrála → Trh",
+        "title": "Příprava operace: získání vybavení",
+        "location": "{hq_city} – Centrála",
         "summary": (
-            "Získej základní výbavu z centrály, zakup výrobní nástroje na trhu "
-            "a vyrob svůj první Energy Module."
+            "Dostav se na centrálu v {hq_city} a vyzvedni si Startovní Toolkit."
+            "Na trhu se podívej po generátoru."
         ),
         "description": (
-            "Dr. Rook tě požádal, abys zajistil energii nutnou k měření v městě {target_city}. "
-            "To vyžaduje startovní vybavení, výrobní nástroje a výrobu prvního energetického modulu.\n\n"
-            "V centrále získáš základní gear. Na trhu musíš zakoupit Energy Generator a materiály. "
-            "Použitím generátoru následně vytvoříš svůj první Energy Module, který bude sloužit jako "
-            "zdroj energie pro měření v zasaženém městě."
+            "Vyraž na centrálu a vyzvedni si startovní vybavení pro operaci s Dr. Rookem. "
+            "Po návštěvě centrály ve městě {hq_city} si otevřeš nové možnosti.\n\n"
+            "Zjisti, zda je na zdejším trhu k dispozici Energy Modul nebo alespoň "
+            "generátor. Bez stabilního zdroje energie nebude možné provést žádné měření v terénu.\n\n"
         ),
         "objectives": [
-            "Navštiv centrálu a vyzvedni Startovní Toolkit. (10 XP)",
-            "Navštiv trh a zakup Energy Generator. (10 XP)",
-            "Doplň materiál potřebný k výrobě (+10 MATERIAL). (10 XP)",
-            "Vyrob svůj první Energy Module. (20 XP)",
+            "Navštiv centrálu ve městě {hq_city} a přihlas se k operaci. (10 XP)",
+            "Prověř trh v {hq_city} a zjisti stav zásob. (10 XP)",
         ],
-        "reward": "50 XP, +1 Energy Module, odemknutí měření",
+        "reward": "20 XP",
         "status": "Čeká na dokončení",
-        "priority": "Střední",
-        "eta": "1–2 hodiny",
+        "priority": "Vysoká",
+        "eta": "24 hodin",
         "progress": 0.0,
-        "objective_rewards": [10, 10, 10, 20],
+        "objective_rewards": [10, 10],
         "objective_triggers": [
-            {"type": "visit_city", "city_name": "HQ"},
-            {"type": "buy_item", "item": "energy_generator"},
-            {"type": "gain_material", "amount": 10},
-            {"type": "craft_item", "item": "energy_module"},
+            {"type": "visit_city", "city_name": "{hq_city}"},
+            {"type": "story_dialog", "panel": "market"},
+        ],
+        "story_dialogs": [
+            {
+                "panel": "market",
+                "objective_index": 1,
+                "requires_completed_indices": [0],
+                "requires_agent_in_city_placeholder": "hq_city",
+                "button_label": "Zpráva z trhu",
+                "title": "Zpráva od Stevea Hatcheta",
+                "body": (
+                    "„Agente, pardón, ale tohle zboží teď není skladem. Všechno se vypařilo,“ pronese Steve Hatchet a mizí "
+                    "se záznamníkem v ruce. Po patnácti minutách se vrací zpátky k přepážce.\n\n"
+                    "„Obvolal jsem pár známých v okolí. Máte štěstí — jeden kus Energy Modulu hlásí sklad ve městě {market_lead_city}. "
+                    "Je to úroveň 2, jede tam přímá linka z {hq_city}. Chcete, abych vám ho držel?“\n\n"
+                    "HQ doporučuje vyrazit po trati hned, dokud rezervace platí."
+                ),
+                "confirm_label": "Rezervovat u Stevea",
+                "character": {
+                    "name": "Steve Hatchet",
+                    "role": "Obchodník na trhu",
+                    "image_url": "/static/assets/figures/steve_hatchet.webp",
+                },
+            }
         ],
         "dynamic_placeholders": {
-            "rook_city": {
+            "hq_city": {
                 "preferred_regions": [],
                 "importance_exact": 1,
                 "use_all_regions": True,
                 "exclude_agent_region": False,
+                "exclude_agent_city": True,
             },
-            "target_city": {
+            "market_lead_city": {
                 "preferred_regions": [],
-                "importance_min": 1,
-                "importance_max": 2,
-                "exclude_agent_region": False,
+                "importance_min": 2,
+                "importance_max": 3,
+                "connected_to_placeholder": "hq_city",
                 "use_all_regions": True,
+                "exclude_agent_region": False,
+                "exclude_agent_city": True,
+                "avoid_duplicates_of": ["hq_city"],
+            },
+        },
+    },
+    {
+        "id": "mission-equipment-02",
+        "title": "Příprava operace: energie pro měření",
+        "location": "{hq_city} → Centrála → {generator_city}",
+        "summary": (
+            "V {hq_city} není jediný Energy Modul. "
+            "Vydej se vlakem do {generator_city}, přivez Energy Generator a sestroj vlastní modul."
+        ),
+        "description": (
+            "Inventura v HQ potvrdila, že bez přesunu do dalšího města se neobejdeš. "
+            "Zásoby Energy Generatorů se drží jen v několika uzlech napojených na tratě z {hq_city}.\n\n"
+            "Vyraz po lince do {generator_city}, kde ještě funguje trh s technologiemi. "
+            "Získej generátor, doplň potřebný materiál a dokonči přenosný Energy Module. "
+            "Teprve potom může Dr. Rook spustit měření přímo v terénu."
+        ),
+        "objectives": [
+            "Opusť {hq_city} a doraz do města {generator_city}. (10 XP)",
+            "Najdi Stevea Hatcheta na trhu v {generator_city}. (10 XP)",
+            "Na trhu v {generator_city} zakup Energy Generator. (10 XP)",
+            "Získej materiál potřebný k výrobě (+10 MATERIAL). (10 XP)",
+            "Vyrob a připrav Energy Module k použití. (20 XP)",
+        ],
+        "reward": "60 XP",
+        "status": "Čeká na dokončení",
+        "priority": "Vysoká",
+        "eta": "36 hodin",
+        "progress": 0.0,
+        "objective_rewards": [10, 10, 10, 10, 20],
+        "objective_triggers": [
+            {"type": "visit_city", "city_name": "{generator_city}"},
+            {"type": "story_dialog", "panel": "market"},
+            {"type": "buy_item", "item": "energy_generator", "city_name": "{generator_city}"},
+            {"type": "gain_material", "amount": 10},
+            {"type": "craft_item", "item": "energy_module"},
+        ],
+        "story_dialogs": [
+            {
+                "panel": "market",
+                "objective_index": 1,
+                "requires_completed_indices": [0],
+                "requires_agent_in_city_placeholder": "generator_city",
+                "button_label": "Jednat se Stevem",
+                "title": "Rezervace přes Stevea Hatcheta",
+                "body": (
+                    "„Agente, pardón, ale Energy Generatory tu fakt nejsou. Nech mě obvolat pár známých,“ "
+                    "řekne Steve Hatchet a ztratí se mezi stánky. O čtvrthodinu později se vrací.\n\n"
+                    "„Tak máte štěstí — jeden kus se drží ve skladu v {generator_city}. Jede tam linka přímo odsud. "
+                    "Mám ti ho tam zarezervovat?“\n\n"
+                    "Jakmile potvrdíš rezervaci, můžeš se pustit do shánění zbytku vybavení."
+                ),
+                "confirm_label": "Rezervovat",
+                "character": {
+                    "name": "Steve Hatchet",
+                    "role": "Obchodník na trhu",
+                    "image_url": "/static/assets/figures/steve_hatchet.webp",
+                },
             }
+        ],
+        "dynamic_placeholders": {
+            "hq_city": {
+                "source": "agent_city",
+                "preferred_regions": [],
+                "use_all_regions": True,
+            },
+            "generator_city": {
+                "preferred_regions": [],
+                "importance_max": 3,
+                "connected_to_placeholder": "hq_city",
+                "use_all_regions": True,
+                "exclude_agent_region": False,
+                "exclude_agent_city": True,
+                "avoid_duplicates_of": ["hq_city"],
+            },
         },
     },
     {
         "id": "mission-measurement-01",
-        "title": "První měření anomálie ve městě {target_city}",
+        "title": "Terénní operace: měření anomálie v {target_city}",
         "location": "{target_city} – Zasažená zóna",
         "summary": (
-            "Vydej se s Dr. Rookem do města {target_city}, použij Energy Module "
-            "a aktivuj Pulse Detector k prvnímu měření mlhy."
+            "Po dokončení Energy Modulu přichází zpráva od Dr. Rooka. "
+            "Sejdete se ve městě {target_city} a provedete první měření mlhy."
         ),
         "description": (
-            "Město {target_city} je již částečně pohlceno mlhou a trpí energetickými výpadky. "
-            "Aby bylo možné provést měření, musíš doručit vlastní přenosný zdroj energie.\n\n"
-            "Dr. Rook tě doprovodí k místu měření, kde společně aktivujete Pulse Detector. "
-            "Je to první real-time měření anomálie a jeho výsledky budou klíčové pro další operace."
+            "Krátce po dokončení Energy Modulu tě kontaktuje Dr. Rook. "
+            "Na základě nových výpočtů určil město {target_city} "
+            "jako ideální místo pro první terénní měření.\n\n"
+            "Tvým úkolem je dorazit na místo s připraveným zdrojem energie. "
+            "Mlha zde už způsobuje výpadky infrastruktury a nestabilitu okolí.\n\n"
+            "Na místě se setkáš s Dr. Rookem a společně aktivujete Pulse Detector. "
+            "Půjde o první přímé měření anomálie v reálném prostředí — "
+            "data, která získáte, určí další směr celé operace."
         ),
         "objectives": [
             "Cestuj do města {target_city} s Energy Module. (15 XP)",
-            "Setkej se s Dr. Rookem v postižené oblasti. (15 XP)",
+            "Setkej se s Dr. Rookem na místě měření. (15 XP)",
             "Použij Energy Module k napájení zařízení. (20 XP)",
             "Aktivuj Pulse Detector a proveď měření. (30 XP)",
         ],
@@ -293,7 +507,13 @@ AGENT_TASK_TEMPLATES = [
 
 
 
-def get_agent_tasks(agent_region_code: Optional[str] = None, *, rng: Optional[random.Random] = None) -> List[Dict[str, Any]]:
+
+def get_agent_tasks(
+    agent_region_code: Optional[str] = None,
+    *,
+    agent_city: Optional[City] = None,
+    rng: Optional[random.Random] = None,
+) -> List[Dict[str, Any]]:
     """
     Vrátí seznam úkolů s doplněnými dynamickými poli podle regionu agenta.
 
@@ -308,6 +528,7 @@ def get_agent_tasks(agent_region_code: Optional[str] = None, *, rng: Optional[ra
         resolved_task, _ = resolve_template_for_agent(
             template,
             agent_region_code=agent_region_code,
+            agent_city=agent_city,
             rng=random_generator,
         )
         resolved_tasks.append(resolved_task)
