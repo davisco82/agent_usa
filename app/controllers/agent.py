@@ -163,6 +163,36 @@ def api_agent_update_location():
     return jsonify({"agent": _serialize_agent(agent), "travel_log": travel_log.serialize()})
 
 
+@bp.post("/agent/reset")
+def api_agent_reset():
+    """Reset agent stats so a new playthrough can start from level 1."""
+    agent = Agent.query.order_by(Agent.id.asc()).first()
+    if not agent:
+        return jsonify({"error": "Agent not found"}), 404
+
+    base_cfg = _level_cfg(1) or {"energy_max": 5}
+    energy_max = base_cfg.get("energy_max", 5)
+
+    agent.level = 1
+    agent.xp = 0
+    agent.energy_max = energy_max
+    agent.energy_current = energy_max
+    agent.current_city_id = None
+    agent.current_city = None
+    agent.last_city_id = None
+    agent.last_city = None
+    agent.total_trips = 0
+    agent.total_cleaned_cities = 0
+    agent.total_failed_cities = 0
+    agent.data_current = 0
+    agent.material_current = 0
+    agent.credits = 0
+    agent.infection_level = 0
+
+    db.session.commit()
+    return jsonify({"agent": _serialize_agent(agent)})
+
+
 @bp.get("/agent/travel-log")
 def api_agent_travel_log():
     """Return the latest logged travels for the agent."""

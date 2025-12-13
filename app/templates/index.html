@@ -836,11 +836,9 @@
       }
 
       .lab-hero {
-        background: radial-gradient(circle at 20% 20%, rgba(245, 158, 11, 0.25), transparent 45%),
-          radial-gradient(circle at 80% 0%, rgba(14, 165, 233, 0.25), transparent 40%),
-          rgba(15, 23, 42, 0.8);
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        box-shadow: 0 25px 60px rgba(0, 0, 0, 0.45);
+        background: linear-gradient(135deg, rgba(17, 94, 89, 0.75), rgba(14, 165, 233, 0.15), rgba(88, 28, 135, 0.45));
+        border: 1px solid rgba(148, 163, 184, 0.32);
+        box-shadow: 0 25px 60px rgba(2, 6, 23, 0.65);
       }
       .lab-chip {
         border-radius: 999px;
@@ -849,9 +847,28 @@
         letter-spacing: 0.2em;
         text-transform: uppercase;
       }
+      .lab-meta-grid {
+        display: grid;
+        gap: 0.75rem;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        width: 100%;
+      }
+      .lab-stat-chip {
+        border-radius: 1rem;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        background: rgba(2, 6, 23, 0.55);
+        padding: 1rem;
+        min-height: 90px;
+      }
+      .lab-stat-chip__label {
+        font-size: 0.68rem;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        color: rgba(226, 232, 240, 0.7);
+      }
       .lab-gauge {
         position: relative;
-        height: 12px;
+        height: 8px;
         border-radius: 999px;
         overflow: hidden;
         background: rgba(15, 23, 42, 0.55);
@@ -863,10 +880,11 @@
         border-radius: inherit;
         background: linear-gradient(90deg, #f59e0b, #e11d48);
       }
-      .lab-grid-card {
-        border-radius: 1.25rem;
-        border: 1px solid rgba(255, 255, 255, 0.06);
-        background: linear-gradient(135deg, rgba(15, 23, 42, 0.9), rgba(15, 23, 42, 0.7));
+      .lab-section-card {
+        border-radius: 1.5rem;
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        background: rgba(2, 6, 23, 0.7);
+        box-shadow: 0 20px 40px rgba(2, 6, 23, 0.45);
       }
 
       #timetableCard {
@@ -909,16 +927,75 @@
         max-width: 960px;
       }
 
+      .lab-story-launch {
+        border-radius: 999px;
+        padding: 0.5rem 1.25rem;
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 0.25em;
+        border: 1px solid rgba(248, 250, 252, 0.2);
+        color: #f8fafc;
+        background: rgba(251, 191, 36, 0.08);
+        backdrop-filter: blur(6px);
+        transition: background 0.2s ease, transform 0.2s ease;
+      }
+
+      .lab-story-launch:hover {
+        background: rgba(251, 191, 36, 0.2);
+        transform: translateY(-1px);
+      }
+
       #labStoryNotice {
-        border-radius: 1.5rem;
-        border: 1px solid rgba(248, 250, 252, 0.08);
-        background: linear-gradient(120deg, rgba(24, 24, 45, 0.85), rgba(12, 21, 35, 0.85));
-        box-shadow: 0 20px 60px rgba(2, 6, 23, 0.55);
+        position: fixed;
+        inset: 0;
+        background: rgba(2, 6, 23, 0.85);
+        backdrop-filter: blur(18px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
         padding: 1.5rem;
+        z-index: 60;
       }
 
       #labStoryNotice.hidden {
         display: none;
+      }
+
+      .lab-story-dialog {
+        width: min(640px, 100%);
+        border-radius: 1.75rem;
+        border: 1px solid rgba(248, 250, 252, 0.08);
+        background: linear-gradient(140deg, rgba(23, 37, 84, 0.95), rgba(15, 23, 42, 0.9));
+        box-shadow: 0 35px 80px rgba(2, 6, 23, 0.7);
+        padding: 2rem;
+      }
+
+      .lab-story-header {
+        display: flex;
+        flex-direction: column;
+        gap: 1.25rem;
+      }
+
+      @media (min-width: 640px) {
+        .lab-story-header {
+          flex-direction: row;
+          align-items: flex-start;
+          justify-content: space-between;
+        }
+      }
+
+      .lab-story-figure {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        flex: 1;
+      }
+
+      @media (min-width: 640px) {
+        .lab-story-figure {
+          flex-direction: row;
+          align-items: flex-start;
+        }
       }
 
       .lab-story-eyebrow {
@@ -930,7 +1007,7 @@
       }
 
       #labStoryTitle {
-        font-size: 1.25rem;
+        font-size: 1.4rem;
         font-weight: 700;
         margin: 0;
         color: #f8fafc;
@@ -938,26 +1015,115 @@
 
       #labStoryBody {
         font-size: 0.95rem;
-        line-height: 1.6;
+        line-height: 1.7;
         color: rgba(226, 232, 240, 0.9);
         white-space: pre-line;
         margin: 0.75rem 0 1.25rem;
       }
 
-      #labStoryConfirm {
+      .lab-story-meta {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 1rem;
+        border-radius: 1.25rem;
+        background: rgba(15, 23, 42, 0.75);
+        border: 1px solid rgba(226, 232, 240, 0.08);
+      }
+
+      .lab-story-portrait {
+        width: 96px;
+        height: 96px;
+        border-radius: 28px;
+        background: radial-gradient(circle at 20% 20%, rgba(251, 191, 36, 0.35), rgba(37, 99, 235, 0.25));
+        padding: 0.4rem;
+        border: 1px solid rgba(226, 232, 240, 0.2);
+        box-shadow: 0 20px 40px rgba(15, 23, 42, 0.7);
+        flex-shrink: 0;
+      }
+
+      .lab-story-portrait img {
+        width: 100%;
+        height: 100%;
+        display: block;
+        object-fit: cover;
+        border-radius: inherit;
+      }
+
+      .lab-story-bubble {
+        position: relative;
+        flex: 1;
+        border-radius: 1.5rem;
+        border: 1px solid rgba(148, 163, 184, 0.35);
+        padding: 1.2rem 1.4rem 1.4rem;
+        background: linear-gradient(165deg, rgba(30, 58, 138, 0.85), rgba(15, 23, 42, 0.95));
+        box-shadow: 0 30px 60px rgba(2, 6, 23, 0.65);
+      }
+
+      .lab-story-bubble::after {
+        content: "";
+        position: absolute;
+        left: -16px;
+        top: 45%;
+        width: 24px;
+        height: 24px;
+        background: inherit;
+        border-left: 1px solid rgba(148, 163, 184, 0.35);
+        border-bottom: 1px solid rgba(148, 163, 184, 0.35);
+        transform: translateY(-50%) rotate(45deg);
+        border-bottom-left-radius: 0.6rem;
+      }
+
+      @media (max-width: 639px) {
+        .lab-story-bubble::after {
+          display: none;
+        }
+      }
+
+      .lab-story-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        align-items: center;
+      }
+
+      .lab-story-close {
+        border-radius: 999px;
+        padding: 0.5rem 1.1rem;
+        border: 1px solid rgba(248, 250, 252, 0.2);
+        color: #e2e8f0;
+        background: transparent;
+        text-transform: uppercase;
+        letter-spacing: 0.25em;
+        font-size: 0.65rem;
+      }
+
+      .lab-story-close:hover {
+        background: rgba(248, 250, 252, 0.1);
+      }
+
+      .lab-story-confirm {
         display: inline-flex;
         align-items: center;
         gap: 0.4rem;
-        border-radius: 999px;
-        background: linear-gradient(135deg, rgba(249, 115, 22, 0.95), rgba(236, 72, 153, 0.95));
-        color: #0f172a;
+        border-radius: 1rem;
+        background: linear-gradient(145deg, rgba(56, 189, 248, 0.92), rgba(129, 140, 248, 0.95));
+        color: #e2e8f0;
         font-weight: 600;
-        padding: 0.55rem 1.4rem;
-        border: none;
-        box-shadow: 0 10px 25px rgba(249, 115, 22, 0.4);
+        padding: 0.65rem 1.6rem;
+        border: 1px solid rgba(148, 163, 184, 0.4);
+        box-shadow: 0 14px 32px rgba(14, 116, 144, 0.35);
+        letter-spacing: 0.15em;
+        text-transform: uppercase;
+        cursor: pointer;
       }
 
-      #labStoryConfirm:focus-visible {
+      .lab-story-confirm:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+      }
+
+      .lab-story-confirm:focus-visible {
         outline: 2px solid rgba(251, 191, 36, 0.9);
         outline-offset: 3px;
       }
@@ -1222,68 +1388,66 @@
         </div>
       </div>
 
-      <div id="labPanel" class="panel-card hidden space-y-6">
-        <div class="lab-hero rounded-3xl p-6 flex flex-col gap-4">
-          <div class="flex flex-wrap items-center justify-between gap-4">
+      <div id="labPanel" class="panel-card hidden space-y-5">
+        <div class="lab-hero rounded-3xl p-5 flex flex-col gap-5">
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <p class="lab-chip bg-amber-200/15 text-amber-200">Laboratoř</p>
+              <p class="lab-chip bg-emerald-200/15 text-emerald-200">Laboratoř</p>
               <h3 class="text-2xl font-semibold text-white mt-2">Centrum bio-analýz</h3>
-              <p class="text-sm text-slate-200/80">Živé přehledy senzorů a rychlé zásahy proti mlze.</p>
+              <p class="text-sm text-slate-200/90">Živé přehledy senzorů a rychlé zásahy proti mlze.</p>
             </div>
-            <div class="text-4xl" aria-hidden="true">🧪</div>
-          </div>
-          <div id="labStoryNotice" class="hidden lab-grid-card">
-            <div class="space-y-3">
-              <div>
-                <p class="lab-story-eyebrow">Laboratorní briefing</p>
-                <h4 id="labStoryTitle">-</h4>
-              </div>
-              <p id="labStoryBody">-</p>
-              <button id="labStoryConfirm" type="button">Pokračovat</button>
+            <div class="flex items-center gap-3">
+              <button
+                id="labStoryLaunchBtn"
+                type="button"
+                class="lab-story-launch hidden"
+                aria-haspopup="dialog"
+              >
+                Brífink Dr. Rooka
+              </button>
+              <div class="text-3xl sm:text-4xl" aria-hidden="true">🧪</div>
             </div>
           </div>
-          <div class="grid gap-4 sm:grid-cols-[1.1fr_0.9fr]">
-            <div class="lab-grid-card p-4 space-y-3">
-              <div class="flex items-center justify-between">
-                <p class="text-[11px] uppercase tracking-[0.3em] text-slate-300">Úroveň šíření</p>
-                <span class="text-xs text-slate-400">Živá telemetrie</span>
+          <div class="lab-meta-grid">
+            <div class="lab-stat-chip space-y-3">
+              <div class="flex items-center justify-between gap-3">
+                <p class="lab-stat-chip__label">Úroveň šíření</p>
+                <span class="text-[10px] uppercase tracking-[0.3em] text-slate-400">Telemetrie</span>
               </div>
               <div class="flex items-center gap-4">
                 <div>
-                  <p id="labFogLevelLabel" class="text-4xl font-bold text-amber-200">-</p>
-                  <p id="labFogLevelDesc" class="text-sm text-slate-300">-</p>
+                  <p id="labFogLevelLabel" class="text-3xl font-bold text-amber-200">-</p>
+                  <p id="labFogLevelDesc" class="text-xs text-slate-300">-</p>
                 </div>
                 <div class="flex-1 space-y-2">
                   <div class="lab-gauge">
                     <div id="labFogLevelBar" class="lab-gauge__fill"></div>
                   </div>
-                  <p class="text-[11px] uppercase tracking-[0.2em] text-slate-400">Rychlost postupu</p>
+                  <p class="text-[10px] uppercase tracking-[0.3em] text-slate-400">Rychlost postupu</p>
                 </div>
               </div>
             </div>
-            <div class="grid gap-3 sm:grid-cols-2">
-              <div class="lab-grid-card p-4">
-                <p class="text-xs text-slate-400">Senzorická data</p>
-                <p class="text-2xl font-semibold text-sky-200">+</p>
-                <p class="text-xs text-slate-300">Aktualizace každých 15 min</p>
-              </div>
-              <div class="lab-grid-card p-4">
-                <p class="text-xs text-slate-400">Vzorky ve frontě</p>
-                <p class="text-2xl font-semibold text-rose-200">4</p>
-                <p class="text-xs text-slate-300">Čekají na analýzu</p>
-              </div>
+            <div class="lab-stat-chip space-y-2">
+              <p class="lab-stat-chip__label">Senzorická data</p>
+              <p class="text-2xl font-semibold text-sky-100">+</p>
+              <p class="text-xs text-slate-300">Aktualizace každých 15 min</p>
+            </div>
+            <div class="lab-stat-chip space-y-2">
+              <p class="lab-stat-chip__label">Vzorky ve frontě</p>
+              <p class="text-2xl font-semibold text-rose-100">4</p>
+              <p class="text-xs text-slate-300">Čekají na analýzu</p>
             </div>
           </div>
         </div>
 
-        <div class="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
-          <section class="space-y-4">
+        <div class="grid gap-4 lg:grid-cols-2">
+          <section class="lab-section-card space-y-3">
             <div class="flex items-center justify-between">
-              <p class="text-sm font-semibold text-slate-200">Analytické režimy</p>
-              <span class="text-xs text-slate-400">Hluboké skeny</span>
+              <p class="text-sm font-semibold text-slate-100">Analytické režimy</p>
+              <span class="text-[10px] uppercase tracking-[0.3em] text-slate-400">Skeny</span>
             </div>
-            <div class="grid gap-3 sm:grid-cols-2">
-              <button type="button" class="lab-action-btn rounded-2xl border border-sky-400/40 bg-gradient-to-br from-sky-500/15 to-indigo-500/15 px-4 py-4 text-left hover:from-sky-500/25 hover:to-indigo-500/25 transition" data-action-code="fog_analysis">
+            <div class="grid gap-2 sm:grid-cols-2">
+              <button type="button" class="lab-action-btn rounded-2xl border border-sky-400/40 bg-gradient-to-br from-sky-500/10 to-emerald-500/10 px-4 py-3 text-left hover:from-sky-500/20 hover:to-emerald-500/20 transition" data-action-code="fog_analysis">
                 <div class="flex items-center gap-2">
                   <span class="text-xl">🔬</span>
                   <div class="flex-1">
@@ -1293,7 +1457,7 @@
                 </div>
                 <p class="text-[11px] mt-3 text-slate-400">Status: <span class="text-amber-200 hidden" data-action-status></span></p>
               </button>
-              <button type="button" class="lab-action-btn rounded-2xl border border-violet-400/40 bg-gradient-to-br from-purple-500/15 to-pink-500/15 px-4 py-4 text-left hover:from-purple-500/25 hover:to-pink-500/25 transition" data-action-code="direction_detection">
+              <button type="button" class="lab-action-btn rounded-2xl border border-violet-400/40 bg-gradient-to-br from-purple-500/10 to-pink-500/10 px-4 py-3 text-left hover:from-purple-500/20 hover:to-pink-500/20 transition" data-action-code="direction_detection">
                 <div class="flex items-center gap-2">
                   <span class="text-xl">🧭</span>
                   <div class="flex-1">
@@ -1306,32 +1470,32 @@
             </div>
           </section>
 
-          <section class="space-y-4">
+          <section class="lab-section-card space-y-3">
             <div class="flex items-center justify-between">
-              <p class="text-sm font-semibold text-slate-200">Taktické zásahy</p>
-              <span class="text-xs text-slate-400">Deploymenty</span>
+              <p class="text-sm font-semibold text-slate-100">Taktické zásahy</p>
+              <span class="text-[10px] uppercase tracking-[0.3em] text-slate-400">Deploymenty</span>
             </div>
-            <div class="grid gap-3 sm:grid-cols-3">
-              <button type="button" class="lab-action-btn rounded-2xl border border-amber-400/40 bg-gradient-to-br from-amber-500/15 to-orange-500/15 px-3 py-4 text-left hover:from-amber-500/25 hover:to-orange-500/25 transition" data-action-code="slow_spread">
+            <div class="grid gap-2 sm:grid-cols-3">
+              <button type="button" class="lab-action-btn rounded-2xl border border-amber-400/40 bg-gradient-to-br from-amber-500/10 to-orange-500/10 px-3 py-3 text-left hover:from-amber-500/20 hover:to-orange-500/20 transition" data-action-code="slow_spread">
                 <div class="flex items-center justify-between gap-2">
                   <span class="text-lg">🌀</span>
-                  <span class="text-[11px] uppercase tracking-[0.25em] text-amber-100 hidden" data-action-status></span>
+                  <span class="text-[10px] uppercase tracking-[0.25em] text-amber-100 hidden" data-action-status></span>
                 </div>
                 <p class="text-sm font-semibold text-slate-100 mt-2">Zpomalení šíření</p>
                 <p class="text-xs text-slate-300">Tlumení expanze</p>
               </button>
-              <button type="button" class="lab-action-btn rounded-2xl border border-emerald-400/40 bg-gradient-to-br from-emerald-500/15 to-teal-500/15 px-3 py-4 text-left hover:from-emerald-500/25 hover:to-teal-500/25 transition" data-action-code="local_filter">
+              <button type="button" class="lab-action-btn rounded-2xl border border-emerald-400/40 bg-gradient-to-br from-emerald-500/10 to-teal-500/10 px-3 py-3 text-left hover:from-emerald-500/20 hover:to-teal-500/20 transition" data-action-code="local_filter">
                 <div class="flex items-center justify-between gap-2">
                   <span class="text-lg">🛡️</span>
-                  <span class="text-[11px] uppercase tracking-[0.25em] text-amber-100 hidden" data-action-status></span>
+                  <span class="text-[10px] uppercase tracking-[0.25em] text-amber-100 hidden" data-action-status></span>
                 </div>
                 <p class="text-sm font-semibold text-slate-100 mt-2">Lokální filtr</p>
                 <p class="text-xs text-slate-300">Stabilizace města</p>
               </button>
-              <button type="button" class="lab-action-btn rounded-2xl border border-rose-400/40 bg-gradient-to-br from-rose-500/15 to-red-500/15 px-3 py-4 text-left hover:from-rose-500/25 hover:to-red-500/25 transition" data-action-code="local_serum">
+              <button type="button" class="lab-action-btn rounded-2xl border border-rose-400/40 bg-gradient-to-br from-rose-500/10 to-red-500/10 px-3 py-3 text-left hover:from-rose-500/20 hover:to-red-500/20 transition" data-action-code="local_serum">
                 <div class="flex items-center justify-between gap-2">
                   <span class="text-lg">💉</span>
-                  <span class="text-[11px] uppercase tracking-[0.25em] text-amber-100 hidden" data-action-status></span>
+                  <span class="text-[10px] uppercase tracking-[0.25em] text-amber-100 hidden" data-action-status></span>
                 </div>
                 <p class="text-sm font-semibold text-slate-100 mt-2">Lokální sérum</p>
                 <p class="text-xs text-slate-300">Neutralizace ložisek</p>
@@ -1575,6 +1739,39 @@
           >
             Teleportovat
           </button>
+        </div>
+      </div>
+    </div>
+
+    <div
+      id="labStoryNotice"
+      class="lab-story-overlay hidden"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="labStoryTitle"
+    >
+      <div class="lab-story-dialog space-y-6">
+        <div class="lab-story-header">
+          <div class="lab-story-figure">
+            <div class="lab-story-portrait">
+              <img src="/static/assets/dr_rook.png" alt="Dr. Elias Rook" />
+            </div>
+            <div class="lab-story-bubble">
+              <p class="lab-story-eyebrow">Laboratorní briefing</p>
+              <h4 id="labStoryTitle">-</h4>
+              <p id="labStoryBody">-</p>
+            </div>
+          </div>
+          <button id="labStoryClose" type="button" class="lab-story-close">Zavřít</button>
+        </div>
+        <div class="lab-story-meta">
+          <div>
+            <p class="text-sm text-slate-200 font-semibold">Dr. Elias Rook</p>
+            <p class="text-xs text-slate-400">Vedoucí biometrického programu</p>
+          </div>
+        </div>
+        <div class="lab-story-actions justify-end">
+          <button id="labStoryConfirm" type="button" class="lab-story-confirm">Dokončit briefing</button>
         </div>
       </div>
     </div>

@@ -46,12 +46,37 @@ let timetableRaised = false;
 let labOverview = null;
 let labOverviewLoading = false;
 let labStoryConfirmHandler = null;
+let labStoryActiveDialog = null;
+let labStoryActiveDialogKey = null;
+let labStoryOverlayDismissed = false;
 let storyDialogs = [];
 let storyDialogsLoading = false;
 let storyDialogsPromise = null;
 
 // Jednoduchá lokální reprezentace agenta (pro UI panel nahoře)
-let levelConfig = [];
+const DEFAULT_LEVEL_CONFIG = [
+  { level: 1, xp_required: 0, energy_max: 3 },
+  { level: 2, xp_required: 50, energy_max: 3 },
+  { level: 3, xp_required: 50, energy_max: 4 },
+  { level: 4, xp_required: 100, energy_max: 4 },
+  { level: 5, xp_required: 100, energy_max: 4 },
+  { level: 6, xp_required: 100, energy_max: 5 },
+  { level: 7, xp_required: 100, energy_max: 5 },
+  { level: 8, xp_required: 100, energy_max: 5 },
+  { level: 9, xp_required: 100, energy_max: 5 },
+  { level: 10, xp_required: 100, energy_max: 6 },
+  { level: 11, xp_required: 100, energy_max: 6 },
+  { level: 12, xp_required: 100, energy_max: 6 },
+  { level: 13, xp_required: 100, energy_max: 7 },
+  { level: 14, xp_required: 100, energy_max: 7 },
+  { level: 15, xp_required: 100, energy_max: 7 },
+  { level: 16, xp_required: 100, energy_max: 8 },
+  { level: 17, xp_required: 100, energy_max: 8 },
+  { level: 18, xp_required: 100, energy_max: 9 },
+  { level: 19, xp_required: 100, energy_max: 9 },
+  { level: 20, xp_required: 100, energy_max: 10 },
+];
+let levelConfig = normalizeLevelConfig(DEFAULT_LEVEL_CONFIG);
 let agentStats = {
   level: 1,
   xp: 0,
@@ -499,15 +524,22 @@ const labStoryNoticeEl = document.getElementById("labStoryNotice");
 const labStoryTitleEl = document.getElementById("labStoryTitle");
 const labStoryBodyEl = document.getElementById("labStoryBody");
 const labStoryConfirmEl = document.getElementById("labStoryConfirm");
+const labStoryCloseEl = document.getElementById("labStoryClose");
+const labStoryLaunchBtn = document.getElementById("labStoryLaunchBtn");
 const cityInfoMapCanvas = document.getElementById("cityInfoMap");
 const cityInfoMapCtx = cityInfoMapCanvas ? cityInfoMapCanvas.getContext("2d") : null;
 const cityInfoMapWrapper = document.getElementById("cityInfoMapWrapper");
 const cityInfoMapTooltip = document.getElementById("cityInfoMapTooltip");
 let cityInfoMapTargets = [];
 
+function isLabPanelVisible() {
+  return labPanelEl && !labPanelEl.classList.contains("hidden");
+}
+
 function hideLabStoryNotice() {
   if (labStoryNoticeEl) {
     labStoryNoticeEl.classList.add("hidden");
+    labStoryNoticeEl.setAttribute("aria-hidden", "true");
   }
   labStoryConfirmHandler = null;
   if (labStoryConfirmEl) {
@@ -531,6 +563,41 @@ function showLabStoryNotice(options = {}) {
   }
   labStoryConfirmHandler = typeof onConfirm === "function" ? onConfirm : null;
   labStoryNoticeEl.classList.remove("hidden");
+  labStoryNoticeEl.setAttribute("aria-hidden", "false");
+}
+
+function getLabDialogKey(dialog) {
+  if (!dialog) {
+    return null;
+  }
+  if (dialog.cache_key) {
+    return dialog.cache_key;
+  }
+  if (dialog.task_id) {
+    return `${dialog.task_id}:${dialog.objective_index ?? 0}`;
+  }
+  return dialog.title || "lab-dialog";
+}
+
+function buildLabStoryDialogOptions(dialog) {
+  if (!dialog) return null;
+  return {
+    title: dialog.title,
+    body: dialog.body,
+    confirmLabel: dialog.confirm_label || "Pokračovat",
+    onConfirm: () => handleStoryDialogConfirm(dialog),
+  };
+}
+
+function maybeShowLabStoryOverlay() {
+  if (!labStoryActiveDialog || !isLabPanelVisible() || labStoryOverlayDismissed) {
+    hideLabStoryNotice();
+    return;
+  }
+  const options = buildLabStoryDialogOptions(labStoryActiveDialog);
+  if (options) {
+    showLabStoryNotice(options);
+  }
 }
 
 if (labStoryConfirmEl) {
@@ -540,6 +607,32 @@ if (labStoryConfirmEl) {
     if (typeof handler === "function") {
       handler();
     }
+  });
+}
+
+if (labStoryCloseEl) {
+  labStoryCloseEl.addEventListener("click", (e) => {
+    e.preventDefault();
+    labStoryOverlayDismissed = true;
+    hideLabStoryNotice();
+  });
+}
+
+if (labStoryNoticeEl) {
+  labStoryNoticeEl.addEventListener("click", (event) => {
+    if (event.target === labStoryNoticeEl) {
+      labStoryOverlayDismissed = true;
+      hideLabStoryNotice();
+    }
+  });
+}
+
+if (labStoryLaunchBtn) {
+  labStoryLaunchBtn.addEventListener("click", (e) => {
+    e.preventDefault();
+    if (!labStoryActiveDialog) return;
+    labStoryOverlayDismissed = false;
+    maybeShowLabStoryOverlay();
   });
 }
 
@@ -574,16 +667,25 @@ async function loadStoryDialogs(force = false) {
 
 function renderLabStoryDialog() {
   const dialog = getStoryDialogForPanel("lab");
+  const nextKey = getLabDialogKey(dialog);
+  if (nextKey !== labStoryActiveDialogKey) {
+    labStoryOverlayDismissed = false;
+  }
+  labStoryActiveDialogKey = nextKey;
+  labStoryActiveDialog = dialog || null;
+  if (labStoryLaunchBtn) {
+    const hasDialog = !!dialog;
+    labStoryLaunchBtn.classList.toggle("hidden", !hasDialog);
+    if (hasDialog) {
+      labStoryLaunchBtn.textContent = dialog?.button_label || "Brífink Dr. Rooka";
+    }
+  }
   if (!dialog) {
+    labStoryOverlayDismissed = false;
     hideLabStoryNotice();
     return;
   }
-  showLabStoryNotice({
-    title: dialog.title,
-    body: dialog.body,
-    confirmLabel: dialog.confirm_label || "Pokračovat",
-    onConfirm: () => handleStoryDialogConfirm(dialog),
-  });
+  maybeShowLabStoryOverlay();
 }
 
 async function handleStoryDialogConfirm(dialog) {
@@ -1338,8 +1440,9 @@ function updateAgentHeader() {
   const prevXpThreshold = currentCfg._xp_total ?? cumulativeXpForLevel(agentStats.level);
   const nextXpThreshold = nextCfg ? nextCfg._xp_total ?? cumulativeXpForLevel(agentStats.level + 1) : prevXpThreshold;
   const stepTotal = Math.max(1, nextXpThreshold - prevXpThreshold);
+  const xpProgressRaw = agentStats.xp - prevXpThreshold;
   const xpRemaining = Math.max(0, nextXpThreshold - agentStats.xp);
-  const xpProgress = nextCfg ? Math.min(1, Math.max(0, (agentStats.xp - prevXpThreshold) / stepTotal)) : 1;
+  const xpProgress = nextCfg ? Math.min(1, Math.max(0, xpProgressRaw / stepTotal)) : 1;
 
   agentLevelEl.textContent = agentStats.level;
   if (agentXpToNextEl) {
@@ -1420,6 +1523,25 @@ function flushPendingXpRewards() {
   grantTravelXp(amount);
 }
 
+async function resetAgentState() {
+  try {
+    const res = await fetch("/api/agent/reset", { method: "POST" });
+    if (!res.ok) {
+      throw new Error("Failed to reset agent");
+    }
+    const data = await res.json();
+    const resetEnergy =
+      getLevelCfg(1)?.energy_max || data?.agent?.energy_max || agentStats.energy_current || 5;
+    agentStats = { level: 1, xp: 0, energy_current: resetEnergy };
+    agentCurrentCityId = null;
+    agentCurrentCityName = null;
+    serverKnownCityId = null;
+    updateAgentHeader();
+  } catch (err) {
+    console.error("Agent reset failed:", err);
+  }
+}
+
 async function loadAgentAndLevels() {
   try {
     const res = await fetch("/api/agent");
@@ -1427,7 +1549,9 @@ async function loadAgentAndLevels() {
     const data = await res.json();
 
     if (Array.isArray(data.levels) && data.levels.length > 0) {
-      levelConfig = data.levels;
+      levelConfig = normalizeLevelConfig(data.levels);
+    } else if (!levelConfig || levelConfig.length === 0) {
+      levelConfig = normalizeLevelConfig(DEFAULT_LEVEL_CONFIG);
     }
 
     if (data.agent) {
@@ -2079,6 +2203,8 @@ function updateLabAvailability(city) {
   labBtn.setAttribute("aria-disabled", allowed ? "false" : "true");
   if (!allowed && labPanelEl) {
     labPanelEl.classList.add("hidden");
+    hideLabStoryNotice();
+    labStoryOverlayDismissed = false;
   }
   if (!allowed && activeFooterButton === "lab") {
     setActiveFooterButton(null);
@@ -2280,8 +2406,10 @@ function showLabPanel(show) {
     loadLabPanelData();
     notifyTaskLocationChange();
     loadStoryDialogs(true);
+    maybeShowLabStoryOverlay();
   } else {
     hideLabStoryNotice();
+    labStoryOverlayDismissed = false;
     maybeShowCityImage(getCityAt(agent.x, agent.y));
   }
 }
@@ -3457,6 +3585,11 @@ function gameLoop() {
 async function init() {
   initFog();
 
+  const randomStartRequested = consumeRandomStartFlag();
+  if (randomStartRequested) {
+    await resetAgentState();
+  }
+
   await loadAgentAndLevels();
 
   // 1) načteme města z backendu
@@ -3491,8 +3624,6 @@ async function init() {
     }
   });
   populateTeleportSelect();
-
-  const randomStartRequested = consumeRandomStartFlag();
 
   // 4) vybereme startovní město – ideálně z API, jinak náhodné jako fallback
   let startCity = null;
