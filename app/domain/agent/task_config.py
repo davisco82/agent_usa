@@ -351,8 +351,7 @@ AGENT_TASK_TEMPLATES = [
                     "„Agente, pardón, ale tohle zboží teď není skladem. Všechno se vypařilo,“ pronese Steve Hatchet a mizí "
                     "se záznamníkem v ruce. Po patnácti minutách se vrací zpátky k přepážce.\n\n"
                     "„Obvolal jsem pár známých v okolí. Máte štěstí — jeden kus Energy Modulu hlásí sklad ve městě {market_lead_city}. "
-                    "Je to úroveň 2, jede tam přímá linka z {hq_city}. Chcete, abych vám ho držel?“\n\n"
-                    "HQ doporučuje vyrazit po trati hned, dokud rezervace platí."
+                    "Je to úroveň regionální město, jede tam přímá linka z {hq_city}. Na pár hodin Vám ho tam zarezervuji.“\n\n"
                 ),
                 "confirm_label": "Rezervovat u Stevea",
                 "character": {
