@@ -438,7 +438,7 @@ function applySkyGradientForMinutes(totalMinutes) {
     day: "linear-gradient(180deg, #3f7fd8 0%, #8fcfff 55%, #f4fbff 100%)",
     dusk: "linear-gradient(180deg, #E6A36A 0%, #D8A0A6 45%, #B7B3C7 72%, #7F8FA6 100%)",
     night: "linear-gradient(180deg, rgba(8,12,28,0.95) 0%, rgba(6,18,44,0.9) 50%, rgba(4,12,28,0.9) 100%)",
-    dawn: "linear-gradient(180deg, rgba(255,226,189,0.85) 0%, rgba(245,191,211,0.75) 45%, rgba(154,205,255,0.7) 100%)",
+    dawn: "linear-gradient(180deg, rgba(105,128,168,0.9) 0%, rgba(162,156,190,0.8) 48%, rgba(228,186,160,0.78) 78%, rgba(248,214,190,0.72) 100%)",
   };
 
   skyGradientEl.style.background = gradients[phase] || gradients.day;
@@ -450,7 +450,9 @@ function applySkyGradientForMinutes(totalMinutes) {
   }
   if (cityBackdropEl) {
     cityBackdropEl.style.filter =
-      phase === "dusk" ? `${BASE_BACKDROP_FILTER} brightness(0.82)` : BASE_BACKDROP_FILTER;
+      phase === "dusk" || phase === "dawn"
+        ? `${BASE_BACKDROP_FILTER} brightness(0.82)`
+        : BASE_BACKDROP_FILTER;
   }
 }
 
