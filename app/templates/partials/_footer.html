@@ -1,0 +1,91 @@
+<div class="city-footer">
+  <div class="location-bar">
+    <div class="footer-content">
+      <div class="location-grid">
+        <button id="cityHubBtn" class="location-pill" data-label="Úvod" aria-label="Úvod">
+          <svg class="location-pill__icon" viewBox="0 0 32 32" role="presentation">
+            <path d="M6 14L16 6l10 8" />
+            <path d="M8 14v12h6v-7h4v7h6V14" />
+          </svg>
+        </button>
+        <button id="ticketToggleBtn" class="location-pill" data-label="Nádraží" aria-label="Nádraží">
+          <svg class="location-pill__icon" viewBox="0 0 32 32" role="presentation">
+            <path d="M8 10h16a2 2 0 0 1 2 2v9a3 3 0 0 1-3 3H9a3 3 0 0 1-3-3v-9a2 2 0 0 1 2-2z" />
+            <path d="M8 16h16" />
+            <circle cx="12" cy="19" r="1.4" />
+            <circle cx="20" cy="19" r="1.4" />
+            <path d="M12 24l-2 3m12-3l2 3" />
+          </svg>
+        </button>
+        <button id="infoCenterBtn" class="location-pill" data-label="Infocentrum" aria-label="Informační centrum">
+          <svg class="location-pill__icon" viewBox="0 0 32 32" role="presentation">
+            <path d="M6 12h20l-10-6z" />
+            <path d="M10 12v12m4-12v12m4-12v12m4-12v12" />
+            <path d="M6 24h20" />
+          </svg>
+        </button>
+        <button id="bankBtn" class="location-pill" data-label="Banka" aria-label="Banka">
+          <svg class="location-pill__icon" viewBox="0 0 32 32" role="presentation">
+            <rect x="6" y="10" width="20" height="12" rx="2" ry="2" />
+            <path d="M6 15h20" />
+            <circle cx="12" cy="21" r="2.2" />
+            <path d="M18 20h5" />
+          </svg>
+        </button>
+        <button id="labBtn" class="location-pill" data-label="Laboratoř" aria-label="Laboratoř">
+          <svg class="location-pill__icon" viewBox="0 0 32 32" role="presentation">
+            <path d="M12 6v7l-5 9a4 4 0 0 0 3.5 6h11a4 4 0 0 0 3.5-6l-5-9V6" />
+            <path d="M12 13h8" />
+            <path d="M10 22h12" />
+            <circle cx="13" cy="19" r="1" />
+            <circle cx="19" cy="20.5" r="1" />
+          </svg>
+        </button>
+        <button id="workshopBtn" class="location-pill" data-label="Dílna" aria-label="Dílna">
+          <svg class="location-pill__icon" viewBox="0 0 32 32" role="presentation">
+            <path d="M9 12l5 5-2 2-5-5" />
+            <path d="M20 8l4 4-7 7-4-4z" />
+            <path d="M17 23l4 4" />
+            <path d="M22 18l4 4" />
+          </svg>
+        </button>
+        <button id="marketBtn" class="location-pill" data-label="Trh" aria-label="Trh">
+          <svg class="location-pill__icon" viewBox="0 0 32 32" role="presentation">
+            <path d="M7 12h18l-2 13H11L9 8H5" />
+            <circle cx="14" cy="25" r="1.5" />
+            <circle cx="22" cy="25" r="1.5" />
+            <path d="M12 17h11" />
+          </svg>
+        </button>
+        <button id="hqBtn" class="location-pill" data-label="HQ kanál" aria-label="HQ kanál">
+          <svg class="location-pill__icon" viewBox="0 0 32 32" role="presentation">
+            <circle cx="16" cy="16" r="8" />
+            <path d="M8 16h16" />
+            <path d="M16 8a20 20 0 0 1 0 16m0-16a20 20 0 0 0 0 16" />
+          </svg>
+        </button>
+      </div>
+      <div class="footer-resources">
+        <div class="energy-meter">
+          <div class="energy-meter__label">Energie</div>
+          <div class="energy-meter__bar">
+            <div id="agentEnergyBarFill" class="energy-meter__bar-fill"></div>
+          </div>
+          <div class="energy-meter__value" id="agentEnergyLabel">0 / 100</div>
+        </div>
+        <div class="resource-pill resource-pill--data">
+          <span class="resource-pill__icon">🧮</span>
+          <span class="resource-pill__value" id="agentDataLabel">0 / 100</span>
+        </div>
+        <div class="resource-pill resource-pill--material">
+          <span class="resource-pill__icon">🧱</span>
+          <span class="resource-pill__value" id="agentMaterialLabel">0 / 100</span>
+        </div>
+        <div class="resource-pill resource-pill--credits">
+          <span class="resource-pill__icon">💰</span>
+          <span class="resource-pill__value" id="agentCreditsLabel">0</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

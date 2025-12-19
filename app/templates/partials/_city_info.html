@@ -1,0 +1,36 @@
+<div id="cityInfoPanel" class="panel-card hidden">
+  <div class="flex flex-col gap-6 lg:flex-row lg:items-center">
+    <div class="flex-1 space-y-4">
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="text-[11px] uppercase tracking-[0.3em] text-amber-200/70">Informační centrum</p>
+          <h3 id="cityInfoName" class="text-lg font-semibold">-</h3>
+          <p id="cityInfoMeta" class="text-sm text-slate-300">Vyber město na mapě</p>
+          <p id="cityInfoPopulation" class="text-sm font-semibold text-amber-200">Počet obyvatel: -</p>
+        </div>
+      </div>
+      <p id="cityInfoDesc" class="text-xs leading-relaxed text-slate-200 whitespace-pre-line">
+        Přepni na město a ukážeme ti detaily.
+      </p>
+      <div id="cityInfoDetails" class="space-y-3 text-sm text-slate-200">
+        <!-- Budoucí doplňující informace -->
+      </div>
+    </div>
+    <div
+      id="cityInfoMapWrapper"
+      class="rounded-2xl overflow-hidden relative max-w-[520px] w-full lg:w-auto"
+    >
+      <canvas
+        id="cityInfoMap"
+        width="520"
+        height="300"
+        class="block max-w-full"
+        aria-label="Mapa města a přilehlých tras"
+      ></canvas>
+      <div
+        id="cityInfoMapTooltip"
+        class="absolute pointer-events-none px-2 py-1 rounded-md text-[11px] tracking-wide uppercase bg-slate-900/90 border border-white/20 text-slate-100 shadow-lg hidden"
+      ></div>
+    </div>
+  </div>
+</div>

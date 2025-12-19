@@ -1,0 +1,35 @@
+<div id="teleportOverlay" class="teleport-overlay hidden">
+  <div class="teleport-panel space-y-5">
+    <div class="flex items-center justify-between gap-4">
+      <div>
+        <p class="text-[11px] uppercase tracking-[0.35em] text-slate-400">Testovací režim</p>
+        <h3 class="text-lg font-semibold text-slate-50">Simuluj přistání ve městě</h3>
+      </div>
+      <button
+        id="teleportOverlayClose"
+        type="button"
+        class="px-3 py-1.5 rounded-full border border-white/20 text-[10px] uppercase tracking-[0.3em] text-slate-100 hover:bg-white/10"
+      >
+        Zavřít
+      </button>
+    </div>
+    <div>
+      <label for="teleportCitySelect">Vyber město</label>
+      <select id="teleportCitySelect">
+        <option value="">Načítám...</option>
+      </select>
+    </div>
+    <div class="flex items-center justify-between gap-3">
+      <p id="teleportStatus" class="text-xs text-slate-400 flex-1">
+        Přesun je okamžitý, využij jen pro testování.
+      </p>
+      <button
+        id="teleportExecuteBtn"
+        type="button"
+        class="bg-white/10 text-slate-100 border border-white/15 hover:bg-white/20"
+      >
+        Teleportovat
+      </button>
+    </div>
+  </div>
+</div>

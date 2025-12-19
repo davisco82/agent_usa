@@ -1,0 +1,27 @@
+<div id="timetableCard" class="panel-card hidden space-y-4">
+  <div class="flex items-center gap-3">
+    <span class="text-2xl">🚉</span>
+    <div>
+      <p class="text-[11px] uppercase tracking-[0.3em] text-slate-400">Jízdní řád</p>
+      <h3 class="text-lg font-semibold text-slate-100">Odjezdy</h3>
+    </div>
+  </div>
+  <div class="overflow-x-auto rounded-2xl border border-white/10 bg-slate-950/40">
+    <table id="timetableTable" class="tabular-nums">
+      <thead>
+        <tr>
+          <th class="text-left">🕒 Odjezd</th>
+          <th class="text-left">➡️ Směr</th>
+          <th class="text-left">🚆 Typ</th>
+          <th class="text-left">📏 Vzdál.</th>
+          <th class="text-left">⏳ Čas</th>
+          <th class="text-left">🏁 Příjezd</th>
+          <th class="text-left">🎟️ Ticket</th>
+        </tr>
+      </thead>
+      <tbody id="timetableBody" class="text-slate-200">
+        <!-- dynamická data -->
+      </tbody>
+    </table>
+  </div>
+</div>

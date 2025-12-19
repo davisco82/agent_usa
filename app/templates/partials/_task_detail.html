@@ -1,0 +1,50 @@
+<div id="taskDetailPanel" class="panel-card hidden">
+  <div class="flex flex-wrap items-start justify-between gap-4 mb-5">
+    <div>
+      <p class="text-[11px] uppercase tracking-[0.3em] text-slate-400">Operační briefing</p>
+      <h3 id="taskDetailTitle" class="text-xl font-semibold">Vyber úkol</h3>
+      <p id="taskDetailSubtitle" class="text-sm text-slate-300">Klikni na jednu z lokací a připrav plán.</p>
+    </div>
+    <button
+      id="closeTaskDetailBtn"
+      type="button"
+      class="text-xs uppercase tracking-[0.3em] text-slate-200 border border-white/20 rounded-full px-4 py-2"
+    >
+      Zpět
+    </button>
+  </div>
+  <div class="grid gap-5 lg:grid-cols-[220px_1fr]">
+    <div id="taskListContainer" class="space-y-3 text-sm text-slate-200">
+      <p>Žádné aktivní úkoly.</p>
+    </div>
+    <div class="space-y-5">
+      <div class="flex flex-wrap items-center gap-2 text-sm text-slate-300">
+        <span class="task-detail-chip" id="taskDetailLocation">---</span>
+        <span class="task-detail-chip">Priorita: <span id="taskDetailPriority" class="text-slate-50 font-semibold ml-1">-</span></span>
+        <span class="task-detail-chip">ETA: <span id="taskDetailEta" class="text-slate-50 font-semibold ml-1">-</span></span>
+      </div>
+      <p id="taskDetailDesc" class="task-detail-desc">
+        Vyber úkol z nabídky vlevo a zobrazí se ti kompletní podklady.
+      </p>
+      <div>
+        <div class="flex items-center justify-between mb-2">
+          <p class="text-[11px] uppercase tracking-[0.3em] text-slate-400">Kroky operace</p>
+          <span class="text-[10px] uppercase tracking-[0.3em] text-slate-400">XP po dokončení</span>
+        </div>
+        <ul id="taskObjectiveList" class="space-y-2 text-sm text-slate-100">
+          <li class="text-slate-400">Žádný úkol není aktivní.</li>
+        </ul>
+      </div>
+      <div class="grid sm:grid-cols-2 gap-4 text-sm">
+        <div class="task-detail-pill">
+          <p class="text-[10px] uppercase tracking-[0.3em] text-emerald-200/80">Odměna</p>
+          <p id="taskRewardLabel" class="text-base font-semibold text-emerald-100">-</p>
+        </div>
+        <div class="task-detail-pill">
+          <p class="text-[10px] uppercase tracking-[0.3em] text-slate-200/80">Status</p>
+          <p id="taskStatusLabel" class="text-base font-semibold text-slate-100">-</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

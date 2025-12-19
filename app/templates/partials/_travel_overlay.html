@@ -1,0 +1,50 @@
+<div
+  id="travelOverlay"
+  class="fixed inset-0 bg-slate-950/90 backdrop-blur hidden z-50 flex items-center justify-center px-4"
+>
+  <div class="travel-card">
+    <div class="travel-hero">
+      <div class="travel-hero__train">
+        <img id="travelTrainImg" src="/static/assets/train_1.png" alt="Train" />
+      </div>
+      <div class="travel-hero__info">
+        <p class="travel-eyebrow">Aktuální spoj</p>
+        <div class="travel-line-stack">
+          <span class="travel-line-chip" id="travelTopType">-</span>
+          <span class="travel-line-chip border-sky-300/30 text-sky-100" id="travelTopSpeed">-</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="travel-hero-divider"></div>
+
+    <div class="travel-time">
+      <strong id="travelClockLabel">-</strong>
+    </div>
+
+    <div class="travel-map-container">
+      <div class="travel-map-frame relative">
+        <canvas
+          id="travelMapCanvas"
+          width="640"
+          height="340"
+          class="travel-map-canvas"
+          aria-label="Mapa cesty mezi městy"
+        >
+          Tvoje zařízení nepodporuje vykreslení mapy.
+        </canvas>
+      </div>
+    </div>
+
+    <div class="travel-stats-row">
+      <div class="travel-stat-card">
+        <span>Vzdálenost</span>
+        <strong id="travelDistanceLabel">-</strong>
+      </div>
+      <div class="travel-stat-card">
+        <span>Čas jízdy</span>
+        <strong id="travelDurationLabel">-</strong>
+      </div>
+    </div>
+  </div>
+</div>
