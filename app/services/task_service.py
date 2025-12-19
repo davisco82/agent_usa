@@ -321,7 +321,7 @@ def _active_tasks_for_agent(agent: Agent) -> List[ActiveTask]:
 
 def ensure_task_pipeline(agent: Agent) -> List[ActiveTask]:
     tasks = _active_tasks_for_agent(agent)
-    has_pending = any(task.status in {"active", "completed"} for task in tasks)
+    has_pending = any(task.status == "active" for task in tasks)
     if has_pending:
         return tasks
 
@@ -351,6 +351,8 @@ def list_task_payloads(agent: Agent) -> List[Dict[str, Any]]:
     tasks = ensure_task_pipeline(agent)
     payloads: List[Dict[str, Any]] = []
     for active in tasks:
+        if active.status != "active":
+            continue
         payload = serialize_active_task(active)
         if payload:
             payloads.append(payload)

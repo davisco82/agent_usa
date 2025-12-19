@@ -27,6 +27,10 @@ let gameMinutes = 8 * 60; // 8:00 první den (Po)
 const REAL_MS_PER_GAME_MINUTE = 1000; // 1 herní minuta = 1 reálná sekunda pro rychlejší postup
 let lastFrameMs = performance.now();
 let timeAccumulatorMs = 0;
+const GAME_TIME_STORAGE_KEY = "agent_game_minutes";
+const GAME_TIME_SAVED_AT_KEY = "agent_game_minutes_saved_at";
+let lastSavedGameMinutes = null;
+let hasUnsavedTime = false;
 
 const LAND_MIN_X = 3;
 const LAND_MAX_X = 941;
@@ -151,6 +155,53 @@ function buildGameTimeSnapshot(totalMinutes) {
     dayLabel: DAY_NAMES[dayIndex] || DAY_NAMES[0],
     timeLabel: `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`,
   };
+}
+
+function canUseLocalStorage() {
+  try {
+    return typeof window !== "undefined" && !!window.localStorage;
+  } catch (err) {
+    return false;
+  }
+}
+
+function loadPersistedGameMinutes() {
+  if (!canUseLocalStorage()) return false;
+  try {
+    const rawMinutes = window.localStorage.getItem(GAME_TIME_STORAGE_KEY);
+    if (rawMinutes === null) return false;
+    const parsed = Number(rawMinutes);
+    if (!Number.isFinite(parsed) || parsed < 0) return false;
+    gameMinutes = Math.floor(parsed);
+    lastSavedGameMinutes = Math.floor(parsed);
+    hasUnsavedTime = false;
+    return true;
+  } catch (err) {
+    console.warn("Unable to load saved game time:", err);
+    return false;
+  }
+}
+
+function persistGameMinutes() {
+  if (!canUseLocalStorage()) return;
+  try {
+    const safeMinutes = Math.max(0, Math.round(gameMinutes ?? 0));
+    window.localStorage.setItem(GAME_TIME_STORAGE_KEY, String(safeMinutes));
+    window.localStorage.setItem(GAME_TIME_SAVED_AT_KEY, String(Date.now()));
+    lastSavedGameMinutes = safeMinutes;
+    hasUnsavedTime = false;
+  } catch (err) {
+    console.warn("Unable to persist game time:", err);
+  }
+}
+
+function hasUnsavedProgress() {
+  if (!Number.isFinite(gameMinutes)) return false;
+  if (hasUnsavedTime) return true;
+  if (lastSavedGameMinutes === null || lastSavedGameMinutes === undefined) {
+    return true;
+  }
+  return gameMinutes > lastSavedGameMinutes;
 }
 
 function formatTravelDuration(totalMinutes) {
@@ -385,17 +436,21 @@ function applySkyGradientForMinutes(totalMinutes) {
 
   const gradients = {
     day: "linear-gradient(180deg, #3f7fd8 0%, #8fcfff 55%, #f4fbff 100%)",
-    dusk: "linear-gradient(180deg, rgba(255,196,128,0.9) 0%, rgba(255,134,136,0.84) 42%, rgba(92,88,168,0.78) 100%)",
+    dusk: "linear-gradient(180deg, #E6A36A 0%, #D8A0A6 45%, #B7B3C7 72%, #7F8FA6 100%)",
     night: "linear-gradient(180deg, rgba(8,12,28,0.95) 0%, rgba(6,18,44,0.9) 50%, rgba(4,12,28,0.9) 100%)",
     dawn: "linear-gradient(180deg, rgba(255,226,189,0.85) 0%, rgba(245,191,211,0.75) 45%, rgba(154,205,255,0.7) 100%)",
   };
 
   skyGradientEl.style.background = gradients[phase] || gradients.day;
   if (nightOverlayEl) {
-    nightOverlayEl.style.opacity = phase === "night" ? "0.75" : "0";
+    nightOverlayEl.style.opacity = phase === "night" ? "0.85" : "0";
   }
   if (daySunOverlayEl) {
     daySunOverlayEl.style.opacity = phase === "day" ? "0.45" : "0";
+  }
+  if (cityBackdropEl) {
+    cityBackdropEl.style.filter =
+      phase === "dusk" ? `${BASE_BACKDROP_FILTER} brightness(0.82)` : BASE_BACKDROP_FILTER;
   }
 }
 
@@ -483,6 +538,7 @@ const cityBackdropEl = document.getElementById("cityBackdrop");
 const skyGradientEl = document.getElementById("skyGradient");
 const nightOverlayEl = document.getElementById("nightOverlay");
 const daySunOverlayEl = document.getElementById("daySunOverlay");
+const BASE_BACKDROP_FILTER = "saturate(1.15) contrast(0.95)";
 const timetableCardEl = document.getElementById("timetableCard");
 const restartButton = document.getElementById("restartButton");
 const cityHubBtn = document.getElementById("cityHubBtn");
@@ -1306,6 +1362,8 @@ function persistAgentLocation(cityId) {
     return;
   }
 
+  persistGameMinutes();
+
   const timeSnapshot = buildGameTimeSnapshot(gameMinutes);
   const payload = {
     city_id: cityId,
@@ -1466,6 +1524,19 @@ window.addEventListener("keydown", (e) => {
       break;
   }
 });
+
+window.addEventListener("beforeunload", (e) => {
+  if (!hasUnsavedProgress()) return;
+  e.preventDefault();
+  e.returnValue = "Hra není uložená.";
+});
+
+window.onbeforeunload = (e) => {
+  if (!hasUnsavedProgress()) return;
+  e.preventDefault();
+  e.returnValue = "Hra není uložená.";
+  return e.returnValue;
+};
 
 function showTimetablePanel(show) {
   if (!timetableCardEl) return;
@@ -1769,6 +1840,9 @@ function completeTaskObjective(taskId, objectiveIndex) {
         upsertTask(data.task);
         if (data.task.status === "rewarded") {
           shouldReloadTasks = true;
+        }
+        if (data.task.status === "completed" || data.task.status === "rewarded") {
+          persistGameMinutes();
         }
       }
       if (data?.xp_awarded) {
@@ -3483,6 +3557,7 @@ function update() {
     advancedMinutes += 1;
   }
   if (advancedMinutes > 0) {
+    hasUnsavedTime = true;
     applySkyGradientForMinutes(gameMinutes);
   }
 
@@ -3834,6 +3909,11 @@ async function init() {
   }
 
   await loadAgentAndLevels();
+  const restoredGameTime = loadPersistedGameMinutes();
+  if (!restoredGameTime) {
+    lastSavedGameMinutes = Math.max(0, Math.round(gameMinutes ?? 0));
+    hasUnsavedTime = false;
+  }
 
   // 1) načteme města z backendu
   let rawCities = await fetchCities();

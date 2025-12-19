@@ -245,8 +245,8 @@ AGENT_TASK_TEMPLATES = [
         "description": (
             "Z centrály přichází jasný rozkaz: najít Dr. Eliase Rooka. "
             "Jeho zprávy o nestabilní mlze a energetických výpadcích "
-            "byly natolik znepokojivé, že byl případ předán tobě, agente\n\n"
-            "V laboratoři v {rook_city} na Tebe Dr. Rook čeká. Pospěš si!\n\n"
+            "byly natolik znepokojivé, že byl případ předán tobě, agente."
+            "V laboratoři v {rook_city} na Tebe Dr. Rook čeká. Pospěš si!"
             "Hodně štěstí!"
         ),
         "objectives": [
@@ -313,21 +313,20 @@ AGENT_TASK_TEMPLATES = [
     },
     {
         "id": "mission-equipment-01",
-        "title": "Příprava operace: získání vybavení",
-        "location": "{hq_city} – Centrála",
+        "title": "Logistický průzkum: hledání zdroje energie",
+        "location": "{hq_city} – Centrála → Trh",
         "summary": (
-            "Dostav se na centrálu v {hq_city} a vyzvedni si Startovní Toolkit."
-            "Na trhu se podívej po generátoru."
+            "Na centrále si vyzvedneš základní vybavení. Zamiř na místní trh pro získání Energy Generatoru."
         ),
         "description": (
-            "Vyraž na centrálu a vyzvedni si startovní vybavení pro operaci s Dr. Rookem. "
-            "Po návštěvě centrály ve městě {hq_city} si otevřeš nové možnosti.\n\n"
-            "Zjisti, zda je na zdejším trhu k dispozici Energy Modul nebo alespoň "
-            "generátor. Bez stabilního zdroje energie nebude možné provést žádné měření v terénu.\n\n"
+            "Po brífinku s Dr. Rookem je jasné, že bez vlastního zdroje energie "
+            "nelze v zasažené oblasti provést žádné měření.\n\n"
+            "Na centrále v {hq_city} si vyzvedni startovní výbavu a přihlás se k operaci. "
+            
         ),
         "objectives": [
             "Navštiv centrálu ve městě {hq_city} a přihlas se k operaci. (10 XP)",
-            "Prověř trh v {hq_city} a zjisti stav zásob. (10 XP)",
+            "Prověř trh v {hq_city} a zjisti dostupnost Energy Generatorů. (10 XP)",
         ],
         "reward": "20 XP",
         "status": "Čeká na dokončení",
@@ -345,15 +344,18 @@ AGENT_TASK_TEMPLATES = [
                 "objective_index": 1,
                 "requires_completed_indices": [0],
                 "requires_agent_in_city_placeholder": "hq_city",
-                "button_label": "Zpráva z trhu",
-                "title": "Zpráva od Stevea Hatcheta",
+                "button_label": "Jednat se Stevem",
+                "title": "Informace z trhu",
                 "body": (
-                    "„Agente, pardón, ale tohle zboží teď není skladem. Všechno se vypařilo,“ pronese Steve Hatchet a mizí "
-                    "se záznamníkem v ruce. Po patnácti minutách se vrací zpátky k přepážce.\n\n"
-                    "„Obvolal jsem pár známých v okolí. Máte štěstí — jeden kus Energy Modulu hlásí sklad ve městě {market_lead_city}. "
-                    "Je to úroveň regionální město, jede tam přímá linka z {hq_city}. Na pár hodin Vám ho tam zarezervuji.“\n\n"
+                    "„Agente, kdybych měl generátor skladem, už by byl pryč,“ uchechtne se Steve Hatchet "
+                    "a projede databázi na svém terminálu.\n\n"
+                    "„Tady ve městě nic není. Ale…“ odmlčí se a nakloní se blíž. "
+                    "„Jeden funkční Energy Generator hlásí sklad ve městě {market_lead_city}. "
+                    "Je to regionální uzel a vede tam přímá linka z {hq_city}.“\n\n"
+                    "„Můžu ho pro tebe zarezervovat. Na pár hodin. "
+                    "Jestli ho chceš, budeš si pro něj muset dojet osobně.“"
                 ),
-                "confirm_label": "Rezervovat u Stevea",
+                "confirm_label": "Potvrdit rezervaci",
                 "character": {
                     "name": "Steve Hatchet",
                     "role": "Obchodník na trhu",
@@ -381,104 +383,82 @@ AGENT_TASK_TEMPLATES = [
             },
         },
     },
+
     {
         "id": "mission-equipment-02",
-        "title": "Příprava operace: energie pro měření",
-        "location": "{hq_city} → Centrála → {generator_city}",
+        "title": "Zdroj energie: generátor a nabití modulu",
+        "location": "{hq_city} → {generator_city} – Trh & dílna",
         "summary": (
-            "V {hq_city} není jediný Energy Modul. "
-            "Vydej se vlakem do {generator_city}, přivez Energy Generator a sestroj vlastní modul."
+            "Rezervace z trhu tě zavádí do města {generator_city}. "
+            "Získej Energy Generator, sežeň spotřební materiál a v místní dílně "
+            "poprvé nabij Energy Modul."
         ),
         "description": (
-            "Inventura v HQ potvrdila, že bez přesunu do dalšího města se neobejdeš. "
-            "Zásoby Energy Generatorů se drží jen v několika uzlech napojených na tratě z {hq_city}.\n\n"
-            "Vyraz po lince do {generator_city}, kde ještě funguje trh s technologiemi. "
-            "Získej generátor, doplň potřebný materiál a dokonči přenosný Energy Module. "
-            "Teprve potom může Dr. Rook spustit měření přímo v terénu."
+            "Informace od Stevea Hatcheta potvrdily, že v {generator_city} je stále k dispozici "
+            "funkční Energy Generator. Bez něj není možné vyrábět energii.\n\n"
+            "Po jeho získání musíš zajistit spotřební materiál — palivo potřebné "
+            "k samotné výrobě energie. Materiál lze získat průzkumem města "
+            "nebo rozebráním nefunkční infrastruktury.\n\n"
+            "Jakmile máš generátor i materiál, zamiř do místní dílny. "
+            "Zde můžeš energii vyrobit a poprvé nabít svůj Energy Modul. "
+            "Teprve poté budeš připraven vyrazit do zasažené oblasti."
         ),
         "objectives": [
-            "Opusť {hq_city} a doraz do města {generator_city}. (10 XP)",
-            "Najdi Stevea Hatcheta na trhu v {generator_city}. (10 XP)",
-            "Na trhu v {generator_city} zakup Energy Generator. (10 XP)",
-            "Získej materiál potřebný k výrobě (+10 MATERIAL). (10 XP)",
-            "Vyrob a připrav Energy Module k použití. (20 XP)",
+            "Cestuj do města {generator_city}. (10 XP)",
+            "Na trhu získej rezervovaný Energy Generator. (10 XP)",
+            "Proveď průzkum města a získej spotřební materiál (+10 MATERIAL). (10 XP)",
+            "V místní dílně vyrob energii a nabij Energy Modul. (20 XP)",
         ],
-        "reward": "60 XP",
+        "reward": "60 XP, Energy Modul (nabito)",
         "status": "Čeká na dokončení",
         "priority": "Vysoká",
         "eta": "36 hodin",
         "progress": 0.0,
-        "objective_rewards": [10, 10, 10, 10, 20],
+        "objective_rewards": [10, 10, 10, 20],
         "objective_triggers": [
             {"type": "visit_city", "city_name": "{generator_city}"},
-            {"type": "story_dialog", "panel": "market"},
-            {"type": "buy_item", "item": "energy_generator", "city_name": "{generator_city}"},
+            {"type": "buy_item", "item": "energy_generator"},
             {"type": "gain_material", "amount": 10},
-            {"type": "craft_item", "item": "energy_module"},
-        ],
-        "story_dialogs": [
-            {
-                "panel": "market",
-                "objective_index": 1,
-                "requires_completed_indices": [0],
-                "requires_agent_in_city_placeholder": "generator_city",
-                "button_label": "Jednat se Stevem",
-                "title": "Rezervace přes Stevea Hatcheta",
-                "body": (
-                    "„Agente, pardón, ale Energy Generatory tu fakt nejsou. Nech mě obvolat pár známých,“ "
-                    "řekne Steve Hatchet a ztratí se mezi stánky. O čtvrthodinu později se vrací.\n\n"
-                    "„Tak máte štěstí — jeden kus se drží ve skladu v {generator_city}. Jede tam linka přímo odsud. "
-                    "Mám ti ho tam zarezervovat?“\n\n"
-                    "Jakmile potvrdíš rezervaci, můžeš se pustit do shánění zbytku vybavení."
-                ),
-                "confirm_label": "Rezervovat",
-                "character": {
-                    "name": "Steve Hatchet",
-                    "role": "Obchodník na trhu",
-                    "image_url": "/static/assets/figures/steve_hatchet.webp",
-                },
-            }
+            {"type": "charge_item", "item": "energy_module"},
         ],
         "dynamic_placeholders": {
             "hq_city": {
                 "source": "agent_city",
-                "preferred_regions": [],
                 "use_all_regions": True,
             },
             "generator_city": {
-                "preferred_regions": [],
                 "importance_max": 3,
                 "connected_to_placeholder": "hq_city",
-                "use_all_regions": True,
-                "exclude_agent_region": False,
                 "exclude_agent_city": True,
-                "avoid_duplicates_of": ["hq_city"],
+                "use_all_regions": True,
             },
         },
     },
+
     {
         "id": "mission-measurement-01",
-        "title": "Terénní operace: měření anomálie v {target_city}",
+        "title": "Terénní operace: první měření anomálie",
         "location": "{target_city} – Zasažená zóna",
         "summary": (
-            "Po dokončení Energy Modulu přichází zpráva od Dr. Rooka. "
-            "Sejdete se ve městě {target_city} a provedete první měření mlhy."
+            "S nabitým Energy Modulem přichází zpráva od Dr. Rooka. "
+            "Sejděte se ve městě {target_city} a proveďte první měření mlhy."
         ),
         "description": (
-            "Krátce po dokončení Energy Modulu tě kontaktuje Dr. Rook. "
-            "Na základě nových výpočtů určil město {target_city} "
-            "jako ideální místo pro první terénní měření.\n\n"
-            "Tvým úkolem je dorazit na místo s připraveným zdrojem energie. "
-            "Mlha zde už způsobuje výpadky infrastruktury a nestabilitu okolí.\n\n"
-            "Na místě se setkáš s Dr. Rookem a společně aktivujete Pulse Detector. "
-            "Půjde o první přímé měření anomálie v reálném prostředí — "
-            "data, která získáte, určí další směr celé operace."
+            "Jakmile je Energy Modul připraven, ozývá se Dr. Rook. "
+            "Na základě nejnovějších výpočtů určil město {target_city} "
+            "jako vhodné místo pro první terénní měření.\n\n"
+            "Tvým úkolem je dorazit do zasažené zóny s vlastním zdrojem energie. "
+            "Místní infrastruktura selhává a běžná zařízení zde nejsou schopna fungovat.\n\n"
+            "Na místě se setkáš s Dr. Rookem. "
+            "Pomocí Energy Modulu napájíš Pulse Detector "
+            "a společně provedete první přímé měření anomálie. "
+            "Získaná data budou klíčová pro další výzkum i budoucí rozhodnutí."
         ),
         "objectives": [
-            "Cestuj do města {target_city} s Energy Module. (15 XP)",
-            "Setkej se s Dr. Rookem na místě měření. (15 XP)",
-            "Použij Energy Module k napájení zařízení. (20 XP)",
-            "Aktivuj Pulse Detector a proveď měření. (30 XP)",
+            "Cestuj do města {target_city} s nabitým Energy Modulem. (15 XP)",
+            "Setkej se s Dr. Rookem v zasažené zóně. (15 XP)",
+            "Použij Energy Modul k napájení Pulse Detectoru. (20 XP)",
+            "Proveď první terénní měření anomálie. (30 XP)",
         ],
         "reward": "80 XP, +40 DATA",
         "status": "Čeká na dokončení",
@@ -494,14 +474,13 @@ AGENT_TASK_TEMPLATES = [
         ],
         "dynamic_placeholders": {
             "target_city": {
-                "preferred_regions": [],
                 "importance_min": 1,
                 "importance_max": 2,
-                "exclude_agent_region": False,
                 "use_all_regions": True,
             }
         },
     },
+
 ]
 
 
