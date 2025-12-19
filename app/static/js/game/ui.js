@@ -1,0 +1,1204 @@
+export function createUiService({ config, state, dom, time, map, travel, tasks, agent }) {
+  const uiState = state.ui;
+  const trainState = state.train;
+  const agentState = state.agent;
+
+  function setActiveFooterButton(key) {
+    uiState.activeFooterButton = key;
+    const footerButtons = {
+      hub: dom.cityHubBtn,
+      timetable: dom.ticketToggleBtn,
+      info: dom.infoCenterBtn,
+      lab: dom.labBtn,
+      workshop: dom.workshopBtn,
+      market: dom.marketBtn,
+    };
+    Object.entries(footerButtons).forEach(([btnKey, btn]) => {
+      if (!btn) return;
+      const isActive = btnKey === key;
+      btn.classList.toggle("is-active", isActive);
+      btn.setAttribute("aria-pressed", isActive ? "true" : "false");
+    });
+  }
+
+  function setTimetableRaised(raised) {
+    uiState.timetableRaised = !!raised;
+    if (dom.timetableCardEl) {
+      dom.timetableCardEl.classList.toggle("timetable-raised", uiState.timetableRaised);
+    }
+  }
+
+  function showTimetablePanel(show) {
+    if (!dom.timetableCardEl) return;
+    if (show) {
+      dom.timetableCardEl.classList.remove("hidden");
+      hidePanelsFor("timetable");
+    } else {
+      dom.timetableCardEl.classList.add("hidden");
+    }
+    setTimetableRaised(false);
+  }
+
+  function hidePanelsFor(active) {
+    if (active !== "info" && dom.cityInfoPanel) {
+      dom.cityInfoPanel.classList.add("hidden");
+    }
+    if (active !== "lab" && dom.labPanelEl) {
+      dom.labPanelEl.classList.add("hidden");
+    }
+    if (active !== "workshop" && dom.workshopPanelEl) {
+      dom.workshopPanelEl.classList.add("hidden");
+    }
+    if (active !== "market" && dom.marketPanelEl) {
+      dom.marketPanelEl.classList.add("hidden");
+    }
+    if (active !== "tasks" && dom.taskDetailPanelEl) {
+      dom.taskDetailPanelEl.classList.add("hidden");
+    }
+  }
+
+  function hideAllPanelsExcept(active) {
+    if (active !== "timetable") {
+      showTimetablePanel(false);
+    }
+    hidePanelsFor(active);
+  }
+
+  function isLabPanelVisible() {
+    return dom.labPanelEl && !dom.labPanelEl.classList.contains("hidden");
+  }
+
+  function isMarketPanelVisible() {
+    return dom.marketPanelEl && !dom.marketPanelEl.classList.contains("hidden");
+  }
+
+  function applySkyGradientForMinutes(totalMinutes) {
+    if (!dom.skyGradientEl) return;
+    const minutesNorm = ((totalMinutes % config.minutesPerDay) + config.minutesPerDay) % config.minutesPerDay;
+    const hour = Math.floor(minutesNorm / 60);
+    let phase = "day";
+    if (hour >= 20 || hour < 6) {
+      phase = "night";
+    } else if (hour >= 18 && hour < 20) {
+      phase = "dusk";
+    } else if (hour >= 6 && hour < 8) {
+      phase = "dawn";
+    }
+
+    if (phase === uiState.lastSkyPhase) return;
+    uiState.lastSkyPhase = phase;
+
+    const gradients = {
+      day: "linear-gradient(180deg, #3f7fd8 0%, #8fcfff 55%, #f4fbff 100%)",
+      dusk: "linear-gradient(180deg, #E6A36A 0%, #D8A0A6 45%, #B7B3C7 72%, #7F8FA6 100%)",
+      night: "linear-gradient(180deg, rgba(8,12,28,0.95) 0%, rgba(6,18,44,0.9) 50%, rgba(4,12,28,0.9) 100%)",
+      dawn: "linear-gradient(180deg, rgba(105,128,168,0.9) 0%, rgba(162,156,190,0.8) 48%, rgba(228,186,160,0.78) 78%, rgba(248,214,190,0.72) 100%)",
+    };
+
+    dom.skyGradientEl.style.background = gradients[phase] || gradients.day;
+    if (dom.nightOverlayEl) {
+      dom.nightOverlayEl.style.opacity = phase === "night" ? "0.85" : "0";
+    }
+    if (dom.daySunOverlayEl) {
+      dom.daySunOverlayEl.style.opacity = phase === "day" ? "0.45" : "0";
+    }
+    if (dom.cityBackdropEl) {
+      dom.cityBackdropEl.style.filter =
+        phase === "dusk" || phase === "dawn"
+          ? `${config.baseBackdropFilter} brightness(0.82)`
+          : config.baseBackdropFilter;
+    }
+  }
+
+  function getCurrentCitySnapshot() {
+    const currentCity = map.getCityAt(agentState.position.x, agentState.position.y);
+    if (currentCity) return currentCity;
+    if (agentState.currentCityName) {
+      const fallback = map.getCityByNameInsensitive(agentState.currentCityName);
+      if (fallback) {
+        return fallback;
+      }
+    }
+    return null;
+  }
+
+  function updateLabAvailability(city) {
+    if (!dom.labBtn) return;
+    const allowed = !!city && city.importance === 1;
+    dom.labBtn.classList.toggle("hidden", !allowed);
+    dom.labBtn.setAttribute("aria-disabled", allowed ? "false" : "true");
+    if (!allowed && dom.labPanelEl) {
+      dom.labPanelEl.classList.add("hidden");
+    }
+    if (!allowed && uiState.activeFooterButton === "lab") {
+      setActiveFooterButton(null);
+    }
+  }
+
+  function updateWorkshopAvailability(city) {
+    if (!dom.workshopBtn) return;
+    const allowed = !!city && city.importance !== 1;
+    dom.workshopBtn.classList.toggle("hidden", !allowed);
+    dom.workshopBtn.setAttribute("aria-disabled", allowed ? "false" : "true");
+    if (!allowed && dom.workshopPanelEl) {
+      dom.workshopPanelEl.classList.add("hidden");
+    }
+    if (!allowed && uiState.activeFooterButton === "workshop") {
+      setActiveFooterButton(null);
+    }
+  }
+
+  function updateBankAvailability(city) {
+    if (!dom.bankBtn) return;
+    const allowed = !!city && city.importance === 1;
+    dom.bankBtn.classList.toggle("hidden", !allowed);
+    dom.bankBtn.setAttribute("aria-disabled", allowed ? "false" : "true");
+  }
+
+  function updateHqAvailability(city) {
+    if (!dom.hqBtn) return;
+    const allowed = !!city && (city.importance === 1 || city.importance === 2);
+    dom.hqBtn.classList.toggle("hidden", !allowed);
+    dom.hqBtn.setAttribute("aria-disabled", allowed ? "false" : "true");
+  }
+
+  function renderLabPanel() {
+    if (!dom.labPanelEl) return;
+
+    if (!uiState.labOverview) {
+      if (dom.labFogLevelLabel) dom.labFogLevelLabel.textContent = "-";
+      if (dom.labFogLevelDesc) dom.labFogLevelDesc.textContent = "Načítám data...";
+      if (dom.labFogLevelBar) dom.labFogLevelBar.style.width = "12%";
+      dom.labActionElements.forEach((btn) => {
+        btn.disabled = true;
+        const statusEl = btn.querySelector("[data-action-status]");
+        if (statusEl) {
+          statusEl.textContent = "Načítám";
+          statusEl.classList.remove("hidden");
+          statusEl.classList.remove("text-rose-200", "text-emerald-200");
+          statusEl.classList.add("text-amber-200");
+        }
+      });
+      return;
+    }
+
+    const fog = uiState.labOverview.fog || {};
+    if (dom.labFogLevelLabel) {
+      dom.labFogLevelLabel.textContent = fog.label || "-";
+    }
+    if (dom.labFogLevelDesc) {
+      dom.labFogLevelDesc.textContent = fog.description || "-";
+    }
+    if (dom.labFogLevelBar && typeof fog.percent === "number") {
+      const pct = Math.max(4, Math.min(100, fog.percent));
+      dom.labFogLevelBar.style.width = `${pct}%`;
+    }
+
+    const actionMap = new Map((uiState.labOverview.actions || []).map((action) => [action.code, action]));
+    dom.labActionElements.forEach((btn) => {
+      const code = btn.dataset.actionCode;
+      const action = actionMap.get(code);
+      const statusEl = btn.querySelector("[data-action-status]");
+      if (!action) {
+        btn.disabled = true;
+        if (statusEl) {
+          statusEl.textContent = "Nedostupné";
+          statusEl.classList.remove("hidden", "text-emerald-200");
+          statusEl.classList.add("text-rose-200");
+        }
+        return;
+      }
+
+      const unlocked = !!action.is_unlocked;
+      btn.disabled = !unlocked;
+      if (statusEl) {
+        statusEl.classList.remove("hidden");
+        if (unlocked) {
+          statusEl.textContent = action.cooldown_minutes ? `Cooldown ${action.cooldown_minutes}m` : "Připraveno";
+          statusEl.classList.remove("text-rose-200", "text-amber-200");
+          statusEl.classList.add("text-emerald-200");
+        } else {
+          statusEl.textContent = action.locked_reason || "Zamčeno";
+          statusEl.classList.remove("text-emerald-200");
+          statusEl.classList.add("text-rose-200");
+        }
+      }
+    });
+  }
+
+  async function loadLabPanelData(force = false) {
+    if (!dom.labPanelEl) return;
+    if (uiState.labOverviewLoading) return;
+    if (uiState.labOverview && !force) {
+      renderLabPanel();
+      return;
+    }
+    uiState.labOverviewLoading = true;
+    try {
+      const res = await fetch("/api/lab/actions");
+      if (!res.ok) {
+        console.error("Nepodařilo se načíst laboratorní data.");
+        uiState.labOverview = null;
+      } else {
+        uiState.labOverview = await res.json();
+      }
+      renderLabPanel();
+    } finally {
+      uiState.labOverviewLoading = false;
+    }
+  }
+
+  function showCityInfoMapTooltip(target, clientX, clientY) {
+    if (!dom.cityInfoMapTooltip || !dom.cityInfoMapWrapper || !target) return;
+    const wrapperRect = dom.cityInfoMapWrapper.getBoundingClientRect();
+    dom.cityInfoMapTooltip.textContent = target.name || "-";
+    dom.cityInfoMapTooltip.style.left = `${clientX - wrapperRect.left + 12}px`;
+    dom.cityInfoMapTooltip.style.top = `${clientY - wrapperRect.top - 10}px`;
+    dom.cityInfoMapTooltip.classList.remove("hidden");
+  }
+
+  function hideCityInfoMapTooltip() {
+    if (!dom.cityInfoMapTooltip) return;
+    dom.cityInfoMapTooltip.classList.add("hidden");
+  }
+
+  function handleCityInfoMapHover(event) {
+    if (!dom.cityInfoMapCanvas || uiState.cityInfoMapTargets.length === 0) {
+      hideCityInfoMapTooltip();
+      return;
+    }
+    const rect = dom.cityInfoMapCanvas.getBoundingClientRect();
+    const scaleX = dom.cityInfoMapCanvas.width / rect.width;
+    const scaleY = dom.cityInfoMapCanvas.height / rect.height;
+    const x = (event.clientX - rect.left) * scaleX;
+    const y = (event.clientY - rect.top) * scaleY;
+
+    let nearest = null;
+    let bestDist = Infinity;
+    const threshold = 14;
+    for (const target of uiState.cityInfoMapTargets) {
+      const dx = x - target.x;
+      const dy = y - target.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist < bestDist) {
+        bestDist = dist;
+        nearest = target;
+      }
+    }
+
+    if (nearest && bestDist <= threshold) {
+      showCityInfoMapTooltip(nearest, event.clientX, event.clientY);
+    } else {
+      hideCityInfoMapTooltip();
+    }
+  }
+
+  function renderCityInfoMap(city) {
+    if (!dom.cityInfoMapCtx || !dom.cityInfoMapCanvas) return;
+    uiState.cityInfoMapTargets = [];
+    const ctx = dom.cityInfoMapCtx;
+    const width = dom.cityInfoMapCanvas.width;
+    const height = dom.cityInfoMapCanvas.height;
+
+    ctx.save();
+    ctx.clearRect(0, 0, width, height);
+
+    ctx.fillStyle = "#030617";
+    ctx.fillRect(0, 0, width, height);
+
+    if (state.map.mapLoaded && state.map.mapImage.complete) {
+      ctx.globalAlpha = 0.92;
+      ctx.drawImage(state.map.mapImage, 0, 0, width, height);
+      ctx.globalAlpha = 1;
+    }
+
+    if (!city) {
+      ctx.fillStyle = "rgba(248, 250, 252, 0.75)";
+      ctx.font = "16px 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("Vyber město pro zobrazení tras", width / 2, height / 2);
+      hideCityInfoMapTooltip();
+      ctx.restore();
+      return;
+    }
+
+    const baseWidth = dom.canvas ? dom.canvas.width : 1024;
+    const baseHeight = dom.canvas ? dom.canvas.height : 576;
+    const scaleX = width / baseWidth;
+    const scaleY = height / baseHeight;
+    const cx = city.px * scaleX;
+    const cy = city.py * scaleY;
+
+    const connections = map.getConnections(city.name);
+    const metroCities = Array.isArray(state.map.cities) ? state.map.cities.filter((c) => c && c.importance === 1) : [];
+
+    ctx.strokeStyle = "rgba(248, 250, 252, 0.65)";
+    ctx.lineWidth = 2;
+    ctx.lineCap = "round";
+    connections.forEach((target) => {
+      if (!target) return;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo((target.px || 0) * scaleX, (target.py || 0) * scaleY);
+      ctx.stroke();
+    });
+
+    const drawCityDot = (c, color, baseRadius, glow = false) => {
+      if (!c) return;
+      const px = (c.px || 0) * scaleX;
+      const py = (c.py || 0) * scaleY;
+      const radius = c.importance === 1 ? baseRadius + 2 : baseRadius;
+      if (glow) {
+        ctx.shadowColor = color;
+        ctx.shadowBlur = 12;
+      } else {
+        ctx.shadowBlur = 0;
+      }
+      ctx.beginPath();
+      ctx.fillStyle = color;
+      ctx.strokeStyle = "#0f172a";
+      ctx.lineWidth = 1.2;
+      ctx.arc(px, py, radius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    };
+
+    const seenMapTargets = new Set();
+    const registerTarget = (c, label) => {
+      if (!c) return;
+      const key = c.id ?? (c.name || "").toLowerCase();
+      if (!key || seenMapTargets.has(key)) return;
+      seenMapTargets.add(key);
+      uiState.cityInfoMapTargets.push({
+        name: label || c.name,
+        x: (c.px || 0) * scaleX,
+        y: (c.py || 0) * scaleY,
+      });
+    };
+
+    metroCities.forEach((metro) => {
+      const isCurrentCity = metro.id === city.id;
+      const alreadyConnection = connections.some((conn) => conn && conn.id === metro.id);
+      const color = isCurrentCity ? "#fbbf24" : alreadyConnection ? "#38bdf8" : "#a5b4fc";
+      const radius = isCurrentCity ? 6 : 3.5;
+      const glow = isCurrentCity;
+      drawCityDot(metro, color, radius, glow);
+      registerTarget(metro);
+    });
+
+    connections.forEach((target) => {
+      drawCityDot(target, "#38bdf8", 4);
+      registerTarget(target);
+    });
+    drawCityDot(city, "#fbbf24", 6, true);
+    registerTarget(city);
+
+    if (connections.length === 0) {
+      ctx.fillStyle = "rgba(248, 250, 252, 0.8)";
+      ctx.font = "14px 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("Žádné přímé linky z tohoto města", width / 2, height - 24);
+    }
+
+    ctx.restore();
+  }
+
+  function renderCityInfo() {
+    if (!dom.cityInfoPanel || !dom.cityInfoNameEl || !dom.cityInfoMetaEl || !dom.cityInfoPopulationEl || !dom.cityInfoDescEl) return;
+
+    const city = map.getCityAt(agentState.position.x, agentState.position.y);
+    if (!city) {
+      dom.cityInfoNameEl.textContent = "Neznámé město";
+      dom.cityInfoMetaEl.textContent = "Agent není ve městě";
+      dom.cityInfoPopulationEl.textContent = "Počet obyvatel: -";
+      dom.cityInfoDescEl.textContent = "Přesuň se do města pro detailní přehled.";
+      renderCityInfoMap(null);
+      return;
+    }
+
+    const importanceLabels = {
+      1: "Hlavní uzel",
+      2: "Regionální centrum",
+      3: "Místní město",
+    };
+
+    const statePart = city.state ? (city.state_shortcut ? `${city.state} (${city.state_shortcut})` : city.state) : null;
+    const regionPart = city.region || null;
+    const importancePart = importanceLabels[city.importance] || null;
+
+    dom.cityInfoNameEl.textContent = city.name;
+    const metaParts = [statePart, regionPart, importancePart].filter(Boolean);
+    dom.cityInfoMetaEl.textContent = metaParts.join(" • ") || "-";
+    const hasPopulation = typeof city.population === "number" && !Number.isNaN(city.population);
+    dom.cityInfoPopulationEl.textContent = hasPopulation
+      ? `Počet obyvatel: ${map.formatPopulation(city.population)}`
+      : "Počet obyvatel: -";
+    dom.cityInfoDescEl.textContent = city.description || "Chybí popis pro toto město.";
+    renderCityInfoMap(city);
+  }
+
+  function showCityInfoPanel(show) {
+    if (!dom.cityInfoPanel) return;
+    const shouldShow = !!show;
+    dom.cityInfoPanel.classList.toggle("hidden", !shouldShow);
+    if (shouldShow) {
+      showTimetablePanel(false);
+      tasks.showTaskDetailPanel(false);
+      if (dom.labPanelEl) {
+        dom.labPanelEl.classList.add("hidden");
+      }
+      if (dom.workshopPanelEl) {
+        dom.workshopPanelEl.classList.add("hidden");
+      }
+      if (dom.marketPanelEl) {
+        dom.marketPanelEl.classList.add("hidden");
+      }
+      renderCityInfo();
+      maybeShowCityImage(map.getCityAt(agentState.position.x, agentState.position.y));
+    }
+  }
+
+  function hideCityInfoPanel() {
+    showCityInfoPanel(false);
+    if (dom.cityBackdropEl) {
+      dom.cityBackdropEl.classList.remove("hidden");
+    }
+    maybeShowCityImage(map.getCityAt(agentState.position.x, agentState.position.y));
+    hideCityInfoMapTooltip();
+  }
+
+  function describeMarketTier(city) {
+    if (!city) {
+      return {
+        tier: "-",
+        status: "Vydej se do města a zkontroluj nabídku.",
+      };
+    }
+    const importance = city.importance ?? 3;
+    if (importance === 1) {
+      return {
+        tier: "Hlavní uzel",
+        status: "Zásoby se průběžně doplňují, ale poptávka je vysoká.",
+      };
+    }
+    if (importance === 2) {
+      return {
+        tier: "Regionální sklad",
+        status: "Dodávky dorážejí nepravidelně, sleduj vlakové spoje.",
+      };
+    }
+    return {
+      tier: "Lokální trh",
+      status: "Omezené zásoby, spolehni se na sousední města.",
+    };
+  }
+
+  function buildMarketTips(city) {
+    if (!city) {
+      return [
+        {
+          title: "Žádná lokace",
+          body: "Přesuň se do města, abys mohl kontaktovat obchodníky.",
+        },
+      ];
+    }
+    const tips = [];
+    const connections = map.getConnections(city.name);
+    if (connections.length === 0) {
+      tips.push({
+        title: "Bez přímých linek",
+        body: "Z tohoto města nevedou aktivní tratě. Zvaž teleport test nebo návrat na hlavní trať.",
+      });
+    } else {
+      const targets = connections
+        .slice(0, 3)
+        .map((c) => c.name)
+        .join(", ");
+      tips.push({
+        title: "Dostupné tratě",
+        body: targets || "Spoje se načítají…",
+      });
+    }
+    tips.push({
+      title: "Doporučení HQ",
+      body:
+        city.importance <= 2
+          ? "Zaměř se na Energy Generatory, zásoby se vyprodávají během hodin."
+          : "Hledej doplňky a materiál – pro generátor vyraž do většího města.",
+    });
+    tips.push({
+      title: "Regionální vazby",
+      body: city.region ? `Město patří do regionu ${city.region}.` : "Region se načítá…",
+    });
+    return tips;
+  }
+
+  function renderMarketPanel(city) {
+    if (!dom.marketPanelEl) return;
+    const referenceCity = city || map.getCityAt(agentState.position.x, agentState.position.y);
+    const tierInfo = describeMarketTier(referenceCity);
+    if (dom.marketCityLabelEl) {
+      dom.marketCityLabelEl.textContent = referenceCity?.name || "-";
+    }
+    if (dom.marketTierLabelEl) {
+      dom.marketTierLabelEl.textContent = tierInfo.tier;
+    }
+    if (dom.marketStatusLabelEl) {
+      dom.marketStatusLabelEl.textContent = tierInfo.status;
+    }
+    if (dom.marketTipsListEl) {
+      const tips = buildMarketTips(referenceCity);
+      dom.marketTipsListEl.innerHTML = "";
+      tips.forEach((tip) => {
+        const card = document.createElement("div");
+        card.className = "rounded-2xl border border-white/10 bg-slate-900/70 p-4 text-sm text-slate-200";
+        card.innerHTML = `<p class="text-xs uppercase tracking-[0.3em] text-slate-400 mb-1">${tip.title}</p><p class="text-slate-100">${tip.body}</p>`;
+        dom.marketTipsListEl.appendChild(card);
+      });
+    }
+  }
+
+  function showLabPanel(show) {
+    if (!dom.labPanelEl) return;
+    const shouldShow = !!show;
+    const allowed = !dom.labBtn || !dom.labBtn.classList.contains("hidden");
+    if (shouldShow && !allowed) {
+      return;
+    }
+    dom.labPanelEl.classList.toggle("hidden", !shouldShow);
+    if (shouldShow) {
+      hideCityInfoPanel();
+      showTimetablePanel(false);
+      tasks.showTaskDetailPanel(false);
+      showWorkshopPanel(false);
+      showMarketPanel(false);
+      loadLabPanelData();
+      tasks.notifyTaskLocationChange();
+      tasks.loadStoryDialogs(true);
+      tasks.maybeShowStoryOverlay("lab");
+    } else {
+      maybeShowCityImage(map.getCityAt(agentState.position.x, agentState.position.y));
+    }
+  }
+
+  function showWorkshopPanel(show) {
+    if (!dom.workshopPanelEl) return;
+    const shouldShow = !!show;
+    const allowed = !dom.workshopBtn || !dom.workshopBtn.classList.contains("hidden");
+    if (shouldShow && !allowed) {
+      return;
+    }
+    dom.workshopPanelEl.classList.toggle("hidden", !shouldShow);
+    if (shouldShow) {
+      hideCityInfoPanel();
+      showTimetablePanel(false);
+      tasks.showTaskDetailPanel(false);
+      showLabPanel(false);
+      showMarketPanel(false);
+    } else {
+      maybeShowCityImage(map.getCityAt(agentState.position.x, agentState.position.y));
+    }
+  }
+
+  function showMarketPanel(show) {
+    if (!dom.marketPanelEl) return;
+    const shouldShow = !!show;
+    dom.marketPanelEl.classList.toggle("hidden", !shouldShow);
+    if (shouldShow) {
+      hideCityInfoPanel();
+      showTimetablePanel(false);
+      tasks.showTaskDetailPanel(false);
+      if (dom.labPanelEl) {
+        dom.labPanelEl.classList.add("hidden");
+      }
+      if (dom.workshopPanelEl) {
+        dom.workshopPanelEl.classList.add("hidden");
+      }
+      renderMarketPanel(map.getCityAt(agentState.position.x, agentState.position.y));
+      tasks.loadStoryDialogs(true);
+      tasks.maybeShowStoryOverlay("market");
+    } else {
+      maybeShowCityImage(map.getCityAt(agentState.position.x, agentState.position.y));
+    }
+  }
+
+  function slugifyCityName(name) {
+    return (name || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-zA-Z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "")
+      .toLowerCase();
+  }
+
+  async function findCityImageUrl(city) {
+    if (!city || !city.name) return null;
+    const baseNames = [
+      slugifyCityName(city.name),
+      city.name.replace(/\s+/g, "_"),
+    ].filter(Boolean);
+    const exts = ["webp", "jpg", "jpeg", "png"];
+
+    for (const base of baseNames) {
+      for (const ext of exts) {
+        const url = `/static/assets/cities/${base}.${ext}`;
+        const exists = await imageExists(url);
+        if (exists) return url;
+      }
+    }
+    return null;
+  }
+
+  function imageExists(url) {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => resolve(true);
+      img.onerror = () => resolve(false);
+      img.src = url;
+    });
+  }
+
+  async function maybeShowCityImage(city) {
+    if (!dom.canvas || !dom.cityBackdropEl) return;
+    const imgUrl = await findCityImageUrl(city);
+
+    if (imgUrl) {
+      dom.cityBackdropEl.src = imgUrl;
+      dom.cityBackdropEl.classList.remove("opacity-0");
+      dom.canvas.classList.add("hidden");
+    } else {
+      dom.cityBackdropEl.src = "";
+      dom.cityBackdropEl.classList.add("opacity-0");
+      dom.canvas.classList.remove("hidden");
+    }
+  }
+
+  function setTeleportStatus(message, variant = "muted") {
+    if (!dom.teleportStatusEl) return;
+    dom.teleportStatusEl.textContent = message || "";
+    dom.teleportStatusEl.classList.remove("text-rose-300", "text-emerald-300", "text-slate-400");
+    if (variant === "error") {
+      dom.teleportStatusEl.classList.add("text-rose-300");
+    } else if (variant === "success") {
+      dom.teleportStatusEl.classList.add("text-emerald-300");
+    } else {
+      dom.teleportStatusEl.classList.add("text-slate-400");
+    }
+  }
+
+  function populateTeleportSelect() {
+    if (!dom.teleportCitySelect || !Array.isArray(state.map.cities) || state.map.cities.length === 0) return;
+    dom.teleportCitySelect.innerHTML = "";
+    const placeholder = document.createElement("option");
+    placeholder.value = "";
+    placeholder.textContent = "Vyber město";
+    dom.teleportCitySelect.appendChild(placeholder);
+
+    const sorted = [...state.map.cities].sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+    sorted.forEach((city) => {
+      if (!city || city.id === undefined || city.id === null) return;
+      const option = document.createElement("option");
+      option.value = city.id;
+      const stateLabel = city.state_shortcut || city.state || "";
+      option.textContent = stateLabel ? `${city.name}, ${stateLabel}` : city.name;
+      dom.teleportCitySelect.appendChild(option);
+    });
+  }
+
+  function showTeleportOverlay() {
+    if (!dom.teleportOverlayEl) return;
+    populateTeleportSelect();
+    dom.teleportOverlayEl.classList.remove("hidden");
+    setTeleportStatus("Přesun je okamžitý, využij jen pro testování.", "muted");
+  }
+
+  function hideTeleportOverlay() {
+    dom.teleportOverlayEl?.classList.add("hidden");
+  }
+
+  function handleTeleportSubmit() {
+    if (!dom.teleportCitySelect) return;
+    const rawValue = dom.teleportCitySelect.value;
+    if (!rawValue) {
+      setTeleportStatus("Nejprve vyber město.", "error");
+      return;
+    }
+    let targetCity = map.getCityById(rawValue);
+    if (!targetCity) {
+      targetCity = map.getCityByNameInsensitive(rawValue);
+    }
+    if (!targetCity) {
+      setTeleportStatus("Město se nepodařilo načíst.", "error");
+      return;
+    }
+    travelToCity(targetCity, { silent: true });
+    setTeleportStatus(`Teleportováno do ${targetCity.name}.`, "success");
+    setTimeout(() => hideTeleportOverlay(), 600);
+  }
+
+  function travelToCity(targetCity, options = {}) {
+    if (!targetCity) return;
+    const { silent = false } = options;
+
+    if (!silent) {
+      travel.playTravelSound();
+    }
+
+    agent.setAgentPositionToCity(targetCity, { persist: true });
+    showTimetablePanel(false);
+    updateSidebar();
+    updateTimetable();
+    console.log(`Přesun vlakem do: ${targetCity.name}`);
+    tasks.notifyTaskLocationChange();
+  }
+
+  function updateSidebar() {
+    const cityNameEl = document.getElementById("currentCityName");
+    const cityDescEl = document.getElementById("currentCityDescription");
+    const cityStateEl = document.getElementById("currentCityState");
+    const posEl = document.getElementById("agentPos");
+    const timeEl = document.getElementById("currentTimeLabel");
+    const weekEl = document.getElementById("currentWeekLabel");
+
+    if (!cityNameEl) return;
+
+    const city = map.getCityAt(agentState.position.x, agentState.position.y);
+
+    if (posEl) {
+      posEl.textContent = `${agentState.position.x},${agentState.position.y}`;
+    }
+
+    if (!city) {
+      cityNameEl.textContent = "-";
+      if (cityStateEl) cityStateEl.textContent = "-";
+      if (cityDescEl) {
+        cityDescEl.textContent = "Agent nestojí ve městě.";
+      }
+      updateLabAvailability(null);
+      updateWorkshopAvailability(null);
+      updateBankAvailability(null);
+      updateHqAvailability(null);
+      renderMarketPanel(null);
+      if (timeEl || weekEl) {
+        const { weekText, timeText } = time.formatWeekAndTime(time.getGameMinutes());
+        if (weekEl) weekEl.textContent = weekText;
+        if (timeEl) timeEl.textContent = timeText;
+      }
+      renderCityInfo();
+      maybeShowCityImage(null);
+      return;
+    }
+
+    cityNameEl.textContent = city.name;
+    if (cityStateEl) {
+      const stateText = city.state ? `${city.state}${city.state_shortcut ? " (" + city.state_shortcut + ")" : ""}` : "-";
+      cityStateEl.textContent = stateText;
+    }
+    if (cityDescEl) {
+      const regionText = city.region ? `Region: ${city.region}` : "";
+      const descText = city.description || "";
+      const parts = [regionText, descText].filter(Boolean);
+      cityDescEl.textContent = parts.join(" \u2022 ");
+    }
+    updateLabAvailability(city);
+    updateWorkshopAvailability(city);
+    updateBankAvailability(city);
+    updateHqAvailability(city);
+    renderMarketPanel(city);
+    renderCityInfo();
+    maybeShowCityImage(city);
+
+    if (timeEl || weekEl) {
+      const { weekText, timeText } = time.formatWeekAndTime(time.getGameMinutes());
+      if (weekEl) weekEl.textContent = weekText;
+      if (timeEl) timeEl.textContent = timeText;
+    }
+  }
+
+  function renderTimetablePage() {
+    if (state.travel.animation) return;
+
+    const timeEl = document.getElementById("currentTimeLabel");
+    const weekEl = document.getElementById("currentWeekLabel");
+    const tbody = document.getElementById("timetableBody");
+    if (!timeEl || !tbody) return;
+
+    const { weekText, timeText } = time.formatWeekAndTime(time.getGameMinutes());
+    if (weekEl) weekEl.textContent = weekText;
+    timeEl.textContent = timeText;
+    tbody.innerHTML = "";
+
+    const city = map.getCityAt(agentState.position.x, agentState.position.y);
+
+    if (!city) {
+      const tr = document.createElement("tr");
+      const td = document.createElement("td");
+      td.colSpan = 7;
+      td.textContent = "Agent nestojí ve městě.";
+      tr.appendChild(td);
+      tbody.appendChild(tr);
+      return;
+    }
+
+    const departures = (trainState.timetableDepartures || [])
+      .map((dep) => ({
+        ...dep,
+        _next_departure: map.normalizeDepartureMinutes(dep.departure_minutes, time.getGameMinutes()),
+      }))
+      .filter((dep) => dep._next_departure !== null && dep._next_departure > time.getGameMinutes());
+
+    if (!departures || departures.length === 0) {
+      const tr = document.createElement("tr");
+      const td = document.createElement("td");
+      td.colSpan = 7;
+      td.textContent = "Z tohoto města nejedou žádné vlaky.";
+      tr.appendChild(td);
+      tbody.appendChild(tr);
+      return;
+    }
+
+    const pageItems = departures.slice(0, config.timetableLimit);
+
+    pageItems.forEach((dep) => {
+      const tr = document.createElement("tr");
+      tr.classList.add("tabular-nums");
+      const depMinutes = dep._next_departure ?? map.normalizeDepartureMinutes(dep.departure_minutes, time.getGameMinutes());
+      const typeInfo = map.getLineTypeInfo(dep.line_type);
+
+      const timeTd = document.createElement("td");
+      timeTd.innerHTML = `<span class="text-base font-semibold text-slate-100 tabular-nums">${time.formatGameTimeHHMM(depMinutes ?? dep.departure_minutes)}</span>`;
+
+      const toTd = document.createElement("td");
+      const toName = dep.to_city?.name || "-";
+      const cityMeta = state.map.cityByName.get(toName);
+      const toState = cityMeta?.state_shortcut || cityMeta?.state || dep.to_city?.state_shortcut || dep.to_city?.state;
+      const toLabel = `<span class="font-semibold text-sky-100 text-sm leading-tight">${toName}</span>`;
+      const stateLabel = toState ? `<span class="ml-1 text-xs text-slate-300 align-middle">(${toState})</span>` : "";
+      toTd.innerHTML = `${toLabel}${stateLabel}`;
+
+      const typeTd = document.createElement("td");
+      const badgeSizeClass =
+        typeInfo.key === "express"
+          ? "min-w-[2.8rem] px-3 py-1 text-xs"
+          : "min-w-[2.1rem] px-2 py-0.5 text-[11px]";
+      typeTd.innerHTML = `<span class="inline-flex items-center justify-center rounded-md ${badgeSizeClass} ${typeInfo.badgeClasses} font-semibold uppercase tracking-wide" title="${map.formatLineTypeLabel(dep.line_type)}">${typeInfo.symbol}</span>`;
+
+      const distTd = document.createElement("td");
+      distTd.textContent = dep.distance_units !== undefined && dep.distance_units !== null
+        ? Math.round(dep.distance_units) + " mi"
+        : "-";
+
+      const travelTd = document.createElement("td");
+      travelTd.textContent = travel.formatTravelDuration(dep.travel_minutes);
+
+      const arrivalTd = document.createElement("td");
+      if (dep.travel_minutes !== undefined && dep.travel_minutes !== null) {
+        const arrivalMinutes = (depMinutes ?? dep.departure_minutes) + dep.travel_minutes;
+        arrivalTd.innerHTML = `<span class="font-semibold text-slate-100 text-base tabular-nums">${time.formatGameTime(arrivalMinutes)}</span>`;
+      } else {
+        arrivalTd.textContent = "-";
+      }
+
+      const destinationName = dep.to_city?.name;
+      const destinationCity = destinationName ? state.map.cityByName.get(destinationName) : null;
+      const depKey = map.makeDepartureKey(dep, depMinutes ?? dep.departure_minutes);
+      const hasTicket = depKey ? trainState.purchasedTicketKey === depKey : false;
+
+      if (destinationCity) {
+        tr.style.cursor = "pointer";
+        tr.title = `Cestovat do ${destinationCity.name}`;
+        tr.addEventListener("click", () => {
+          travel.scheduleTravelFromDeparture(dep);
+        });
+        tr.addEventListener("mouseenter", () => {
+          const key = `${dep.from_city?.name}__${dep.to_city?.name}`;
+          map.setHoveredLineKey(key);
+        });
+        tr.addEventListener("mouseleave", () => {
+          map.setHoveredLineKey(null);
+        });
+      }
+
+      const ticketTd = document.createElement("td");
+      if (hasTicket) {
+        ticketTd.innerHTML = `<span class="inline-flex items-center gap-1 px-3 py-1.5 rounded-md bg-emerald-900/60 border border-emerald-500/60 text-emerald-100 text-xs font-semibold" title="Jízdenka koupena">✅ Ticket</span>`;
+      } else {
+        const buyBtn = document.createElement("button");
+        buyBtn.className = "inline-flex items-center gap-1 px-3 py-1.5 rounded-md bg-sky-900/40 border border-sky-500/60 text-sky-100 text-xs font-semibold hover:bg-sky-800/60 hover:border-sky-300 transition";
+        buyBtn.innerHTML = "🎟️ Koupit";
+        buyBtn.setAttribute("title", "Koupit ticket");
+        buyBtn.setAttribute("aria-label", "Koupit ticket");
+        buyBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          if (!depKey) return;
+
+          if (trainState.purchasedTicketKey && trainState.purchasedTicketKey !== depKey) {
+            const confirmNew = window.confirm("Opravdu chceš koupit jinou jízdenku? Původní se tímto stornuje.");
+            if (!confirmNew) {
+              return;
+            }
+          }
+
+          trainState.purchasedTicketKey = depKey;
+          if (dom.ticketSound) {
+            try {
+              dom.ticketSound.currentTime = 0;
+              dom.ticketSound.play().catch(() => {});
+            } catch (err) {
+              console.warn("Ticket sound playback failed", err);
+            }
+          }
+          travel.scheduleTravelFromDeparture(dep);
+          renderTimetablePage();
+        });
+        ticketTd.appendChild(buyBtn);
+      }
+
+      tr.appendChild(timeTd);
+      tr.appendChild(toTd);
+      tr.appendChild(typeTd);
+      tr.appendChild(distTd);
+      tr.appendChild(travelTd);
+      tr.appendChild(arrivalTd);
+      tr.appendChild(ticketTd);
+
+      tbody.appendChild(tr);
+    });
+  }
+
+  function findDepartureToCity(destinationName) {
+    if (!destinationName || !Array.isArray(trainState.timetableDepartures)) return null;
+    const matches = trainState.timetableDepartures.filter(
+      (dep) => dep?.to_city?.name === destinationName
+    );
+    if (matches.length === 0) return null;
+    matches.sort((a, b) => {
+      const aNext = map.normalizeDepartureMinutes(a.departure_minutes, time.getGameMinutes());
+      const bNext = map.normalizeDepartureMinutes(b.departure_minutes, time.getGameMinutes());
+      return aNext - bNext;
+    });
+    const first = matches[0];
+    const firstTime = map.normalizeDepartureMinutes(first?.departure_minutes, time.getGameMinutes());
+    return firstTime ? { ...first, _next_departure: firstTime } : first;
+  }
+
+  async function updateTimetable() {
+    const city = map.getCityAt(agentState.position.x, agentState.position.y);
+    if (!city) {
+      trainState.timetableDepartures = [];
+      renderTimetablePage();
+      return;
+    }
+
+    const res = await fetch(`/api/timetable?city_id=${city.id}&minutes=${time.getGameMinutes()}&limit=${config.timetableLimit}`);
+    if (!res.ok) {
+      console.error("Nepodařilo se načíst jízdní řád.");
+      trainState.timetableDepartures = [];
+      renderTimetablePage();
+      return;
+    }
+    trainState.timetableDepartures = await res.json();
+    renderTimetablePage();
+  }
+
+  function travelFromCurrentCity() {
+    const currentCity = map.getCityAt(agentState.position.x, agentState.position.y);
+    if (!currentCity) {
+      console.log("Agent není ve městě – nelze cestovat.");
+      return;
+    }
+
+    const connections = map.getConnections(currentCity.name);
+    if (connections.length === 0) {
+      console.log("Z tohoto města nevede žádná trať.");
+      return;
+    }
+
+    const choicesText = connections
+      .map((city, index) => `${index + 1}) ${city.name}`)
+      .join("\n");
+
+    const input = prompt(
+      `Cestování vlakem z ${currentCity.name}:\n${choicesText}\n\nZadej číslo cílového města:`
+    );
+
+    const choiceIndex = parseInt(input, 10) - 1;
+    if (isNaN(choiceIndex) || choiceIndex < 0 || choiceIndex >= connections.length) {
+      console.log("Neplatná volba cestování.");
+      return;
+    }
+
+    const destination = connections[choiceIndex];
+
+    travel.travelUsingTimetable(destination);
+  }
+
+  function initUiEvents() {
+    if (dom.ticketToggleBtn) {
+      dom.ticketToggleBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        const isVisible = dom.timetableCardEl && !dom.timetableCardEl.classList.contains("hidden");
+        if (uiState.activeFooterButton === "timetable" && isVisible) {
+          showTimetablePanel(false);
+          setActiveFooterButton(null);
+        } else {
+          showTimetablePanel(true);
+          setActiveFooterButton("timetable");
+        }
+      });
+    }
+    if (dom.cityInfoMapCanvas) {
+      dom.cityInfoMapCanvas.addEventListener("mousemove", handleCityInfoMapHover);
+      dom.cityInfoMapCanvas.addEventListener("mouseleave", hideCityInfoMapTooltip);
+    }
+    if (dom.cityHubBtn) {
+      dom.cityHubBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        if (uiState.activeFooterButton === "hub") {
+          setActiveFooterButton(null);
+          return;
+        }
+        showTimetablePanel(false);
+        tasks.showTaskDetailPanel(false);
+        hideCityInfoPanel();
+        showLabPanel(false);
+        showWorkshopPanel(false);
+        maybeShowCityImage(map.getCityAt(agentState.position.x, agentState.position.y));
+        setActiveFooterButton("hub");
+      });
+    }
+    if (dom.infoCenterBtn) {
+      dom.infoCenterBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        const isVisible = dom.cityInfoPanel && !dom.cityInfoPanel.classList.contains("hidden");
+        if (uiState.activeFooterButton === "info" && isVisible) {
+          hideCityInfoPanel();
+          setActiveFooterButton(null);
+        } else {
+          showCityInfoPanel(true);
+          setActiveFooterButton("info");
+        }
+      });
+    }
+    if (dom.labBtn) {
+      dom.labBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        const isVisible = dom.labPanelEl && !dom.labPanelEl.classList.contains("hidden");
+        if (uiState.activeFooterButton === "lab" && isVisible) {
+          showLabPanel(false);
+          setActiveFooterButton(null);
+        } else {
+          showLabPanel(true);
+          setActiveFooterButton("lab");
+        }
+      });
+    }
+    if (dom.workshopBtn) {
+      dom.workshopBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        const isVisible = dom.workshopPanelEl && !dom.workshopPanelEl.classList.contains("hidden");
+        if (uiState.activeFooterButton === "workshop" && isVisible) {
+          showWorkshopPanel(false);
+          setActiveFooterButton(null);
+        } else {
+          showWorkshopPanel(true);
+          setActiveFooterButton("workshop");
+        }
+      });
+    }
+    if (dom.marketBtn) {
+      dom.marketBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        const isVisible = dom.marketPanelEl && !dom.marketPanelEl.classList.contains("hidden");
+        if (uiState.activeFooterButton === "market" && isVisible) {
+          showMarketPanel(false);
+          setActiveFooterButton(null);
+        } else {
+          showMarketPanel(true);
+          setActiveFooterButton("market");
+        }
+      });
+    }
+    if (dom.restartButton) {
+      dom.restartButton.addEventListener("click", async (e) => {
+        e.preventDefault();
+        try {
+          if (window && window.localStorage) {
+            window.localStorage.setItem(config.randomStartFlagKey, "1");
+          }
+        } catch (err) {
+          console.warn("Cannot store random start flag:", err);
+        }
+
+        try {
+          const res = await fetch("/api/tasks/reset", { method: "POST" });
+          if (!res.ok) {
+            console.warn("Task pipeline reset failed with status", res.status);
+          }
+        } catch (err) {
+          console.warn("Task pipeline reset request failed:", err);
+        } finally {
+          window.location.reload();
+        }
+      });
+    }
+    if (dom.teleportTesterBtn && dom.teleportOverlayEl) {
+      dom.teleportTesterBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        showTeleportOverlay();
+      });
+    }
+    if (dom.teleportOverlayCloseBtn) {
+      dom.teleportOverlayCloseBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        hideTeleportOverlay();
+      });
+    }
+    if (dom.teleportExecuteBtn) {
+      dom.teleportExecuteBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        handleTeleportSubmit();
+      });
+    }
+  }
+
+  return {
+    setActiveFooterButton,
+    setTimetableRaised,
+    showTimetablePanel,
+    hideAllPanelsExcept,
+    isLabPanelVisible,
+    isMarketPanelVisible,
+    applySkyGradientForMinutes,
+    getCurrentCitySnapshot,
+    renderCityInfo,
+    renderCityInfoMap,
+    showCityInfoPanel,
+    hideCityInfoPanel,
+    updateLabAvailability,
+    updateWorkshopAvailability,
+    updateBankAvailability,
+    updateHqAvailability,
+    renderLabPanel,
+    loadLabPanelData,
+    renderMarketPanel,
+    showLabPanel,
+    showWorkshopPanel,
+    showMarketPanel,
+    maybeShowCityImage,
+    setTeleportStatus,
+    showTeleportOverlay,
+    hideTeleportOverlay,
+    handleTeleportSubmit,
+    populateTeleportSelect,
+    updateSidebar,
+    renderTimetablePage,
+    updateTimetable,
+    findDepartureToCity,
+    travelFromCurrentCity,
+    travelToCity,
+    initUiEvents,
+  };
+}

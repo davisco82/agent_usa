@@ -1,0 +1,77 @@
+export function createInitialState() {
+  return {
+    time: {
+      gameMinutes: 8 * 60,
+      lastFrameMs: performance.now(),
+      timeAccumulatorMs: 0,
+      lastSavedGameMinutes: null,
+      hasUnsavedTime: false,
+    },
+    map: {
+      mapImage: new Image(),
+      mapLoaded: false,
+      cities: [],
+      cityByName: new Map(),
+      cityById: new Map(),
+      hoveredCity: null,
+      hoveredLineKey: null,
+    },
+    fog: {
+      tiles: new Set(),
+      frontier: [],
+      spreadSpeed: 0.001,
+    },
+    train: {
+      lines: [],
+      connectionsByCityName: new Map(),
+      timetableDepartures: [],
+      purchasedTicketKey: null,
+    },
+    travel: {
+      pending: null,
+      pendingTimer: null,
+      animation: null,
+    },
+    agent: {
+      position: { x: 60, y: 20 },
+      color: "#38bdf8",
+      stats: {
+        level: 1,
+        xp: 0,
+        energy_current: 5,
+      },
+      levelConfig: [],
+      currentCityId: null,
+      currentCityName: null,
+      serverKnownCityId: null,
+      pendingXpReward: 0,
+    },
+    tasks: {
+      list: [],
+      activeTaskId: null,
+      pendingObjectiveRequests: new Set(),
+      objectiveCompletionPromises: new Map(),
+      pendingCelebration: null,
+      revealedTaskIds: new Set(),
+      cardIntroTimeout: null,
+      pendingCardIntroId: null,
+      exitCleanupTimeout: null,
+      celebrationTimeout: null,
+      xpGainHideTimeout: null,
+    },
+    story: {
+      dialogs: [],
+      loading: false,
+      promise: null,
+      confirmHandler: null,
+    },
+    ui: {
+      timetableRaised: false,
+      activeFooterButton: null,
+      labOverview: null,
+      labOverviewLoading: false,
+      cityInfoMapTargets: [],
+      lastSkyPhase: null,
+    },
+  };
+}
