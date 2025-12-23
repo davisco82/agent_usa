@@ -96,3 +96,6 @@ class Agent(db.Model):
 
             # při level-upu můžeš doplnit energii na max (MVP varianta)
             self.energy_current = self.energy_max
+
+            if self.level >= 2 and self.material_current < 10:
+                self.material_current = 10

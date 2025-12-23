@@ -38,7 +38,11 @@ export function createInitialState() {
       stats: {
         level: 1,
         xp: 0,
-        energy_current: 5,
+        energy_current: 0,
+        material_current: 0,
+        material_max: 100,
+        data_current: 0,
+        data_max: 100,
       },
       levelConfig: [],
       currentCityId: null,

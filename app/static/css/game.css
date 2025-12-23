@@ -941,6 +941,108 @@
         display: none;
       }
 
+      .level-up-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(2, 6, 23, 0.82);
+        backdrop-filter: blur(16px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 1.5rem;
+        z-index: 65;
+      }
+
+      .level-up-overlay.hidden {
+        display: none;
+      }
+
+      .level-up-dialog {
+        width: min(820px, 100%);
+        border-radius: 2rem;
+        border: 1px solid rgba(248, 250, 252, 0.12);
+        background: linear-gradient(150deg, rgba(15, 23, 42, 0.98), rgba(30, 41, 59, 0.92));
+        box-shadow: 0 40px 90px rgba(2, 6, 23, 0.75);
+        padding: 2rem 2.4rem 2.2rem;
+      }
+
+      .level-up-header {
+        display: flex;
+        flex-direction: column;
+        gap: 0.6rem;
+        margin-bottom: 1.5rem;
+      }
+
+      .level-up-eyebrow {
+        font-size: 0.7rem;
+        letter-spacing: 0.35em;
+        text-transform: uppercase;
+        color: rgba(148, 163, 184, 0.8);
+      }
+
+      .level-up-title {
+        font-size: 1.6rem;
+        font-weight: 700;
+        color: #f8fafc;
+        margin: 0;
+      }
+
+      .level-up-subtitle {
+        font-size: 0.9rem;
+        color: rgba(226, 232, 240, 0.8);
+        margin: 0;
+      }
+
+      .level-up-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 0.9rem;
+      }
+
+      .level-up-card {
+        border-radius: 1rem;
+        padding: 0.9rem 1rem;
+        border: 1px solid rgba(148, 163, 184, 0.18);
+        background: rgba(15, 23, 42, 0.6);
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+      }
+
+      .level-up-card-title {
+        font-size: 0.95rem;
+        font-weight: 600;
+        color: #e2e8f0;
+      }
+
+      .level-up-card-desc {
+        font-size: 0.75rem;
+        color: rgba(148, 163, 184, 0.85);
+      }
+
+      .level-up-footer {
+        margin-top: 1.6rem;
+        display: flex;
+        justify-content: flex-end;
+      }
+
+      .level-up-cta {
+        border-radius: 999px;
+        padding: 0.55rem 1.6rem;
+        font-size: 0.8rem;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        border: 1px solid rgba(56, 189, 248, 0.45);
+        color: #e0f2fe;
+        background: rgba(14, 116, 144, 0.4);
+        transition: transform 0.2s ease, background 0.2s ease;
+      }
+
+      .level-up-cta:hover {
+        transform: translateY(-1px);
+        background: rgba(14, 116, 144, 0.6);
+      }
+
       .lab-story-dialog {
         width: min(880px, 100%);
         border-radius: 2.4rem;

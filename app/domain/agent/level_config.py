@@ -3,7 +3,13 @@
 AGENT_LEVELS = [
     # level, xp_needed_from_previous_level, energy_max, popis odemčení
     {"level": 1,  "xp_required":   0, "energy_max": 0, "unlock": "Základní cestování mezi městy."},
-    {"level": 2,  "xp_required":  50, "energy_max": 1, "unlock": "+1 energie, malé XP bonusy za mise."},
+    {"level": 2,  "xp_required":  50, "energy_max": 1, "unlock": "Energie, materiály a data jsou nyní dostupné.",
+     "unlock_items": [
+         {"type": "energy", "description": "Základ 1"},
+         {"type": "materials", "description": "Základ 10"},
+         {"type": "data"},
+         {"type": "building", "name": "Dílna"},
+     ]},
     {"level": 3,  "xp_required":  50, "energy_max": 2, "unlock": "Zobrazování základních informací o mlze v okolí města."},
     {"level": 4,  "xp_required": 100, "energy_max": 3, "unlock": "+1 energie, lepší odměny ve malých městech."},
 

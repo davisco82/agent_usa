@@ -2,6 +2,8 @@ export function createUiService({ config, state, dom, time, map, travel, tasks, 
   const uiState = state.ui;
   const trainState = state.train;
   const agentState = state.agent;
+  const levelUpQueue = [];
+  let activeLevelUp = null;
 
   function setActiveFooterButton(key) {
     uiState.activeFooterButton = key;
@@ -738,6 +740,158 @@ export function createUiService({ config, state, dom, time, map, travel, tasks, 
     setTimeout(() => hideTeleportOverlay(), 600);
   }
 
+  function normalizeUnlockItem(item) {
+    if (!item) return null;
+    if (typeof item === "string") {
+      return { type: item };
+    }
+    if (typeof item === "object") {
+      return { ...item };
+    }
+    return null;
+  }
+
+  function buildUnlockItems(entry) {
+    const cfg = entry?.cfg || {};
+    const prevCfg = entry?.prevCfg || {};
+    const items = [];
+
+    const rawUnlocks = Array.isArray(cfg.unlock_items) ? cfg.unlock_items : [];
+    rawUnlocks.forEach((item) => {
+      const normalized = normalizeUnlockItem(item);
+      if (normalized) items.push(normalized);
+    });
+
+    const prevEnergy = typeof prevCfg.energy_max === "number" ? prevCfg.energy_max : null;
+    const nextEnergy = typeof cfg.energy_max === "number" ? cfg.energy_max : null;
+    if (prevEnergy !== null && prevEnergy > 0 && nextEnergy !== null && nextEnergy > prevEnergy) {
+      items.push({ type: "energy_max", amount: nextEnergy - prevEnergy });
+    }
+
+    const prevMaterial = typeof prevCfg.material_max === "number" ? prevCfg.material_max : null;
+    const nextMaterial = typeof cfg.material_max === "number" ? cfg.material_max : null;
+    if (prevMaterial !== null && prevMaterial > 0 && nextMaterial !== null && nextMaterial > prevMaterial) {
+      items.push({ type: "material_max", amount: nextMaterial - prevMaterial });
+    }
+
+    const prevData = typeof prevCfg.data_max === "number" ? prevCfg.data_max : null;
+    const nextData = typeof cfg.data_max === "number" ? cfg.data_max : null;
+    if (prevData !== null && prevData > 0 && nextData !== null && nextData > prevData) {
+      items.push({ type: "data_max", amount: nextData - prevData });
+    }
+
+    if (items.length === 0 && cfg.unlock) {
+      items.push({ type: "info", label: cfg.unlock });
+    }
+
+    return items;
+  }
+
+  function formatUnlockItem(item) {
+    const labels = {
+      energy: "Energie",
+      materials: "Materiály",
+      building: "Nová budova",
+      tool: "Nový nástroj",
+      energy_max: "Max energie",
+      material_max: "Max materiálu",
+      data_max: "Max dat",
+      credits: "Kredity",
+      info: "Odemčeno",
+    };
+
+    const type = item?.type || "info";
+    const baseLabel = item?.label || labels[type] || "Odemčeno";
+    const name = item?.name || item?.title || "";
+    const amount = typeof item?.amount === "number" ? item.amount : null;
+    let label = baseLabel;
+    if ((type === "building" || type === "tool") && name && !item?.label) {
+      label = `${baseLabel}: ${name}`;
+    } else if (name && !item?.label && !amount) {
+      label = name;
+    }
+    if (amount !== null) {
+      const sign = amount > 0 ? "+" : "";
+      label = `${baseLabel} ${sign}${amount}`;
+    }
+    const description = item?.description || item?.desc || "";
+    return { label, description };
+  }
+
+  function renderLevelUp(entry) {
+    if (!dom.levelUpOverlayEl) return;
+    const cfg = entry?.cfg || {};
+    const titleText = `Level ${cfg.level ?? "-"}`;
+    const subtitleText = cfg.unlock || "Nové možnosti odemčeny.";
+
+    if (dom.levelUpTitleEl) {
+      dom.levelUpTitleEl.textContent = titleText;
+    }
+    if (dom.levelUpSubtitleEl) {
+      dom.levelUpSubtitleEl.textContent = subtitleText;
+    }
+    if (dom.levelUpListEl) {
+      dom.levelUpListEl.innerHTML = "";
+      const items = buildUnlockItems(entry);
+      if (items.length === 0) {
+        items.push({ type: "info", label: "Nové možnosti odemčeny." });
+      }
+      items.forEach((item) => {
+        const { label, description } = formatUnlockItem(item);
+        const card = document.createElement("div");
+        card.className = "level-up-card";
+        const title = document.createElement("div");
+        title.className = "level-up-card-title";
+        title.textContent = label;
+        card.appendChild(title);
+        if (description) {
+          const desc = document.createElement("div");
+          desc.className = "level-up-card-desc";
+          desc.textContent = description;
+          card.appendChild(desc);
+        }
+        dom.levelUpListEl.appendChild(card);
+      });
+    }
+
+    dom.levelUpOverlayEl.classList.remove("hidden");
+    dom.levelUpOverlayEl.setAttribute("aria-hidden", "false");
+  }
+
+  function showNextLevelUp() {
+    if (!dom.levelUpOverlayEl) return;
+    if (levelUpQueue.length === 0) {
+      activeLevelUp = null;
+      dom.levelUpOverlayEl.classList.add("hidden");
+      dom.levelUpOverlayEl.setAttribute("aria-hidden", "true");
+      return;
+    }
+    activeLevelUp = levelUpQueue.shift();
+    renderLevelUp(activeLevelUp);
+  }
+
+  function closeLevelUpOverlay() {
+    if (!dom.levelUpOverlayEl) return;
+    dom.levelUpOverlayEl.classList.add("hidden");
+    dom.levelUpOverlayEl.setAttribute("aria-hidden", "true");
+    activeLevelUp = null;
+    if (levelUpQueue.length) {
+      showNextLevelUp();
+    }
+  }
+
+  function queueLevelUps(levelUps = []) {
+    if (!Array.isArray(levelUps) || levelUps.length === 0) return;
+    levelUps.forEach((entry) => {
+      if (entry?.cfg) {
+        levelUpQueue.push(entry);
+      }
+    });
+    if (!activeLevelUp) {
+      showNextLevelUp();
+    }
+  }
+
   function travelToCity(targetCity, options = {}) {
     if (!targetCity) return;
     const { silent = false } = options;
@@ -1162,6 +1316,19 @@ export function createUiService({ config, state, dom, time, map, travel, tasks, 
         handleTeleportSubmit();
       });
     }
+    if (dom.levelUpContinueEl) {
+      dom.levelUpContinueEl.addEventListener("click", (e) => {
+        e.preventDefault();
+        closeLevelUpOverlay();
+      });
+    }
+    if (dom.levelUpOverlayEl) {
+      dom.levelUpOverlayEl.addEventListener("click", (event) => {
+        if (event.target === dom.levelUpOverlayEl) {
+          closeLevelUpOverlay();
+        }
+      });
+    }
   }
 
   return {
@@ -1192,6 +1359,7 @@ export function createUiService({ config, state, dom, time, map, travel, tasks, 
     showTeleportOverlay,
     hideTeleportOverlay,
     handleTeleportSubmit,
+    queueLevelUps,
     populateTeleportSelect,
     updateSidebar,
     renderTimetablePage,

@@ -27,13 +27,17 @@ def _level_cfg(level: int) -> Dict[str, Any] | None:
 def _serialize_agent(agent: Agent | None) -> Dict[str, Any]:
     """Return a consistent payload for the current agent and their location."""
     if not agent:
-        fallback_cfg = _level_cfg(1) or {"energy_max": 5}
-        energy_max = fallback_cfg.get("energy_max", 5)
+        fallback_cfg = _level_cfg(1) or {"energy_max": 0}
+        energy_max = fallback_cfg.get("energy_max", 0)
         return {
             "level": 1,
             "xp": 0,
-            "energy_current": energy_max,
+            "energy_current": 0,
             "energy_max": energy_max,
+            "data_current": 0,
+            "data_max": 100,
+            "material_current": 0,
+            "material_max": 100,
             "current_city_id": None,
             "current_city_name": None,
         }
@@ -46,6 +50,10 @@ def _serialize_agent(agent: Agent | None) -> Dict[str, Any]:
         "xp": agent.xp,
         "energy_current": min(agent.energy_current, energy_max),
         "energy_max": energy_max,
+        "data_current": agent.data_current,
+        "data_max": agent.data_max,
+        "material_current": agent.material_current,
+        "material_max": agent.material_max,
         "current_city_id": agent.current_city_id,
         "current_city_name": agent.current_city.name if agent.current_city else None,
     }
@@ -170,13 +178,13 @@ def api_agent_reset():
     if not agent:
         return jsonify({"error": "Agent not found"}), 404
 
-    base_cfg = _level_cfg(1) or {"energy_max": 5}
-    energy_max = base_cfg.get("energy_max", 5)
+    base_cfg = _level_cfg(1) or {"energy_max": 0}
+    energy_max = base_cfg.get("energy_max", 0)
 
     agent.level = 1
     agent.xp = 0
     agent.energy_max = energy_max
-    agent.energy_current = energy_max
+    agent.energy_current = 0
     agent.current_city_id = None
     agent.current_city = None
     agent.last_city_id = None

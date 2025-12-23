@@ -66,18 +66,18 @@
         </button>
       </div>
       <div class="footer-resources">
-        <div class="energy-meter">
+        <div id="agentEnergyMeter" class="energy-meter hidden">
           <div class="energy-meter__label">Energie</div>
           <div class="energy-meter__bar">
             <div id="agentEnergyBarFill" class="energy-meter__bar-fill"></div>
           </div>
           <div class="energy-meter__value" id="agentEnergyLabel">0 / 100</div>
         </div>
-        <div class="resource-pill resource-pill--data">
+        <div id="agentDataPill" class="resource-pill resource-pill--data hidden">
           <span class="resource-pill__icon">🧮</span>
           <span class="resource-pill__value" id="agentDataLabel">0 / 100</span>
         </div>
-        <div class="resource-pill resource-pill--material">
+        <div id="agentMaterialPill" class="resource-pill resource-pill--material hidden">
           <span class="resource-pill__icon">🧱</span>
           <span class="resource-pill__value" id="agentMaterialLabel">0 / 100</span>
         </div>

@@ -13,9 +13,6 @@ export function initGame() {
   const config = createConfig(dom);
   const state = createInitialState();
   const time = createTimeService({ config, state });
-  const agent = createAgentService({ config, state, dom, time });
-  const map = createMapService({ config, state });
-
   let uiService = null;
   const uiProxy = {
     isLabPanelVisible: () => uiService?.isLabPanelVisible() ?? false,
@@ -28,7 +25,11 @@ export function initGame() {
     renderTimetablePage: () => uiService?.renderTimetablePage(),
     applySkyGradientForMinutes: (minutes) => uiService?.applySkyGradientForMinutes(minutes),
     findDepartureToCity: (name) => uiService?.findDepartureToCity(name),
+    queueLevelUps: (payload) => uiService?.queueLevelUps(payload),
   };
+
+  const agent = createAgentService({ config, state, dom, time, ui: uiProxy });
+  const map = createMapService({ config, state });
 
   const tasks = createTasksService({ state, dom, time, agent, map, ui: uiProxy });
   const travel = createTravelService({ config, state, dom, time, map, agent, ui: uiProxy });
