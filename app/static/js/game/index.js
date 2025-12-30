@@ -35,6 +35,121 @@ export function initGame() {
   const travel = createTravelService({ config, state, dom, time, map, agent, ui: uiProxy });
   uiService = createUiService({ config, state, dom, time, map, travel, tasks, agent });
 
+  function attachDebugApi() {
+    if (typeof window === "undefined") return;
+
+    function refreshTimeUi() {
+      uiService.applySkyGradientForMinutes(time.getGameMinutes());
+      uiService.renderTimetablePage();
+      uiService.updateTimetable();
+      uiService.updateSidebar();
+    }
+
+    function getLevelForXp(xp) {
+      const cfg = state.agent.levelConfig || [];
+      let level = 1;
+      for (const entry of cfg) {
+        const threshold = entry._xp_total ?? 0;
+        if (xp >= threshold) {
+          level = entry.level;
+        } else {
+          break;
+        }
+      }
+      return level;
+    }
+
+    function setXp(totalXp) {
+      const safeXp = Math.max(0, Math.round(totalXp || 0));
+      state.agent.stats.xp = safeXp;
+      const nextLevel = getLevelForXp(safeXp);
+      state.agent.stats.level = nextLevel;
+      const levelCfg = state.agent.levelConfig?.find((entry) => entry.level === nextLevel);
+      if (levelCfg) {
+        state.agent.stats.energy_current = levelCfg.energy_max ?? state.agent.stats.energy_current ?? 0;
+      }
+      agent.updateAgentHeader();
+      return safeXp;
+    }
+
+    window.debugGame = {
+      help: () => ({
+        addXp: "addXp(amount)",
+        setXp: "setXp(totalXp)",
+        setLevel: "setLevel(level)",
+        addMinutes: "addMinutes(minutes)",
+        setMinutes: "setMinutes(totalMinutes)",
+        completeObjective: "completeObjective(taskId, objectiveIndex)",
+        completeAllObjectives: "completeAllObjectives(taskId)",
+        reloadTasks: "reloadTasks()",
+        listTasks: "listTasks()",
+        setActiveTask: "setActiveTask(taskId)",
+        teleport: "teleport(cityNameOrId)",
+      }),
+      addXp: (amount = 0) => {
+        const delta = Math.round(amount || 0);
+        if (delta > 0) {
+          agent.grantTravelXp(delta);
+          return state.agent.stats.xp;
+        }
+        return setXp((state.agent.stats.xp || 0) + delta);
+      },
+      setXp,
+      setLevel: (level = 1) => {
+        const cfg = state.agent.levelConfig || [];
+        const clamped = Math.max(1, Math.round(level || 1));
+        if (!cfg.length) return setXp(0);
+        const target = cfg.find((entry) => entry.level === clamped) || cfg[cfg.length - 1];
+        const xpTarget = target?._xp_total ?? 0;
+        return setXp(xpTarget);
+      },
+      addMinutes: (minutes = 0) => {
+        const delta = Math.round(minutes || 0);
+        time.setGameMinutes(Math.max(0, time.getGameMinutes() + delta));
+        time.markUnsaved();
+        refreshTimeUi();
+        return time.getGameMinutes();
+      },
+      setMinutes: (minutes = 0) => {
+        time.setGameMinutes(Math.max(0, Math.round(minutes || 0)));
+        time.markUnsaved();
+        refreshTimeUi();
+        return time.getGameMinutes();
+      },
+      completeObjective: (taskId, objectiveIndex) => tasks.completeTaskObjective(taskId, objectiveIndex),
+      completeAllObjectives: async (taskId) => {
+        const task = state.tasks.list.find((entry) => entry.id === taskId);
+        if (!task) return false;
+        const total = Array.isArray(task.objectives) ? task.objectives.length : 0;
+        for (let i = 0; i < total; i += 1) {
+          await tasks.completeTaskObjective(taskId, i);
+        }
+        return true;
+      },
+      reloadTasks: () => tasks.loadAgentTasks(),
+      listTasks: () =>
+        (state.tasks.list || []).map((task) => ({
+          id: task.id,
+          title: task.title,
+          status: task.status,
+          progress: task.progress,
+          objectives: Array.isArray(task.objectives) ? task.objectives.length : 0,
+        })),
+      setActiveTask: (taskId) => tasks.setActiveTask(taskId),
+      teleport: (nameOrId) => {
+        const city =
+          map.getCityById(nameOrId) ||
+          map.getCityByNameInsensitive(String(nameOrId || ""));
+        if (!city) return false;
+        uiService.travelToCity(city, { silent: true });
+        uiService.updateSidebar();
+        return true;
+      },
+    };
+  }
+
+  attachDebugApi();
+
   map.initMapImage(() => {
     uiService.renderCityInfoMap(uiService.getCurrentCitySnapshot());
   });

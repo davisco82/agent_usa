@@ -299,20 +299,13 @@ def complete_objective_step(agent: Agent, task_id: str, objective_index: int) ->
     _update_progress(active, template)
 
     all_completed = all(completed_flags)
-    xp_awarded = 0
-    if all_completed and not active.reward_claimed:
-        reward_text = template.get("reward", "")
-        xp_awarded = extract_total_xp_from_reward(reward_text)
-        agent.xp = (agent.xp or 0) + xp_awarded
-        active.reward_claimed = True
-        active.status = "rewarded"
-    elif all_completed:
+    if all_completed:
         active.status = "completed"
 
     db.session.commit()
 
     payload = serialize_active_task(active)
-    return {"ok": True, "task": payload, "xp_awarded": xp_awarded}
+    return {"ok": True, "task": payload}
 
 
 def _active_tasks_for_agent(agent: Agent) -> List[ActiveTask]:
@@ -321,7 +314,11 @@ def _active_tasks_for_agent(agent: Agent) -> List[ActiveTask]:
 
 def ensure_task_pipeline(agent: Agent) -> List[ActiveTask]:
     tasks = _active_tasks_for_agent(agent)
-    has_pending = any(task.status == "active" for task in tasks)
+    has_pending = any(
+        task.status == "active"
+        or (task.status == "completed" and not task.reward_claimed)
+        for task in tasks
+    )
     if has_pending:
         return tasks
 
@@ -351,7 +348,9 @@ def list_task_payloads(agent: Agent) -> List[Dict[str, Any]]:
     tasks = ensure_task_pipeline(agent)
     payloads: List[Dict[str, Any]] = []
     for active in tasks:
-        if active.status != "active":
+        if active.status == "completed" and active.reward_claimed:
+            continue
+        if active.status not in ("active", "completed"):
             continue
         payload = serialize_active_task(active)
         if payload:
@@ -370,7 +369,7 @@ def complete_task(active_task: ActiveTask) -> None:
     db.session.commit()
 
 
-def claim_reward(agent: Agent, task_id: str) -> bool:
+def claim_reward(agent: Agent, task_id: str) -> Dict[str, Any]:
     """
     Přidělí odměnu z templatu agentovi, pokud úkol je completed a
     ještě nebyla přidělena.
@@ -381,36 +380,38 @@ def claim_reward(agent: Agent, task_id: str) -> bool:
     ).first()
 
     if not active:
-        return False
+        return {"ok": False, "reason": "task_not_found"}
 
     if active.status != "completed":
-        return False
+        return {"ok": False, "reason": "task_not_completed"}
 
     if active.reward_claimed:
-        return False
+        return {"ok": False, "reason": "reward_already_claimed"}
 
     template = get_task_template(task_id)
     if not template:
-        return False
+        return {"ok": False, "reason": "template_not_found"}
 
     reward_text = template.get("reward", "")  # např. "80 XP, +40 DATA"
     xp = extract_total_xp_from_reward(reward_text)
-    agent.xp = (agent.xp or 0) + xp
+    agent.gain_xp(xp)
 
     # velmi jednoduché parsování MATERIAL / DATA / ENERGY podle stringu
     # můžeš si to nahradit vlastní logikou
     if "+40 DATA" in reward_text:
-        agent.data = (agent.data or 0) + 40
+        agent.data_current = (agent.data_current or 0) + 40
     if "+10 MATERIAL" in reward_text:
-        agent.material = (agent.material or 0) + 10
+        agent.material_current = (agent.material_current or 0) + 10
     if "+10 ENERGY" in reward_text:
-        agent.energy = (agent.energy or 0) + 10
+        agent.energy_current = (agent.energy_current or 0) + 10
 
     active.reward_claimed = True
     active.status = "rewarded"
 
     db.session.commit()
-    return True
+
+    payload = serialize_active_task(active)
+    return {"ok": True, "task": payload, "xp_awarded": xp}
 
 
 def unlock_next_tasks(agent: Agent, completed_task_id: str) -> List[ActiveTask]:

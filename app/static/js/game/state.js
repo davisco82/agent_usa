@@ -53,6 +53,8 @@ export function createInitialState() {
     tasks: {
       list: [],
       activeTaskId: null,
+      detailTaskOverride: null,
+      claimInFlight: false,
       pendingObjectiveRequests: new Set(),
       objectiveCompletionPromises: new Map(),
       pendingCelebration: null,

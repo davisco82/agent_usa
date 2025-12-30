@@ -1275,6 +1275,41 @@ export function createUiService({ config, state, dom, time, map, travel, tasks, 
         }
       });
     }
+    if (dom.closeLabPanelBtn) {
+      dom.closeLabPanelBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        showLabPanel(false);
+        setActiveFooterButton(null);
+      });
+    }
+    if (dom.closeMarketPanelBtn) {
+      dom.closeMarketPanelBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        showMarketPanel(false);
+        setActiveFooterButton(null);
+      });
+    }
+    if (dom.closeWorkshopPanelBtn) {
+      dom.closeWorkshopPanelBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        showWorkshopPanel(false);
+        setActiveFooterButton(null);
+      });
+    }
+    if (dom.closeCityInfoPanelBtn) {
+      dom.closeCityInfoPanelBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        hideCityInfoPanel();
+        setActiveFooterButton(null);
+      });
+    }
+    if (dom.closeTimetablePanelBtn) {
+      dom.closeTimetablePanelBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        showTimetablePanel(false);
+        setActiveFooterButton(null);
+      });
+    }
     if (dom.restartButton) {
       dom.restartButton.addEventListener("click", async (e) => {
         e.preventDefault();

@@ -50,10 +50,18 @@ export function createTasksService({ state, dom, time, agent, map, ui }) {
     return taskState.list[0];
   }
 
+  function getTaskForDetail() {
+    if (taskState.detailTaskOverride) {
+      return taskState.detailTaskOverride;
+    }
+    return getActiveTask();
+  }
+
   function setActiveTask(taskId) {
     if (!taskId || taskId === taskState.activeTaskId) return;
     const exists = taskState.list.some((task) => task.id === taskId);
     if (!exists) return;
+    taskState.detailTaskOverride = null;
     taskState.activeTaskId = taskId;
     renderTaskCard();
     renderTaskDetailPanel();
@@ -88,6 +96,77 @@ export function createTasksService({ state, dom, time, agent, map, ui }) {
     }
   }
 
+  function buildDetailOverride(task) {
+    const normalized = normalizeTaskPayload(task);
+    if (!normalized) return null;
+    if (normalized.status === "completed" || normalized.status === "rewarded") {
+      normalized.completed_objectives = Array(normalized.objectives.length).fill(true);
+      normalized.progress = 1;
+    }
+    return normalized;
+  }
+
+  function playTaskCompleteSound() {
+    if (!dom.taskCompleteSound) return;
+    try {
+      dom.taskCompleteSound.currentTime = 0;
+      dom.taskCompleteSound.play().catch(() => {});
+    } catch (err) {
+      console.warn("Task completion sound failed:", err);
+    }
+  }
+
+  function exitTaskCard() {
+    if (!dom.taskCardEl) return;
+    if (taskState.cardIntroTimeout) {
+      clearTimeout(taskState.cardIntroTimeout);
+      taskState.cardIntroTimeout = null;
+    }
+    if (taskState.exitCleanupTimeout) {
+      clearTimeout(taskState.exitCleanupTimeout);
+    }
+    dom.taskCardEl.classList.remove("task-card--intro-animating");
+    dom.taskCardEl.classList.add("task-card--exit-right");
+    taskState.exitCleanupTimeout = setTimeout(() => {
+      taskState.exitCleanupTimeout = null;
+      dom.taskCardEl.classList.remove("task-card--exit-right");
+      dom.taskCardEl.classList.add("task-card--intro-hidden");
+    }, 600);
+  }
+
+  async function claimTaskReward(taskId) {
+    if (!taskId || taskState.claimInFlight) return;
+    taskState.claimInFlight = true;
+    if (dom.taskClaimRewardBtn) {
+      dom.taskClaimRewardBtn.disabled = true;
+    }
+    try {
+      const res = await fetch(`/api/tasks/${taskId}/claim`, { method: "POST" });
+      if (!res.ok) throw new Error("Reward claim failed");
+      const data = await res.json();
+      if (data?.task) {
+        upsertTask(data.task);
+      }
+      showTaskDetailPanel(false);
+      taskState.detailTaskOverride = null;
+      exitTaskCard();
+      const xpAwarded = data?.xp_awarded || 0;
+      setTimeout(async () => {
+        if (xpAwarded) {
+          agent.grantTravelXp(xpAwarded);
+        }
+        await loadAgentTasks();
+      }, 650);
+    } catch (err) {
+      console.error("Reward claim failed:", err);
+    } finally {
+      taskState.claimInFlight = false;
+      if (dom.taskClaimRewardBtn) {
+        dom.taskClaimRewardBtn.disabled = false;
+      }
+    }
+  }
+
   function completeTaskObjective(taskId, objectiveIndex) {
     if (!taskId || objectiveIndex === undefined || objectiveIndex === null) return null;
     const key = `${taskId}:${objectiveIndex}`;
@@ -106,8 +185,11 @@ export function createTasksService({ state, dom, time, agent, map, ui }) {
         let shouldReloadTasks = false;
         if (data?.task) {
           upsertTask(data.task);
-          if (data.task.status === "rewarded") {
-            shouldReloadTasks = true;
+          if (data.task.status === "completed") {
+            taskState.detailTaskOverride = buildDetailOverride(data.task);
+            showTaskDetailPanel(true);
+            renderTaskDetailPanel();
+            playTaskCompleteSound();
           }
           if (data.task.status === "completed" || data.task.status === "rewarded") {
             time.persistGameMinutes();
@@ -118,13 +200,6 @@ export function createTasksService({ state, dom, time, agent, map, ui }) {
           shouldReloadTasks = true;
         }
         if (shouldReloadTasks) {
-          if (!taskState.pendingCelebration && (data?.task?.status === "rewarded" || data?.xp_awarded)) {
-            taskState.pendingCelebration = {
-              completedTitle: data?.task?.title || null,
-              xpAwarded: data?.xp_awarded || 0,
-              rewardText: data?.task?.reward || null,
-            };
-          }
           await loadAgentTasks();
         } else {
           renderTaskCard();
@@ -152,16 +227,25 @@ export function createTasksService({ state, dom, time, agent, map, ui }) {
     evaluateVisitObjectives(city);
   }
 
+  function normalizeCityName(value) {
+    return (value || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-zA-Z0-9]+/g, " ")
+      .trim()
+      .toLowerCase();
+  }
+
   function evaluateVisitObjectives(city) {
     if (!city || !city.name) return;
-    const cityName = city.name.toLowerCase();
+    const cityName = normalizeCityName(city.name);
     taskState.list.forEach((task) => {
       const triggers = task.objective_triggers || [];
       const completed = task.completed_objectives || [];
       triggers.forEach((trigger, index) => {
         if (completed[index]) return;
         if (trigger?.type === "visit_city") {
-          const triggerName = (trigger.city_name || "").toLowerCase();
+          const triggerName = normalizeCityName(trigger.city_name);
           if (triggerName && triggerName === cityName) {
             triggerObjectiveCompletion(task.id, index);
           }
@@ -385,35 +469,44 @@ export function createTasksService({ state, dom, time, agent, map, ui }) {
       !dom.taskDetailTitleEl ||
       !dom.taskDetailSubtitleEl ||
       !dom.taskDetailLocationEl ||
-      !dom.taskDetailPriorityEl ||
-      !dom.taskDetailEtaEl ||
       !dom.taskDetailDescEl ||
       !dom.taskObjectiveListEl ||
-      !dom.taskRewardLabelEl ||
-      !dom.taskStatusLabelEl
+      !dom.taskRewardLabelEl
     ) {
       return;
     }
 
-    const task = getActiveTask();
+    const task = getTaskForDetail();
     if (!task) {
       dom.taskDetailTitleEl.textContent = "Žádný aktivní úkol";
       dom.taskDetailSubtitleEl.textContent = "Jakmile HQ přiřadí operaci, uvidíš ji tady.";
       dom.taskDetailLocationEl.textContent = "---";
-      dom.taskDetailPriorityEl.textContent = "-";
-      dom.taskDetailEtaEl.textContent = "-";
       dom.taskDetailDescEl.textContent = "Čekáme na instrukce velitelství.";
       dom.taskObjectiveListEl.innerHTML = `<li class="text-slate-400">Žádné kroky nejsou zadány.</li>`;
       dom.taskRewardLabelEl.textContent = "-";
-      dom.taskStatusLabelEl.textContent = "-";
+      if (dom.taskStatusBadgeEl) {
+        dom.taskStatusBadgeEl.classList.add("hidden");
+        dom.taskStatusBadgeEl.textContent = "-";
+        dom.taskStatusBadgeEl.removeAttribute("data-status");
+      }
+      if (dom.taskCompletionBannerEl) {
+        dom.taskCompletionBannerEl.classList.add("hidden");
+      }
+      if (dom.taskClaimRewardBtn) {
+        dom.taskClaimRewardBtn.classList.add("hidden");
+        dom.taskClaimRewardBtn.disabled = true;
+      }
+      if (dom.taskDetailPanelEl) {
+        dom.taskDetailPanelEl.classList.remove("task-detail--completed");
+      }
       return;
     }
 
     dom.taskDetailTitleEl.textContent = task.title;
     dom.taskDetailSubtitleEl.textContent = task.summary;
     dom.taskDetailLocationEl.textContent = task.location || "---";
-    dom.taskDetailPriorityEl.textContent = task.priority || "Standard";
-    dom.taskDetailEtaEl.textContent = task.eta || "—";
+    if (dom.taskDetailPriorityEl) dom.taskDetailPriorityEl.textContent = task.priority || "Standard";
+    if (dom.taskDetailEtaEl) dom.taskDetailEtaEl.textContent = task.eta || "—";
     dom.taskDetailDescEl.textContent = task.description || "-";
     const objectives = task.objectives || [];
     const completed = task.completed_objectives || [];
@@ -451,13 +544,48 @@ export function createTasksService({ state, dom, time, agent, map, ui }) {
       });
     });
     dom.taskRewardLabelEl.textContent = task.reward || "-";
-    dom.taskStatusLabelEl.textContent = task.status || "-";
+    if (dom.taskStatusBadgeEl) {
+      const status = (task.status || "").toLowerCase();
+      const labels = {
+        active: "Probíhá",
+        completed: "Úkol splněn",
+        rewarded: "Odměna vyzvednuta",
+      };
+      dom.taskStatusBadgeEl.textContent = labels[status] || "Neznámý stav";
+      dom.taskStatusBadgeEl.classList.remove("hidden");
+      if (status) {
+        dom.taskStatusBadgeEl.setAttribute("data-status", status);
+      } else {
+        dom.taskStatusBadgeEl.removeAttribute("data-status");
+      }
+    }
+    const isCompleted = task.status === "completed" || task.status === "rewarded";
+    if (dom.taskCompletionBannerEl) {
+      dom.taskCompletionBannerEl.classList.toggle("hidden", !isCompleted);
+      dom.taskCompletionBannerEl.classList.toggle("task-completion-banner--visible", isCompleted);
+      const bannerText = task.status === "rewarded" ? "Odměna převzata." : "Odměna je připravena k vyzvednutí.";
+      const body = dom.taskCompletionBannerEl.querySelector(".task-completion-banner__body");
+      if (body) {
+        body.textContent = bannerText;
+      }
+    }
+    if (dom.taskClaimRewardBtn) {
+      const canClaim = task.status === "completed" && !task.reward_claimed;
+      dom.taskClaimRewardBtn.classList.toggle("hidden", !canClaim);
+      dom.taskClaimRewardBtn.disabled = !canClaim || taskState.claimInFlight;
+    }
+    if (dom.taskDetailPanelEl) {
+      dom.taskDetailPanelEl.classList.toggle("task-detail--completed", isCompleted);
+    }
   }
 
   function showTaskDetailPanel(show) {
     if (!dom.taskDetailPanelEl) return;
     const shouldShow = !!show;
     dom.taskDetailPanelEl.classList.toggle("hidden", !shouldShow);
+    if (!shouldShow) {
+      taskState.detailTaskOverride = null;
+    }
     if (shouldShow) {
       if (state.ui.activeFooterButton) {
         ui.setActiveFooterButton(null);
@@ -731,7 +859,9 @@ export function createTasksService({ state, dom, time, agent, map, ui }) {
           taskState.pendingCardIntroId = null;
         }
         if (event.animationName === "taskCardExitRight") {
-          hideTaskCelebration(true);
+          if (dom.taskCardEl.classList.contains("task-card--celebrating")) {
+            hideTaskCelebration(true);
+          }
         }
       });
 
@@ -755,6 +885,15 @@ export function createTasksService({ state, dom, time, agent, map, ui }) {
         showTaskDetailPanel(false);
       });
     }
+
+    if (dom.taskClaimRewardBtn) {
+      dom.taskClaimRewardBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        const task = getTaskForDetail();
+        if (!task || !task.id) return;
+        claimTaskReward(task.id);
+      });
+    }
   }
 
   return {
@@ -769,6 +908,7 @@ export function createTasksService({ state, dom, time, agent, map, ui }) {
     loadAgentTasks,
     loadStoryDialogs,
     maybeShowStoryOverlay,
+    completeTaskObjective,
     initTaskEvents,
   };
 }

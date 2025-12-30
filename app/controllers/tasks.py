@@ -4,6 +4,7 @@ from flask import Blueprint, jsonify
 
 from app.models.agent import Agent
 from app.services.task_service import (
+    claim_reward,
     complete_objective_step,
     ensure_task_pipeline,
     get_pending_story_dialogs,
@@ -43,6 +44,25 @@ def api_complete_task_objective(task_id: str, objective_index: int):
         return jsonify({"error": "Agent not found"}), 404
 
     result = complete_objective_step(agent, task_id, objective_index)
+    if not result.get("ok"):
+        return jsonify({"error": result.get("reason", "unknown")}), 400
+
+    ensure_task_pipeline(agent)
+
+    response = {"task": result.get("task")}
+    if result.get("xp_awarded"):
+        response["xp_awarded"] = result["xp_awarded"]
+    return jsonify(response)
+
+
+@bp.post("/<task_id>/claim")
+def api_claim_task_reward(task_id: str):
+    """Claim reward for a completed task."""
+    agent = Agent.query.order_by(Agent.id.asc()).first()
+    if not agent:
+        return jsonify({"error": "Agent not found"}), 404
+
+    result = claim_reward(agent, task_id)
     if not result.get("ok"):
         return jsonify({"error": result.get("reason", "unknown")}), 400
 
