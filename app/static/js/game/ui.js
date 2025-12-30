@@ -4,6 +4,32 @@ export function createUiService({ config, state, dom, time, map, travel, tasks, 
   const agentState = state.agent;
   const levelUpQueue = [];
   let activeLevelUp = null;
+  const unlockRules = {
+    lab: { minLevel: 2 },
+    workshop: { minLevel: 2 },
+    market: { minLevel: 2 },
+    bank: { minLevel: 2 },
+    hq: { minLevel: 2 },
+  };
+
+  function isTaskCompleted(taskId) {
+    if (!taskId || !Array.isArray(state.tasks.list)) return false;
+    const task = state.tasks.list.find((entry) => entry.id === taskId);
+    if (!task) return false;
+    return task.status === "completed" || task.status === "rewarded";
+  }
+
+  function isUnlocked(key) {
+    const rule = unlockRules[key];
+    if (!rule) return true;
+    const level = agentState.stats.level || 1;
+    const minLevelOk = !rule.minLevel || level >= rule.minLevel;
+    const taskIds = Array.isArray(rule.taskIds) ? rule.taskIds : [];
+    if (!taskIds.length) return minLevelOk;
+    const completedCount = taskIds.filter(isTaskCompleted).length;
+    const taskOk = rule.taskUnlockMode === "all" ? completedCount === taskIds.length : completedCount > 0;
+    return minLevelOk || taskOk;
+  }
 
   function setActiveFooterButton(key) {
     uiState.activeFooterButton = key;
@@ -126,7 +152,7 @@ export function createUiService({ config, state, dom, time, map, travel, tasks, 
 
   function updateLabAvailability(city) {
     if (!dom.labBtn) return;
-    const allowed = !!city && city.importance === 1;
+    const allowed = isUnlocked("lab") && !!city && city.importance === 1;
     dom.labBtn.classList.toggle("hidden", !allowed);
     dom.labBtn.setAttribute("aria-disabled", allowed ? "false" : "true");
     if (!allowed && dom.labPanelEl) {
@@ -139,7 +165,7 @@ export function createUiService({ config, state, dom, time, map, travel, tasks, 
 
   function updateWorkshopAvailability(city) {
     if (!dom.workshopBtn) return;
-    const allowed = !!city && city.importance !== 1;
+    const allowed = isUnlocked("workshop") && !!city && city.importance !== 1;
     dom.workshopBtn.classList.toggle("hidden", !allowed);
     dom.workshopBtn.setAttribute("aria-disabled", allowed ? "false" : "true");
     if (!allowed && dom.workshopPanelEl) {
@@ -152,14 +178,27 @@ export function createUiService({ config, state, dom, time, map, travel, tasks, 
 
   function updateBankAvailability(city) {
     if (!dom.bankBtn) return;
-    const allowed = !!city && city.importance === 1;
+    const allowed = isUnlocked("bank") && !!city && city.importance === 1;
     dom.bankBtn.classList.toggle("hidden", !allowed);
     dom.bankBtn.setAttribute("aria-disabled", allowed ? "false" : "true");
   }
 
+  function updateMarketAvailability(city) {
+    if (!dom.marketBtn) return;
+    const allowed = isUnlocked("market") && !!city;
+    dom.marketBtn.classList.toggle("hidden", !allowed);
+    dom.marketBtn.setAttribute("aria-disabled", allowed ? "false" : "true");
+    if (!allowed && dom.marketPanelEl) {
+      dom.marketPanelEl.classList.add("hidden");
+    }
+    if (!allowed && uiState.activeFooterButton === "market") {
+      setActiveFooterButton(null);
+    }
+  }
+
   function updateHqAvailability(city) {
     if (!dom.hqBtn) return;
-    const allowed = !!city && (city.importance === 1 || city.importance === 2);
+    const allowed = isUnlocked("hq") && !!city && (city.importance === 1 || city.importance === 2);
     dom.hqBtn.classList.toggle("hidden", !allowed);
     dom.hqBtn.setAttribute("aria-disabled", allowed ? "false" : "true");
   }
@@ -607,6 +646,10 @@ export function createUiService({ config, state, dom, time, map, travel, tasks, 
   function showMarketPanel(show) {
     if (!dom.marketPanelEl) return;
     const shouldShow = !!show;
+    const allowed = !dom.marketBtn || !dom.marketBtn.classList.contains("hidden");
+    if (shouldShow && !allowed) {
+      return;
+    }
     dom.marketPanelEl.classList.toggle("hidden", !shouldShow);
     if (shouldShow) {
       hideCityInfoPanel();
@@ -934,6 +977,7 @@ export function createUiService({ config, state, dom, time, map, travel, tasks, 
       updateWorkshopAvailability(null);
       updateBankAvailability(null);
       updateHqAvailability(null);
+      updateMarketAvailability(null);
       renderMarketPanel(null);
       if (timeEl || weekEl) {
         const { weekText, timeText } = time.formatWeekAndTime(time.getGameMinutes());
@@ -960,6 +1004,7 @@ export function createUiService({ config, state, dom, time, map, travel, tasks, 
     updateWorkshopAvailability(city);
     updateBankAvailability(city);
     updateHqAvailability(city);
+    updateMarketAvailability(city);
     renderMarketPanel(city);
     renderCityInfo();
     maybeShowCityImage(city);
@@ -1383,6 +1428,7 @@ export function createUiService({ config, state, dom, time, map, travel, tasks, 
     updateWorkshopAvailability,
     updateBankAvailability,
     updateHqAvailability,
+    updateMarketAvailability,
     renderLabPanel,
     loadLabPanelData,
     renderMarketPanel,
