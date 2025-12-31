@@ -21,6 +21,7 @@ export function getDomRefs() {
     travelOverlayEl: document.getElementById("travelOverlay"),
     travelDistanceLabel: document.getElementById("travelDistanceLabel"),
     travelClockLabel: document.getElementById("travelClockLabel"),
+    travelWeekLabel: document.getElementById("travelWeekLabel"),
     travelTrainImg: document.getElementById("travelTrainImg"),
     travelTopType: document.getElementById("travelTopType"),
     travelTopSpeed: document.getElementById("travelTopSpeed"),

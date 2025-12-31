@@ -90,6 +90,10 @@ export function createTravelService({ config, state, dom, time, map, agent, ui }
     if (dom.travelClockLabel) {
       const displayMinutes = Math.floor(currentMinutes);
       dom.travelClockLabel.textContent = time.formatGameTime(displayMinutes);
+      if (dom.travelWeekLabel) {
+        const { weekText } = time.formatWeekAndTime(displayMinutes);
+        dom.travelWeekLabel.textContent = weekText;
+      }
     }
   }
 
