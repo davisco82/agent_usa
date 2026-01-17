@@ -140,7 +140,20 @@ export function createAgentService({ config, state, dom, time, ui }) {
     if (!dom.xpGainBadgeEl || !amount || amount <= 0) return;
     dom.xpGainBadgeEl.textContent = `+${amount} XP`;
     dom.xpGainBadgeEl.setAttribute("aria-hidden", "false");
+    dom.xpGainBadgeEl.classList.remove("xp-gain-badge--visible");
+    void dom.xpGainBadgeEl.offsetWidth;
     dom.xpGainBadgeEl.classList.add("xp-gain-badge--visible");
+    if (dom.agentLevelProgressEl) {
+      dom.agentLevelProgressEl.classList.remove("level-progress--gain");
+      void dom.agentLevelProgressEl.offsetWidth;
+      dom.agentLevelProgressEl.classList.add("level-progress--gain");
+      if (state.tasks.xpGainPulseTimeout) {
+        clearTimeout(state.tasks.xpGainPulseTimeout);
+      }
+      state.tasks.xpGainPulseTimeout = setTimeout(() => {
+        dom.agentLevelProgressEl.classList.remove("level-progress--gain");
+      }, 900);
+    }
     if (state.tasks.xpGainHideTimeout) {
       clearTimeout(state.tasks.xpGainHideTimeout);
     }

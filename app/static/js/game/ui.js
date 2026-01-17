@@ -5,9 +5,9 @@ export function createUiService({ config, state, dom, time, map, travel, tasks, 
   const levelUpQueue = [];
   let activeLevelUp = null;
   const unlockRules = {
-    lab: { minLevel: 2 },
+    lab: { minLevel: 1 },
     workshop: { minLevel: 2 },
-    market: { minLevel: 2 },
+    market: { minLevel: 1 },
     bank: { minLevel: 2 },
     hq: { minLevel: 2 },
   };
@@ -861,11 +861,126 @@ export function createUiService({ config, state, dom, time, map, travel, tasks, 
     return { label, description };
   }
 
+  function joinList(parts = []) {
+    if (parts.length <= 1) return parts[0] || "";
+    if (parts.length === 2) return `${parts[0]} a ${parts[1]}`;
+    return `${parts.slice(0, -1).join(", ")} a ${parts[parts.length - 1]}`;
+  }
+
+  function buildLevelUpSummary(items = [], cfg = {}) {
+    const hasEnergy = items.some((item) => ["energy", "energy_max"].includes(item?.type));
+    const hasMaterials = items.some((item) => ["materials", "material_max"].includes(item?.type));
+    const hasData = items.some((item) => ["data", "data_max"].includes(item?.type));
+    const buildings = items
+      .filter((item) => item?.type === "building" && item?.name)
+      .map((item) => {
+        if (item?.description) {
+          return `${item.name} (${item.description.replace(/\.$/, "")})`;
+        }
+        return item.name;
+      });
+    const tools = items.filter((item) => item?.type === "tool" && item?.name).map((item) => item.name);
+    const credits = items
+      .filter((item) => item?.type === "credits" && typeof item?.amount === "number")
+      .map((item) => {
+        const sign = item.amount > 0 ? "+" : "";
+        return `${sign}${item.amount} kreditů`;
+      });
+    const extraLabels = items
+      .filter((item) => !["energy", "energy_max", "materials", "material_max", "data", "data_max", "building", "tool", "credits"].includes(item?.type))
+      .map((item) => formatUnlockItem(item).label)
+      .filter(Boolean);
+    const parts = [];
+    const resourceParts = [];
+    if (hasEnergy) resourceParts.push("energii");
+    if (hasMaterials) resourceParts.push("materiálům");
+    if (hasData) resourceParts.push("datům");
+    if (resourceParts.length) {
+      parts.push(`získali přístup k ${joinList(resourceParts)}`);
+    }
+    if (buildings.length) {
+      parts.push(`${buildings.length > 1 ? "odemkly se vám nové budovy" : "odemkla se vám nová budova"} ${joinList(buildings)}`);
+    }
+    if (tools.length) {
+      parts.push(`${tools.length > 1 ? "získali jste nové nástroje" : "získali jste nový nástroj"} ${joinList(tools)}`);
+    }
+    if (credits.length) {
+      parts.push(`získali jste ${joinList(credits)}`);
+    }
+    if (extraLabels.length) {
+      parts.push(`odemkli jste ${joinList(extraLabels)}`);
+    }
+    if (!parts.length) {
+      return cfg.unlock || "Nové možnosti odemčeny.";
+    }
+    return `Díky tomuto levelu jste ${parts.join(" a ")}.`;
+  }
+
+  function getBuildingIcon(name) {
+    const label = (name || "").toLowerCase();
+    if (label.includes("dílna") || label.includes("dilna")) {
+      return `
+        <svg viewBox="0 0 32 32" role="presentation" aria-hidden="true">
+          <path d="M9 12l5 5-2 2-5-5" />
+          <path d="M20 8l4 4-7 7-4-4z" />
+          <path d="M17 23l4 4" />
+          <path d="M22 18l4 4" />
+        </svg>
+      `;
+    }
+    return `
+      <svg viewBox="0 0 32 32" role="presentation" aria-hidden="true">
+        <rect x="7" y="11" width="18" height="12" rx="2" ry="2" />
+        <path d="M10 11l6-5 6 5" />
+        <path d="M16 16v7" />
+      </svg>
+    `;
+  }
+
+  function createHighlightCard({ title, description, variant, iconSvg, iconEmoji, meter } = {}) {
+    const card = document.createElement("div");
+    card.className = `level-up-highlight level-up-highlight--${variant || "info"}`;
+
+    const icon = document.createElement("div");
+    icon.className = "level-up-highlight__icon";
+    if (iconSvg) {
+      icon.innerHTML = iconSvg;
+    } else if (iconEmoji) {
+      icon.textContent = iconEmoji;
+    }
+    card.appendChild(icon);
+
+    const body = document.createElement("div");
+    body.className = "level-up-highlight__body";
+    const titleEl = document.createElement("div");
+    titleEl.className = "level-up-highlight__title";
+    titleEl.textContent = title || "Odemčeno";
+    body.appendChild(titleEl);
+    if (description) {
+      const descEl = document.createElement("div");
+      descEl.className = "level-up-highlight__desc";
+      descEl.textContent = description;
+      body.appendChild(descEl);
+    }
+    if (meter) {
+      const meterEl = document.createElement("div");
+      meterEl.className = "level-up-highlight__meter";
+      const fillEl = document.createElement("div");
+      fillEl.className = "level-up-highlight__meter-fill";
+      meterEl.appendChild(fillEl);
+      body.appendChild(meterEl);
+    }
+    card.appendChild(body);
+    return card;
+  }
+
   function renderLevelUp(entry) {
     if (!dom.levelUpOverlayEl) return;
     const cfg = entry?.cfg || {};
     const titleText = `Level ${cfg.level ?? "-"}`;
     const subtitleText = cfg.unlock || "Nové možnosti odemčeny.";
+    const items = buildUnlockItems(entry);
+    const summaryText = buildLevelUpSummary(items, cfg);
 
     if (dom.levelUpTitleEl) {
       dom.levelUpTitleEl.textContent = titleText;
@@ -873,13 +988,81 @@ export function createUiService({ config, state, dom, time, map, travel, tasks, 
     if (dom.levelUpSubtitleEl) {
       dom.levelUpSubtitleEl.textContent = subtitleText;
     }
+    if (dom.levelUpSummaryEl) {
+      dom.levelUpSummaryEl.textContent = summaryText;
+    }
+    if (dom.levelUpLevelValueEl) {
+      dom.levelUpLevelValueEl.textContent = `${cfg.level ?? "-"}`;
+    }
+    if (dom.levelUpHighlightsEl) {
+      dom.levelUpHighlightsEl.innerHTML = "";
+      const highlightItems = [];
+
+      items.forEach((item) => {
+        const type = item?.type;
+        if (["energy", "energy_max", "materials", "material_max", "data", "data_max", "building"].includes(type)) {
+          highlightItems.push(item);
+        }
+      });
+
+      highlightItems.forEach((item) => {
+        const { label, description } = formatUnlockItem(item);
+        if (item.type === "energy" || item.type === "energy_max") {
+          dom.levelUpHighlightsEl.appendChild(
+            createHighlightCard({
+              title: label,
+              description: description || "Nový zdroj energie je aktivní.",
+              variant: "energy",
+              iconSvg:
+                '<svg viewBox="0 0 32 32" role="presentation" aria-hidden="true"><path d="M18 3l-8 14h7l-3 12 10-16h-7z" /></svg>',
+              meter: true,
+            })
+          );
+          return;
+        }
+        if (item.type === "materials" || item.type === "material_max") {
+          dom.levelUpHighlightsEl.appendChild(
+            createHighlightCard({
+              title: label,
+              description: description || "Nové zásoby materiálu připraveny.",
+              variant: "material",
+              iconEmoji: "🧱",
+            })
+          );
+          return;
+        }
+        if (item.type === "data" || item.type === "data_max") {
+          dom.levelUpHighlightsEl.appendChild(
+            createHighlightCard({
+              title: label,
+              description: description || "Datové kanály jsou otevřené.",
+              variant: "data",
+              iconEmoji: "🧮",
+            })
+          );
+          return;
+        }
+        if (item.type === "building") {
+          dom.levelUpHighlightsEl.appendChild(
+            createHighlightCard({
+              title: item.name || label,
+              description: item.description || "Nová budova je dostupná.",
+              variant: "building",
+              iconSvg: getBuildingIcon(item.name),
+            })
+          );
+        }
+      });
+    }
     if (dom.levelUpListEl) {
       dom.levelUpListEl.innerHTML = "";
-      const items = buildUnlockItems(entry);
-      if (items.length === 0) {
-        items.push({ type: "info", label: "Nové možnosti odemčeny." });
+      const listItems = items.filter(
+        (item) => !["energy", "energy_max", "materials", "material_max", "data", "data_max", "building"].includes(item?.type)
+      );
+      if (listItems.length === 0) {
+        listItems.push({ type: "info", label: "Nové možnosti odemčeny." });
       }
-      items.forEach((item) => {
+      listItems.forEach((item) => {
         const { label, description } = formatUnlockItem(item);
         const card = document.createElement("div");
         card.className = "level-up-card";
@@ -1155,13 +1338,13 @@ export function createUiService({ config, state, dom, time, map, travel, tasks, 
         ticketTd.appendChild(buyBtn);
       }
 
+      tr.appendChild(ticketTd);
       tr.appendChild(timeTd);
       tr.appendChild(toTd);
       tr.appendChild(typeTd);
       tr.appendChild(distTd);
       tr.appendChild(travelTd);
       tr.appendChild(arrivalTd);
-      tr.appendChild(ticketTd);
 
       tbody.appendChild(tr);
     });

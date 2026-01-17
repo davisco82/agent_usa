@@ -6,12 +6,27 @@
   aria-hidden="true"
 >
   <div class="level-up-dialog">
-    <div class="level-up-header">
-      <p class="level-up-eyebrow">Nový level</p>
-      <h2 id="levelUpTitle" class="level-up-title">Level -</h2>
-      <p id="levelUpSubtitle" class="level-up-subtitle">Odemčeno</p>
+    <div class="level-up-hero">
+      <div class="level-up-medal">
+        <div class="level-up-circle">
+          <span id="levelUpLevelValue" class="level-up-circle__value">-</span>
+          <div class="level-up-circle__progress">
+            <span class="level-up-circle__label">Nový level</span>
+          </div>
+        </div>
+      </div>
+      <div class="level-up-header">
+        <p class="level-up-eyebrow">Nový level</p>
+        <h2 id="levelUpTitle" class="level-up-title">Level -</h2>
+        <p id="levelUpSubtitle" class="level-up-subtitle">Odemčeno</p>
+        <p id="levelUpSummary" class="level-up-summary"></p>
+      </div>
+      <div class="level-up-agent">
+        <img src="/static/assets/figures/agent_usa.png" alt="Agent" />
+      </div>
     </div>
-    <div id="levelUpList" class="level-up-grid"></div>
+    <div id="levelUpHighlights" class="level-up-highlights"></div>
+    <div id="levelUpList" class="level-up-grid level-up-grid--secondary"></div>
     <div class="level-up-footer">
       <button id="levelUpContinue" class="level-up-cta">Pokračovat</button>
     </div>

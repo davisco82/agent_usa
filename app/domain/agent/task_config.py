@@ -272,20 +272,16 @@ AGENT_TASK_TEMPLATES = [
                 "button_label": "Brífink Dr. Rooka",
                 "title": "Brífink Dr. Rooka",
                 "body": (
-                    "„Dobře, agente… to, co vám teď ukážu, jsem zatím nikomu neposílal.“\n\n"
-                    "Dr. Rook přepne projekci a na obrazovce se rozběhnou nestabilní křivky.\n"
+                    "„Dobře, agente… to, co vám teď ukážu, jsem zatím nikomu neposílal.“ "
+                    "Dr. Rook přepne projekci a na obrazovce se rozběhnou nestabilní křivky.\n\n"
                     "„Ty pulzy se objevují vždy těsně předtím, než se mlha zahustí. Nejde jen o ztrátu energie — "
-                    "mlha ji aktivně narušuje. Jako by… ji rozkládala.“\n\n"
-                    "Na chvíli se odmlčí.\n\n"
+                    "mlha ji aktivně narušuje, jako by ji rozkládala.“\n\n"
                     "„Zkoušel jsem tam dostat standardní měřicí zařízení. Selhala během několika sekund. "
-                    "Všechno, co není energeticky izolované, je v té zóně nepoužitelné.“\n\n"
-                    "„Pokud chceme provést skutečné měření přímo v terénu, budeme potřebovat vlastní zdroj energie. "
-                    "Něco přenosného. Něco, co dokáže udržet stabilní výkon i v přítomnosti mlhy.“\n\n"
-                    "Podívá se na tebe.\n"
-                    "„Já vám dodám data a výpočty. Ale vybavení… to už je na vás. Sežeňte, co bude potřeba. "
-                    "Až budete mít energii pod kontrolou, dejte mi vědět. Pak se můžeme sejít na místě "
-                    "a konečně zjistit, s čím máme tu čest.“\n"
-                    "„A věřte mi — čím dřív, tím lépe. Mám takový dojem, že to nechce zůstat na jednom místě.“"
+                    "Všechno, co není energeticky izolované, je v té zóně nepoužitelné. Potřebujeme vlastní, "
+                    "přenosný zdroj energie, který udrží stabilní výkon i v mlze.“\n\n"
+                    "„Já dodám data a výpočty, ale vybavení je na vás. Sežeňte, co bude potřeba, "
+                    "až budete mít energii pod kontrolou, dejte mi vědět. Pak se sejdeme na místě.“ "
+                    "„A věřte mi — čím dřív, tím lépe. Mám dojem, že to nechce zůstat na jednom místě.“"
                 ),
                 "confirm_label": "Dokončit briefing",
                 "character": {

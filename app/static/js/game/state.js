@@ -64,6 +64,7 @@ export function createInitialState() {
       exitCleanupTimeout: null,
       celebrationTimeout: null,
       xpGainHideTimeout: null,
+      xpGainPulseTimeout: null,
     },
     story: {
       dialogs: [],
