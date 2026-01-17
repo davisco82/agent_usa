@@ -7,31 +7,31 @@
   >
     ✕
   </button>
-  <div class="city-info-layout flex flex-col gap-6 lg:flex-row lg:items-center">
+  <div class="city-info-layout flex flex-col gap-6 lg:flex-row lg:items-start">
     <div class="city-info-copy flex-1 space-y-4">
       <div class="city-info-header flex items-center justify-between">
         <div>
           <p class="city-info-kicker text-[11px] uppercase tracking-[0.3em] text-amber-200/70">Informační centrum</p>
-          <h3 id="cityInfoName" class="city-info-title text-lg font-semibold">-</h3>
-          <p id="cityInfoMeta" class="city-info-meta text-sm text-slate-300">Vyber město na mapě</p>
-          <p id="cityInfoPopulation" class="city-info-pop text-sm font-semibold text-amber-200">Počet obyvatel: -</p>
+          <h3 id="cityInfoName" class="city-info-title text-xl font-semibold">-</h3>
+          <p id="cityInfoMeta" class="city-info-meta text-base text-slate-300">Vyber město na mapě</p>
+          <p id="cityInfoPopulation" class="city-info-pop text-base font-semibold text-amber-200">Počet obyvatel: -</p>
         </div>
       </div>
-      <p id="cityInfoDesc" class="city-info-desc text-xs leading-relaxed text-slate-200 whitespace-pre-line">
+      <p id="cityInfoDesc" class="city-info-desc text-sm text-slate-200 whitespace-pre-line leading-[1.7]">
         Přepni na město a ukážeme ti detaily.
       </p>
-      <div id="cityInfoDetails" class="city-info-details space-y-3 text-sm text-slate-200">
+      <div id="cityInfoDetails" class="city-info-details space-y-3 text-base text-slate-200">
         <!-- Budoucí doplňující informace -->
       </div>
     </div>
     <div
       id="cityInfoMapWrapper"
-      class="city-info-map rounded-2xl overflow-hidden relative max-w-[520px] w-full lg:w-auto"
+      class="city-info-map rounded-2xl overflow-hidden relative max-w-[420px] w-full lg:w-auto ml-[30px]"
     >
       <canvas
         id="cityInfoMap"
-        width="520"
-        height="300"
+        width="420"
+        height="240"
         class="block max-w-full"
         aria-label="Mapa města a přilehlých tras"
       ></canvas>

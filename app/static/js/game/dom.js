@@ -6,6 +6,8 @@ export function getDomRefs() {
   const travelMapCtx = travelMapCanvas ? travelMapCanvas.getContext("2d") : null;
   const cityInfoMapCanvas = document.getElementById("cityInfoMap");
   const cityInfoMapCtx = cityInfoMapCanvas ? cityInfoMapCanvas.getContext("2d") : null;
+  const worldMapCanvas = document.getElementById("worldMapCanvas");
+  const worldMapCtx = worldMapCanvas ? worldMapCanvas.getContext("2d") : null;
 
   return {
     canvas,
@@ -28,6 +30,12 @@ export function getDomRefs() {
     travelDurationLabel: document.getElementById("travelDurationLabel"),
     travelMapCanvas,
     travelMapCtx,
+    worldMapOverlayEl: document.getElementById("worldMapOverlay"),
+    worldMapCanvas,
+    worldMapCtx,
+    worldMapTooltip: document.getElementById("worldMapTooltip"),
+    worldMapBtn: document.getElementById("worldMapBtn"),
+    closeWorldMapBtn: document.getElementById("closeWorldMapBtn"),
     teleportTesterBtn: document.getElementById("teleportTesterBtn"),
     teleportOverlayEl: document.getElementById("teleportOverlay"),
     teleportOverlayCloseBtn: document.getElementById("teleportOverlayClose"),

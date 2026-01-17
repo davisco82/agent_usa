@@ -303,6 +303,53 @@ export function createUiService({ config, state, dom, time, map, travel, tasks, 
     dom.cityInfoMapTooltip.classList.add("hidden");
   }
 
+  function hideWorldMapTooltip() {
+    if (!dom.worldMapTooltip) return;
+    dom.worldMapTooltip.classList.add("hidden");
+  }
+
+  function showWorldMapTooltip(target, clientX, clientY) {
+    if (!dom.worldMapTooltip || !dom.worldMapCanvas) return;
+    const rect = dom.worldMapCanvas.getBoundingClientRect();
+    const x = clientX - rect.left;
+    const y = clientY - rect.top;
+    dom.worldMapTooltip.textContent = target.name;
+    dom.worldMapTooltip.style.left = `${x}px`;
+    dom.worldMapTooltip.style.top = `${y}px`;
+    dom.worldMapTooltip.classList.remove("hidden");
+  }
+
+  function handleWorldMapHover(event) {
+    if (!dom.worldMapCanvas || uiState.worldMapTargets.length === 0) {
+      hideWorldMapTooltip();
+      return;
+    }
+    const rect = dom.worldMapCanvas.getBoundingClientRect();
+    const scaleX = dom.worldMapCanvas.width / rect.width;
+    const scaleY = dom.worldMapCanvas.height / rect.height;
+    const x = (event.clientX - rect.left) * scaleX;
+    const y = (event.clientY - rect.top) * scaleY;
+
+    let nearest = null;
+    let bestDist = Infinity;
+    const threshold = 12;
+    for (const target of uiState.worldMapTargets) {
+      const dx = x - target.x;
+      const dy = y - target.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist < bestDist) {
+        bestDist = dist;
+        nearest = target;
+      }
+    }
+
+    if (nearest && bestDist <= threshold) {
+      showWorldMapTooltip(nearest, event.clientX, event.clientY);
+    } else {
+      hideWorldMapTooltip();
+    }
+  }
+
   function handleCityInfoMapHover(event) {
     if (!dom.cityInfoMapCanvas || uiState.cityInfoMapTargets.length === 0) {
       hideCityInfoMapTooltip();
@@ -340,6 +387,10 @@ export function createUiService({ config, state, dom, time, map, travel, tasks, 
     const ctx = dom.cityInfoMapCtx;
     const width = dom.cityInfoMapCanvas.width;
     const height = dom.cityInfoMapCanvas.height;
+    const offsetX = 30;
+    const offsetY = 0;
+    const mapWidth = Math.max(0, width - 60);
+    const mapHeight = height - offsetY;
 
     ctx.save();
     ctx.clearRect(0, 0, width, height);
@@ -349,7 +400,7 @@ export function createUiService({ config, state, dom, time, map, travel, tasks, 
 
     if (state.map.mapLoaded && state.map.mapImage.complete) {
       ctx.globalAlpha = 0.92;
-      ctx.drawImage(state.map.mapImage, 0, 0, width, height);
+      ctx.drawImage(state.map.mapImage, offsetX, offsetY, mapWidth, mapHeight);
       ctx.globalAlpha = 1;
     }
 
@@ -366,84 +417,136 @@ export function createUiService({ config, state, dom, time, map, travel, tasks, 
 
     const baseWidth = dom.canvas ? dom.canvas.width : 1024;
     const baseHeight = dom.canvas ? dom.canvas.height : 576;
-    const scaleX = width / baseWidth;
-    const scaleY = height / baseHeight;
-    const cx = city.px * scaleX;
-    const cy = city.py * scaleY;
+    const scaleX = mapWidth / baseWidth;
+    const scaleY = mapHeight / baseHeight;
+    const cx = city.px * scaleX + offsetX;
+    const cy = city.py * scaleY + offsetY;
 
-    const connections = map.getConnections(city.name);
-    const metroCities = Array.isArray(state.map.cities) ? state.map.cities.filter((c) => c && c.importance === 1) : [];
+    ctx.beginPath();
+    ctx.fillStyle = "#fbbf24";
+    ctx.shadowColor = "rgba(251, 191, 36, 0.9)";
+    ctx.shadowBlur = 12;
+    ctx.arc(cx, cy, 7, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.beginPath();
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.75)";
+    ctx.lineWidth = 2.2;
+    ctx.arc(cx, cy, 10, 0, Math.PI * 2);
+    ctx.stroke();
 
-    ctx.strokeStyle = "rgba(248, 250, 252, 0.65)";
-    ctx.lineWidth = 2;
-    ctx.lineCap = "round";
-    connections.forEach((target) => {
-      if (!target) return;
-      ctx.beginPath();
-      ctx.moveTo(cx, cy);
-      ctx.lineTo((target.px || 0) * scaleX, (target.py || 0) * scaleY);
-      ctx.stroke();
-    });
+    ctx.restore();
+  }
 
-    const drawCityDot = (c, color, baseRadius, glow = false) => {
-      if (!c) return;
-      const px = (c.px || 0) * scaleX;
-      const py = (c.py || 0) * scaleY;
-      const radius = c.importance === 1 ? baseRadius + 2 : baseRadius;
-      if (glow) {
-        ctx.shadowColor = color;
-        ctx.shadowBlur = 12;
-      } else {
-        ctx.shadowBlur = 0;
-      }
-      ctx.beginPath();
-      ctx.fillStyle = color;
-      ctx.strokeStyle = "#0f172a";
-      ctx.lineWidth = 1.2;
-      ctx.arc(px, py, radius, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-    };
+  function renderWorldMap() {
+    if (!dom.worldMapCtx || !dom.worldMapCanvas) return;
+    const ctx = dom.worldMapCtx;
+    const width = dom.worldMapCanvas.width;
+    const height = dom.worldMapCanvas.height;
+    uiState.worldMapTargets = [];
+    const offsetX = 30;
+    const offsetY = 0;
+    const mapWidth = width - offsetX;
+    const mapHeight = height - offsetY;
 
-    const seenMapTargets = new Set();
-    const registerTarget = (c, label) => {
-      if (!c) return;
-      const key = c.id ?? (c.name || "").toLowerCase();
-      if (!key || seenMapTargets.has(key)) return;
-      seenMapTargets.add(key);
-      uiState.cityInfoMapTargets.push({
-        name: label || c.name,
-        x: (c.px || 0) * scaleX,
-        y: (c.py || 0) * scaleY,
+    ctx.save();
+    ctx.clearRect(0, 0, width, height);
+    ctx.fillStyle = "#020617";
+    ctx.fillRect(0, 0, width, height);
+
+    if (state.map.mapLoaded && state.map.mapImage.complete) {
+      ctx.globalAlpha = 0.95;
+      ctx.drawImage(state.map.mapImage, offsetX, offsetY, mapWidth, mapHeight);
+      ctx.globalAlpha = 1;
+    }
+
+    const baseWidth = config.baseMapWidth || (dom.canvas ? dom.canvas.width : width);
+    const baseHeight = config.baseMapHeight || (dom.canvas ? dom.canvas.height : height);
+    const scaleX = mapWidth / baseWidth;
+    const scaleY = mapHeight / baseHeight;
+
+    const currentCity = map.getCityAt(agentState.position.x, agentState.position.y);
+    const blinkPhase = Math.abs(Math.sin(performance.now() / 900));
+
+    if (currentCity) {
+      const cx = currentCity.px * scaleX + offsetX;
+      const cy = currentCity.py * scaleY + offsetY;
+      const connections = map.getConnections(currentCity.name);
+      ctx.save();
+      ctx.strokeStyle = "rgba(226, 232, 240, 0.7)";
+      ctx.lineWidth = 2;
+      ctx.lineCap = "round";
+      connections.forEach((target) => {
+        if (!target) return;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo((target.px || 0) * scaleX + offsetX, (target.py || 0) * scaleY + offsetY);
+        ctx.stroke();
       });
-    };
+      ctx.restore();
+    }
 
-    metroCities.forEach((metro) => {
-      const isCurrentCity = metro.id === city.id;
-      const alreadyConnection = connections.some((conn) => conn && conn.id === metro.id);
-      const color = isCurrentCity ? "#fbbf24" : alreadyConnection ? "#38bdf8" : "#a5b4fc";
-      const radius = isCurrentCity ? 6 : 3.5;
-      const glow = isCurrentCity;
-      drawCityDot(metro, color, radius, glow);
-      registerTarget(metro);
-    });
+    if (Array.isArray(state.map.cities)) {
+      state.map.cities.forEach((city) => {
+        if (!city) return;
+        const px = (city.px || 0) * scaleX + offsetX;
+        const py = (city.py || 0) * scaleY + offsetY;
+        if (city.importance !== 1) {
+          uiState.worldMapTargets.push({ name: city.name, x: px, y: py });
+        }
+        const baseRadius = city.importance === 1 ? 5.5 : city.importance === 2 ? 4 : 2.8;
+        const color = city.importance === 1 ? "#38bdf8" : "#60a5fa";
+        ctx.beginPath();
+        ctx.fillStyle = color;
+        ctx.strokeStyle = "#0f172a";
+        ctx.lineWidth = 1.1;
+        ctx.arc(px, py, baseRadius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
 
-    connections.forEach((target) => {
-      drawCityDot(target, "#38bdf8", 4);
-      registerTarget(target);
-    });
-    drawCityDot(city, "#fbbf24", 6, true);
-    registerTarget(city);
+        if (currentCity && city.name === currentCity.name) {
+          ctx.beginPath();
+          ctx.fillStyle = "#fbbf24";
+          ctx.shadowColor = "rgba(251, 191, 36, 0.9)";
+          ctx.shadowBlur = 10;
+          ctx.arc(px, py, baseRadius + 2, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.shadowBlur = 0;
+          ctx.beginPath();
+          ctx.strokeStyle = `rgba(255, 255, 255, ${0.35 + 0.65 * blinkPhase})`;
+          ctx.lineWidth = 2.2;
+          ctx.arc(px, py, baseRadius + 4, 0, Math.PI * 2);
+          ctx.stroke();
+        }
 
-    if (connections.length === 0) {
-      ctx.fillStyle = "rgba(248, 250, 252, 0.8)";
-      ctx.font = "14px 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText("Žádné přímé linky z tohoto města", width / 2, height - 24);
+        if (city.importance === 1) {
+          ctx.font = "12px system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+          ctx.textAlign = "left";
+          ctx.textBaseline = "middle";
+          ctx.fillStyle = "rgba(15, 23, 42, 0.6)";
+          const label = city.name;
+          const textWidth = ctx.measureText(label).width;
+          ctx.fillRect(px + 8, py - 8, textWidth + 6, 16);
+          ctx.fillStyle = "#e2e8f0";
+          ctx.fillText(label, px + 11, py);
+        }
+      });
     }
 
     ctx.restore();
+  }
+
+  function showWorldMapOverlay(show) {
+    if (!dom.worldMapOverlayEl) return;
+    if (show) {
+      dom.worldMapOverlayEl.classList.remove("hidden");
+      dom.worldMapOverlayEl.setAttribute("aria-hidden", "false");
+      renderWorldMap();
+    } else {
+      dom.worldMapOverlayEl.classList.add("hidden");
+      dom.worldMapOverlayEl.setAttribute("aria-hidden", "true");
+      hideWorldMapTooltip();
+    }
   }
 
   function renderCityInfo() {
@@ -1418,6 +1521,38 @@ export function createUiService({ config, state, dom, time, map, travel, tasks, 
   }
 
   function initUiEvents() {
+    if (dom.worldMapBtn) {
+      dom.worldMapBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        const isVisible = dom.worldMapOverlayEl && !dom.worldMapOverlayEl.classList.contains("hidden");
+        showWorldMapOverlay(!isVisible);
+      });
+    }
+    if (dom.closeWorldMapBtn) {
+      dom.closeWorldMapBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        showWorldMapOverlay(false);
+      });
+    }
+    if (dom.worldMapOverlayEl) {
+      dom.worldMapOverlayEl.addEventListener("click", (event) => {
+        if (event.target === dom.worldMapOverlayEl) {
+          showWorldMapOverlay(false);
+        }
+      });
+    }
+    document.addEventListener("keydown", (event) => {
+      if (event.repeat) return;
+      const key = event.key.toLowerCase();
+      if (key === "m") {
+        const isVisible = dom.worldMapOverlayEl && !dom.worldMapOverlayEl.classList.contains("hidden");
+        showWorldMapOverlay(!isVisible);
+      }
+      if (key === "escape") {
+        showWorldMapOverlay(false);
+      }
+    });
+
     if (dom.ticketToggleBtn) {
       dom.ticketToggleBtn.addEventListener("click", (e) => {
         e.preventDefault();
@@ -1434,6 +1569,10 @@ export function createUiService({ config, state, dom, time, map, travel, tasks, 
     if (dom.cityInfoMapCanvas) {
       dom.cityInfoMapCanvas.addEventListener("mousemove", handleCityInfoMapHover);
       dom.cityInfoMapCanvas.addEventListener("mouseleave", hideCityInfoMapTooltip);
+    }
+    if (dom.worldMapCanvas) {
+      dom.worldMapCanvas.addEventListener("mousemove", handleWorldMapHover);
+      dom.worldMapCanvas.addEventListener("mouseleave", hideWorldMapTooltip);
     }
     if (dom.cityHubBtn) {
       dom.cityHubBtn.addEventListener("click", (e) => {

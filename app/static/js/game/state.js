@@ -78,6 +78,7 @@ export function createInitialState() {
       labOverview: null,
       labOverviewLoading: false,
       cityInfoMapTargets: [],
+      worldMapTargets: [],
       lastSkyPhase: null,
     },
   };

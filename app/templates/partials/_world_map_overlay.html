@@ -1,0 +1,30 @@
+<div
+  id="worldMapOverlay"
+  class="world-map-overlay hidden"
+  role="dialog"
+  aria-modal="true"
+  aria-hidden="true"
+>
+  <div class="world-map-dialog">
+    <button id="closeWorldMapBtn" type="button" class="world-map-close" aria-label="Zavřít mapu">
+      ✕
+    </button>
+    <div class="world-map-header">
+      <div>
+        <p class="world-map-eyebrow">🗺️ Mapa</p>
+      </div>
+    </div>
+    <div class="world-map-frame">
+      <canvas
+        id="worldMapCanvas"
+        width="1200"
+        height="720"
+        class="world-map-canvas"
+        aria-label="Mapa všech měst"
+      >
+        Tvoje zařízení nepodporuje vykreslení mapy.
+      </canvas>
+      <div id="worldMapTooltip" class="world-map-tooltip hidden" role="status" aria-live="polite"></div>
+    </div>
+  </div>
+</div>
