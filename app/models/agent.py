@@ -110,11 +110,14 @@ class Agent(db.Model):
 
             # uprav max energii podle configu
             self.energy_max = cfg["energy_max"]
+            if "material_max" in cfg:
+                self.material_max = cfg["material_max"]
+                self.material_current = min(self.material_current, self.material_max)
+            if "data_max" in cfg:
+                self.data_max = cfg["data_max"]
+                self.data_current = min(self.data_current, self.data_max)
 
             # energii necháváme prázdnou; nabíjí se až později
-
-            if self.level >= 2 and self.material_current < 10:
-                self.material_current = 10
 
             inventory = self.normalize_inventory(self.inventory)
             for item in cfg.get("unlock_items", []):

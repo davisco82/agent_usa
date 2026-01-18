@@ -1,9 +1,18 @@
 const DEFAULT_LEVEL_CONFIG = [
-  { level: 1, xp_required: 0, energy_max: 0, unlock: "Základní cestování mezi městy." },
+  {
+    level: 1,
+    xp_required: 0,
+    energy_max: 0,
+    material_max: 100,
+    data_max: 100,
+    unlock: "Základní cestování mezi městy.",
+  },
   {
     level: 2,
     xp_required: 50,
     energy_max: 1,
+    material_max: 100,
+    data_max: 100,
     unlock: "Energie, materiály a data jsou nyní dostupné.",
     unlock_items: [
       { type: "energy", description: "Základ 1" },
@@ -12,24 +21,24 @@ const DEFAULT_LEVEL_CONFIG = [
       { type: "building", name: "Dílna" },
     ],
   },
-  { level: 3, xp_required: 50, energy_max: 2 },
-  { level: 4, xp_required: 100, energy_max: 3 },
-  { level: 5, xp_required: 100, energy_max: 3 },
-  { level: 6, xp_required: 200, energy_max: 3 },
-  { level: 7, xp_required: 200, energy_max: 4 },
-  { level: 8, xp_required: 300, energy_max: 4 },
-  { level: 9, xp_required: 400, energy_max: 4 },
-  { level: 10, xp_required: 500, energy_max: 5 },
-  { level: 11, xp_required: 600, energy_max: 5 },
-  { level: 12, xp_required: 700, energy_max: 6 },
-  { level: 13, xp_required: 800, energy_max: 6 },
-  { level: 14, xp_required: 900, energy_max: 7 },
-  { level: 15, xp_required: 1000, energy_max: 7 },
-  { level: 16, xp_required: 1200, energy_max: 8 },
-  { level: 17, xp_required: 1400, energy_max: 9 },
-  { level: 18, xp_required: 1600, energy_max: 10 },
-  { level: 19, xp_required: 1800, energy_max: 10 },
-  { level: 20, xp_required: 2000, energy_max: 10 },
+  { level: 3, xp_required: 50, energy_max: 2, material_max: 100, data_max: 100 },
+  { level: 4, xp_required: 100, energy_max: 3, material_max: 100, data_max: 100 },
+  { level: 5, xp_required: 100, energy_max: 3, material_max: 100, data_max: 100 },
+  { level: 6, xp_required: 200, energy_max: 3, material_max: 100, data_max: 100 },
+  { level: 7, xp_required: 200, energy_max: 4, material_max: 100, data_max: 100 },
+  { level: 8, xp_required: 300, energy_max: 4, material_max: 100, data_max: 100 },
+  { level: 9, xp_required: 400, energy_max: 4, material_max: 100, data_max: 100 },
+  { level: 10, xp_required: 500, energy_max: 5, material_max: 100, data_max: 100 },
+  { level: 11, xp_required: 600, energy_max: 5, material_max: 100, data_max: 100 },
+  { level: 12, xp_required: 700, energy_max: 6, material_max: 100, data_max: 100 },
+  { level: 13, xp_required: 800, energy_max: 6, material_max: 100, data_max: 100 },
+  { level: 14, xp_required: 900, energy_max: 7, material_max: 100, data_max: 100 },
+  { level: 15, xp_required: 1000, energy_max: 7, material_max: 100, data_max: 100 },
+  { level: 16, xp_required: 1200, energy_max: 8, material_max: 100, data_max: 100 },
+  { level: 17, xp_required: 1400, energy_max: 9, material_max: 100, data_max: 100 },
+  { level: 18, xp_required: 1600, energy_max: 10, material_max: 100, data_max: 100 },
+  { level: 19, xp_required: 1800, energy_max: 10, material_max: 100, data_max: 100 },
+  { level: 20, xp_required: 2000, energy_max: 10, material_max: 100, data_max: 100 },
 ];
 
 function normalizeLevelConfig(raw) {
@@ -53,18 +62,18 @@ export function createAgentService({ config, state, dom, time, ui }) {
       return;
     }
     if (agentState.stats.material_current === undefined || agentState.stats.material_current === null) {
-      agentState.stats.material_current = 10;
-    } else if (agentState.stats.material_current < 10) {
-      agentState.stats.material_current = 10;
+      agentState.stats.material_current = 0;
     }
     if (agentState.stats.material_max === undefined || agentState.stats.material_max === null) {
-      agentState.stats.material_max = 100;
+      const cfg = getLevelCfg(agentState.stats.level);
+      agentState.stats.material_max = cfg?.material_max ?? 100;
     }
     if (agentState.stats.data_current === undefined || agentState.stats.data_current === null) {
       agentState.stats.data_current = 0;
     }
     if (agentState.stats.data_max === undefined || agentState.stats.data_max === null) {
-      agentState.stats.data_max = 100;
+      const cfg = getLevelCfg(agentState.stats.level);
+      agentState.stats.data_max = cfg?.data_max ?? 100;
     }
   }
 
@@ -86,7 +95,13 @@ export function createAgentService({ config, state, dom, time, ui }) {
   function updateAgentHeader() {
     if (!dom.agentLevelEl) return;
 
-    const currentCfg = getLevelCfg(agentState.stats.level) || { xp_required: 0, energy_max: 0, _xp_total: 0 };
+    const currentCfg = getLevelCfg(agentState.stats.level) || {
+      xp_required: 0,
+      energy_max: 0,
+      material_max: 100,
+      data_max: 100,
+      _xp_total: 0,
+    };
     const nextCfg = getLevelCfg(agentState.stats.level + 1);
 
     const prevXpThreshold = currentCfg._xp_total ?? cumulativeXpForLevel(agentState.stats.level);
@@ -108,21 +123,28 @@ export function createAgentService({ config, state, dom, time, ui }) {
     const energyMax = currentCfg.energy_max ?? 0;
     const energyCur = Math.min(agentState.stats.energy_current ?? energyMax, energyMax);
     const showResources = agentState.stats.level >= 2;
+    const showData = agentState.stats.level >= 3;
     if (dom.agentEnergyMeterEl) {
       dom.agentEnergyMeterEl.classList.toggle("hidden", !showResources);
     }
     if (dom.agentGeneratorPillEl) {
       const generatorCount = agentState.inventory?.energy_generator ?? 0;
       dom.agentGeneratorPillEl.classList.toggle("hidden", generatorCount <= 0);
-      if (dom.agentGeneratorLabelEl) {
-        dom.agentGeneratorLabelEl.textContent = `${generatorCount}`;
+      if (dom.agentGeneratorIconsEl) {
+        const icons = [];
+        for (let i = 0; i < generatorCount; i += 1) {
+          icons.push(
+            `<span class="resource-pill__icon"><img src="/static/assets/items/energy_generator.webp" alt="Energy Generator" /></span>`
+          );
+        }
+        dom.agentGeneratorIconsEl.innerHTML = icons.join("");
       }
     }
     if (dom.agentMaterialPillEl) {
       dom.agentMaterialPillEl.classList.toggle("hidden", !showResources);
     }
     if (dom.agentDataPillEl) {
-      dom.agentDataPillEl.classList.toggle("hidden", !showResources);
+      dom.agentDataPillEl.classList.toggle("hidden", !showData);
     }
     if (dom.agentEnergyLabelEl) {
       dom.agentEnergyLabelEl.textContent = `${energyCur} / ${energyMax}`;

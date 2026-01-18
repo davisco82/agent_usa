@@ -66,14 +66,22 @@
         </button>
       </div>
       <div class="footer-resources">
-        <div id="agentGeneratorPill" class="resource-pill resource-pill--generator hidden">
-          <span class="resource-pill__icon">
-            <img src="/static/assets/items/energy_generator.webp" alt="Energy Generator" />
-          </span>
-          <span class="resource-pill__value" id="agentGeneratorLabel">0</span>
+        <div
+          id="agentGeneratorPill"
+          class="resource-pill resource-pill--generator hidden"
+          data-label="Energetický generátor"
+        >
+          <div class="resource-pill__icons" id="agentGeneratorIcons" aria-label="Energy Generator"></div>
         </div>
         <div id="agentEnergyMeter" class="energy-meter hidden">
-          <div class="energy-meter__label">Energie</div>
+          <div class="energy-meter__label" aria-hidden="true">
+            <svg class="energy-meter__icon" viewBox="0 0 24 24" role="presentation">
+              <path
+                d="M13.5 2L5 14h6l-1 8 9-12h-6l.5-8z"
+                fill="currentColor"
+              />
+            </svg>
+          </div>
           <div class="energy-meter__blocks" id="agentEnergyBlocks"></div>
           <div class="energy-meter__value" id="agentEnergyLabel">0 / 100</div>
         </div>

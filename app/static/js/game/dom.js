@@ -93,7 +93,7 @@ export function getDomRefs() {
     agentLevelProgressFillEl: document.getElementById("agentLevelProgress"),
     agentCreditsLabelEl: document.getElementById("agentCreditsLabel"),
     agentGeneratorPillEl: document.getElementById("agentGeneratorPill"),
-    agentGeneratorLabelEl: document.getElementById("agentGeneratorLabel"),
+    agentGeneratorIconsEl: document.getElementById("agentGeneratorIcons"),
     agentEnergyMeterEl: document.getElementById("agentEnergyMeter"),
     agentEnergyLabelEl: document.getElementById("agentEnergyLabel"),
     agentEnergyBlocksEl: document.getElementById("agentEnergyBlocks"),

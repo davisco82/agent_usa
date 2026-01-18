@@ -29,15 +29,17 @@ def _serialize_agent(agent: Agent | None) -> Dict[str, Any]:
     if not agent:
         fallback_cfg = _level_cfg(1) or {"energy_max": 0}
         energy_max = fallback_cfg.get("energy_max", 0)
+        material_max = fallback_cfg.get("material_max", 100)
+        data_max = fallback_cfg.get("data_max", 100)
         return {
             "level": 1,
             "xp": 0,
             "energy_current": 0,
             "energy_max": energy_max,
             "data_current": 0,
-            "data_max": 100,
+            "data_max": data_max,
             "material_current": 0,
-            "material_max": 100,
+            "material_max": material_max,
             "inventory": Agent.normalize_inventory({}),
             "current_city_id": None,
             "current_city_name": None,
@@ -45,6 +47,8 @@ def _serialize_agent(agent: Agent | None) -> Dict[str, Any]:
 
     cfg = _level_cfg(agent.level) or _level_cfg(1) or {"energy_max": agent.energy_max}
     energy_max = cfg.get("energy_max", agent.energy_max)
+    material_max = cfg.get("material_max", agent.material_max)
+    data_max = cfg.get("data_max", agent.data_max)
     payload: Dict[str, Any] = {
         "id": agent.id,
         "level": agent.level,
@@ -52,9 +56,9 @@ def _serialize_agent(agent: Agent | None) -> Dict[str, Any]:
         "energy_current": min(agent.energy_current, energy_max),
         "energy_max": energy_max,
         "data_current": agent.data_current,
-        "data_max": agent.data_max,
+        "data_max": data_max,
         "material_current": agent.material_current,
-        "material_max": agent.material_max,
+        "material_max": material_max,
         "inventory": Agent.normalize_inventory(agent.inventory),
         "current_city_id": agent.current_city_id,
         "current_city_name": agent.current_city.name if agent.current_city else None,
@@ -182,6 +186,8 @@ def api_agent_reset():
 
     base_cfg = _level_cfg(1) or {"energy_max": 0}
     energy_max = base_cfg.get("energy_max", 0)
+    material_max = base_cfg.get("material_max", 100)
+    data_max = base_cfg.get("data_max", 100)
 
     agent.level = 1
     agent.xp = 0
@@ -195,7 +201,9 @@ def api_agent_reset():
     agent.total_cleaned_cities = 0
     agent.total_failed_cities = 0
     agent.data_current = 0
+    agent.data_max = data_max
     agent.material_current = 0
+    agent.material_max = material_max
     agent.credits = 0
     agent.inventory = Agent.normalize_inventory({})
     agent.infection_level = 0
