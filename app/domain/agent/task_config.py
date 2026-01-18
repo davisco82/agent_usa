@@ -101,6 +101,7 @@ def _resolve_placeholder_value(
     rng: random.Random,
     *,
     agent_city: Optional[City] = None,
+    hq_city: Optional[City] = None,
 ) -> Optional[str]:
     preferred = list(cfg.get("preferred_regions") or [])
     overrides = cfg.get("agent_region_overrides") or {}
@@ -122,6 +123,11 @@ def _resolve_placeholder_value(
     if source == "agent_city":
         if agent_city:
             include_city_ids = [agent_city.id]
+        else:
+            include_city_ids = None
+    if source == "hq_city":
+        if hq_city:
+            include_city_ids = [hq_city.id]
         else:
             include_city_ids = None
 
@@ -214,6 +220,7 @@ def resolve_template_for_agent(
     agent_region_code: Optional[str] = None,
     *,
     agent_city: Optional[City] = None,
+    hq_city: Optional[City] = None,
     rng: Optional[random.Random] = None,
     shared_replacements: Optional[Dict[str, Any]] = None,
 ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
@@ -229,6 +236,7 @@ def resolve_template_for_agent(
             replacements,
             generator,
             agent_city=agent_city,
+            hq_city=hq_city,
         )
         if value is not None:
             replacements[key] = value
@@ -401,15 +409,15 @@ AGENT_TASK_TEMPLATES = [
             "funkční Energy Generator. Bez něj není možné vyrábět energii.\n\n"
             "Po jeho získání musíš zajistit spotřební materiál — palivo potřebné "
             "k samotné výrobě energie. Materiál lze získat průzkumem města "
-            "v Infocentru nebo rozebráním nefunkční infrastruktury.\n\n"
-            "Jakmile máš generátor i materiál, budeš připraven pokračovat v další části operace."
+            "v Infocentru nebo nákupem na trhu, což je ale dost drahá záležitost.\n\n"
+            "Jakmile budeš mít generátor i materiál, budeš připraven na výrobu energie."
         ),
         "objectives": [
             "Cestuj do města {market_lead_city}. (10 XP)",
             "Na trhu získej rezervovaný Energy Generator. (10 XP)",
-            "Nasbírej dostatek spotřebního materiálu pro výrobu energie (+10 MATERIAL). (10 XP)",
+            "Nasbírej 5 kusů spotřebního materiálu pro výrobu energie. (10 XP)",
         ],
-        "reward": "40 XP",
+        "reward": "30 XP",
         "status": "Čeká na dokončení",
         "priority": "Vysoká",
         "eta": "24 hodin",
@@ -418,11 +426,11 @@ AGENT_TASK_TEMPLATES = [
         "objective_triggers": [
             {"type": "visit_city", "city_name": "{market_lead_city}"},
             {"type": "buy_item", "item": "energy_generator"},
-            {"type": "gain_material", "amount": 10},
+            {"type": "gain_material", "amount": 5},
         ],
         "dynamic_placeholders": {
             "hq_city": {
-                "source": "agent_city",
+                "source": "hq_city",
                 "use_all_regions": True,
             },
             "market_lead_city": {
@@ -586,6 +594,7 @@ def get_agent_tasks(
     agent_region_code: Optional[str] = None,
     *,
     agent_city: Optional[City] = None,
+    hq_city: Optional[City] = None,
     rng: Optional[random.Random] = None,
 ) -> List[Dict[str, Any]]:
     """
@@ -604,6 +613,7 @@ def get_agent_tasks(
             template,
             agent_region_code=agent_region_code,
             agent_city=agent_city,
+            hq_city=hq_city,
             rng=random_generator,
             shared_replacements=shared_replacements,
         )

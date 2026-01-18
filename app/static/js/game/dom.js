@@ -61,6 +61,7 @@ export function getDomRefs() {
     cityInfoMetaEl: document.getElementById("cityInfoMeta"),
     cityInfoPopulationEl: document.getElementById("cityInfoPopulation"),
     cityInfoDescEl: document.getElementById("cityInfoDesc"),
+    cityInfoDetailsEl: document.getElementById("cityInfoDetails"),
     cityInfoMaterialRowEl: document.getElementById("cityInfoMaterialRow"),
     cityInfoMaterialValueEl: document.getElementById("cityInfoMaterialValue"),
     cityInfoMaterialStatusEl: document.getElementById("cityInfoMaterialStatus"),

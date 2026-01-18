@@ -296,10 +296,6 @@ export function initGame() {
 
     gameLoop();
 
-    setInterval(async () => {
-      if (document.hidden) return;
-      await agent.loadAgentAndLevels();
-    }, 5000);
   }
 
   uiService.initUiEvents();

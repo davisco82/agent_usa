@@ -577,6 +577,9 @@ export function createUiService({ config, state, dom, time, map, travel, tasks, 
       dom.cityInfoDescEl.textContent = "Přesuň se do města pro detailní přehled.";
       renderCityInfoMap(null);
       updateCityMaterialInfo(null);
+      if (dom.cityInfoDetailsEl) {
+        dom.cityInfoDetailsEl.classList.add("hidden");
+      }
       return;
     }
 
@@ -599,6 +602,9 @@ export function createUiService({ config, state, dom, time, map, travel, tasks, 
       : "Počet obyvatel: -";
     dom.cityInfoDescEl.textContent = city.description || "Chybí popis pro toto město.";
     renderCityInfoMap(city);
+    if (dom.cityInfoDetailsEl) {
+      dom.cityInfoDetailsEl.classList.toggle("hidden", agentState.stats.level < 2);
+    }
     void loadCityMaterials(city).then(() => {
       updateCityMaterialInfo(city);
     });
@@ -809,7 +815,9 @@ export function createUiService({ config, state, dom, time, map, travel, tasks, 
     }
     if (dom.cityInfoMaterialCollectBtn) {
       const capacity = Math.max(0, materialMax - materialCur);
-      dom.cityInfoMaterialCollectBtn.disabled = infoQty <= 0 || capacity <= 0;
+      const isFull = capacity <= 0;
+      dom.cityInfoMaterialCollectBtn.disabled = infoQty <= 0 || isFull;
+      dom.cityInfoMaterialCollectBtn.title = isFull ? "Zásoby jsou plné" : "";
       dom.cityInfoMaterialCollectBtn.onclick = () => collectCityMaterial(city);
     }
   }
@@ -870,7 +878,15 @@ export function createUiService({ config, state, dom, time, map, travel, tasks, 
         buyBtn.className =
           "inline-flex items-center justify-center rounded-md px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] border border-emerald-400/60 text-emerald-100 bg-emerald-900/40 hover:bg-emerald-800/60 transition";
         buyBtn.textContent = "Koupit";
-        buyBtn.disabled = !generatorTask || buyIndex === undefined || buyIndex === null || buyIndex < 0;
+        const money = agentState.inventory?.money ?? 0;
+        const insufficientFunds = money < 500;
+        buyBtn.disabled =
+          !generatorTask ||
+          buyIndex === undefined ||
+          buyIndex === null ||
+          buyIndex < 0 ||
+          insufficientFunds;
+        buyBtn.title = insufficientFunds ? "Nedostatek financí" : "";
         if (generatorTask && typeof buyIndex === "number" && buyIndex >= 0) {
           buyBtn.addEventListener("click", () => {
             tasks.completeTaskObjective(generatorTask.id, buyIndex);
@@ -913,7 +929,10 @@ export function createUiService({ config, state, dom, time, map, travel, tasks, 
           const materialMax = agentState.stats.material_max ?? 0;
           const capacity = Math.max(0, materialMax - materialCur);
           const money = agentState.inventory?.money ?? 0;
-          buyBtn.disabled = capacity <= 0 || money < materialPrice;
+          const isFull = capacity <= 0;
+          const insufficientFunds = money < materialPrice;
+          buyBtn.disabled = isFull || insufficientFunds;
+          buyBtn.title = isFull ? "Zásoby jsou plné" : insufficientFunds ? "Nedostatek financí" : "";
           buyBtn.addEventListener("click", () => {
             buyCityMaterial(referenceCity);
           });

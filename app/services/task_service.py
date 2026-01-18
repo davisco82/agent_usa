@@ -104,6 +104,7 @@ def assign_task(
             template,
             agent_region_code=region_code,
             agent_city=agent.current_city,
+            hq_city=agent.hq_city,
             rng=rng or random,
         )
         placeholders = resolved_placeholders
