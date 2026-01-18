@@ -156,6 +156,9 @@ export function createTasksService({ state, dom, time, agent, map, ui }) {
           agent.grantTravelXp(xpAwarded);
         }
         await loadAgentTasks();
+        if (typeof agent?.loadAgentAndLevels === "function") {
+          await agent.loadAgentAndLevels();
+        }
       }, 650);
     } catch (err) {
       console.error("Reward claim failed:", err);
@@ -199,11 +202,17 @@ export function createTasksService({ state, dom, time, agent, map, ui }) {
           agent.enqueueXpReward(data.xp_awarded);
           shouldReloadTasks = true;
         }
-        if (shouldReloadTasks) {
-          await loadAgentTasks();
-        } else {
-          renderTaskCard();
-          renderTaskDetailPanel();
+    if (shouldReloadTasks) {
+      await loadAgentTasks();
+    } else {
+      renderTaskCard();
+      renderTaskDetailPanel();
+    }
+    if (typeof agent?.loadAgentAndLevels === "function") {
+      await agent.loadAgentAndLevels();
+    }
+        if (typeof agent?.loadAgentAndLevels === "function") {
+          await agent.loadAgentAndLevels();
         }
       } catch (err) {
         console.error("Objective completion failed:", err);

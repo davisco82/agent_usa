@@ -44,6 +44,7 @@ export function createInitialState() {
         data_current: 0,
         data_max: 100,
       },
+      inventory: {},
       levelConfig: [],
       currentCityId: null,
       currentCityName: null,

@@ -114,6 +114,44 @@
         z-index: 40;
       }
 
+      .top-credits-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        padding: 0.35rem 0.85rem;
+        border-radius: 999px;
+        border: 0;
+        background: transparent;
+        box-shadow: none;
+      }
+
+      .top-credits-pill__icon {
+        width: 1.5rem;
+        height: 1.5rem;
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.95rem;
+        background: transparent;
+        box-shadow: none;
+      }
+
+      .top-credits-pill__value {
+        font-size: 0.78rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: #fef3c7;
+        font-weight: 600;
+      }
+
+      .top-credits-pill--floating {
+        position: fixed;
+        top: 1rem;
+        right: 1.2rem;
+        z-index: 70;
+      }
+
       #currentCityName {
         font-size: 1.4rem;
       }
@@ -907,6 +945,26 @@
         width: 0;
       }
 
+      .energy-meter__blocks {
+        display: grid;
+        grid-auto-flow: column;
+        gap: 0.25rem;
+        align-items: center;
+      }
+
+      .energy-block {
+        width: 12px;
+        height: 18px;
+        border-radius: 4px;
+        background: rgba(148, 163, 184, 0.5);
+        box-shadow: inset 0 0 6px rgba(15, 23, 42, 0.6);
+      }
+
+      .energy-block--filled {
+        background: linear-gradient(90deg, #22c55e, #a3e635);
+        box-shadow: 0 0 10px rgba(34, 197, 94, 0.5);
+      }
+
       .energy-meter__value {
         font-size: 0.72rem;
         letter-spacing: 0.18em;
@@ -939,6 +997,13 @@
         box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.25);
       }
 
+      .resource-pill__icon img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        border-radius: inherit;
+      }
+
       .resource-pill__value {
         letter-spacing: 0.1em;
         text-transform: uppercase;
@@ -954,6 +1019,11 @@
       .resource-pill--material {
         border-color: rgba(251, 191, 36, 0.55);
         box-shadow: inset 0 0 18px rgba(251, 191, 36, 0.15);
+      }
+
+      .resource-pill--generator {
+        border-color: rgba(56, 189, 248, 0.55);
+        box-shadow: inset 0 0 18px rgba(56, 189, 248, 0.15);
       }
 
       .resource-pill--credits {
@@ -1584,12 +1654,14 @@
       }
 
       .lab-story-dialog {
-        width: min(880px, 100%);
+        width: min(980px, 100%);
         border-radius: 2.4rem;
-        border: 1px solid rgba(248, 250, 252, 0.1);
-        background: linear-gradient(160deg, rgba(20, 24, 58, 0.98), rgba(12, 16, 32, 0.95));
-        box-shadow: 0 45px 100px rgba(2, 6, 23, 0.8);
-        padding: 2rem 2.8rem 2.6rem;
+        border: 1px solid rgba(56, 189, 248, 0.2);
+        background:
+          radial-gradient(circle at 10% 0%, rgba(56, 189, 248, 0.18), transparent 45%),
+          linear-gradient(160deg, rgba(12, 18, 38, 0.98), rgba(8, 12, 26, 0.95));
+        box-shadow: 0 50px 110px rgba(2, 6, 23, 0.85);
+        padding: 2.2rem 3rem 2.8rem;
       }
 
       .lab-story-header {
@@ -1615,7 +1687,7 @@
       }
 
       .lab-story-hero {
-        flex: 0 0 190px;
+        flex: 0 0 240px;
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -1647,12 +1719,14 @@
       }
 
       .lab-story-portrait {
-        width: 180px;
-        height: 180px;
-        border-radius: 40px;
+        width: 220px;
+        height: 220px;
+        border-radius: 48px;
         background: transparent;
         overflow: hidden;
-        box-shadow: 0 35px 70px rgba(7, 11, 25, 0.8);
+        box-shadow:
+          0 35px 70px rgba(7, 11, 25, 0.8),
+          0 0 25px rgba(56, 189, 248, 0.2);
       }
 
       .lab-story-portrait img {
@@ -1663,21 +1737,21 @@
       }
 
       .lab-story-hero-name {
-        font-size: 1rem;
+        font-size: 1.1rem;
         font-weight: 700;
-        color: #fef3c7;
+        color: #e0f2fe;
         margin-top: 1rem;
         text-align: center;
       }
 
       .lab-story-hero-role {
-        font-size: 0.68rem;
+        font-size: 0.7rem;
         letter-spacing: 0.2em;
         text-transform: uppercase;
-        color: rgba(16, 12, 26, 0.75);
+        color: rgba(15, 23, 42, 0.85);
         padding: 0.3rem 1.1rem;
         border-radius: 999px;
-        background: rgba(255, 255, 255, 0.8);
+        background: rgba(224, 242, 254, 0.9);
         text-align: center;
         margin-top: 0.4rem;
       }
@@ -1686,9 +1760,11 @@
         position: relative;
         flex: 1;
         border-radius: 2.2rem;
-        border: 1px solid rgba(148, 163, 184, 0.35);
-        padding: 2rem;
-        background: linear-gradient(155deg, rgba(21, 33, 77, 0.95), rgba(10, 24, 48, 0.92));
+        border: 1px solid rgba(125, 211, 252, 0.35);
+        padding: 2.2rem;
+        background:
+          radial-gradient(circle at 20% 10%, rgba(56, 189, 248, 0.12), transparent 50%),
+          linear-gradient(155deg, rgba(12, 24, 52, 0.95), rgba(8, 18, 38, 0.92));
         box-shadow: 0 35px 80px rgba(1, 5, 15, 0.7);
       }
 
@@ -1700,8 +1776,8 @@
         width: 24px;
         height: 24px;
         background: inherit;
-        border-left: 1px solid rgba(148, 163, 184, 0.35);
-        border-bottom: 1px solid rgba(148, 163, 184, 0.35);
+        border-left: 1px solid rgba(125, 211, 252, 0.35);
+        border-bottom: 1px solid rgba(125, 211, 252, 0.35);
         transform: translateY(-50%) rotate(45deg);
         border-bottom-left-radius: 0.6rem;
       }

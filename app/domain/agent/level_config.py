@@ -8,6 +8,7 @@ AGENT_LEVELS = [
          {"type": "energy", "description": "Základ 1"},
          {"type": "materials", "description": "Základ 10"},
          {"type": "data"},
+         {"type": "credits", "amount": 500},
          {"type": "building", "name": "Dílna", "description": "Dostupná ve vybraných městech."},
      ]},
     {"level": 3,  "xp_required":  50, "energy_max": 2, "unlock": "Zobrazování základních informací o mlze v okolí města."},

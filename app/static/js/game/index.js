@@ -65,8 +65,8 @@ export function initGame() {
       const nextLevel = getLevelForXp(safeXp);
       state.agent.stats.level = nextLevel;
       const levelCfg = state.agent.levelConfig?.find((entry) => entry.level === nextLevel);
-      if (levelCfg) {
-        state.agent.stats.energy_current = levelCfg.energy_max ?? state.agent.stats.energy_current ?? 0;
+      if (levelCfg && state.agent.stats.energy_current === undefined) {
+        state.agent.stats.energy_current = 0;
       }
       agent.updateAgentHeader();
       return safeXp;
@@ -295,6 +295,11 @@ export function initGame() {
     tasks.notifyTaskLocationChange();
 
     gameLoop();
+
+    setInterval(async () => {
+      if (document.hidden) return;
+      await agent.loadAgentAndLevels();
+    }, 5000);
   }
 
   uiService.initUiEvents();

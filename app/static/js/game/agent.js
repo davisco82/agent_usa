@@ -111,6 +111,13 @@ export function createAgentService({ config, state, dom, time, ui }) {
     if (dom.agentEnergyMeterEl) {
       dom.agentEnergyMeterEl.classList.toggle("hidden", !showResources);
     }
+    if (dom.agentGeneratorPillEl) {
+      const generatorCount = agentState.inventory?.energy_generator ?? 0;
+      dom.agentGeneratorPillEl.classList.toggle("hidden", generatorCount <= 0);
+      if (dom.agentGeneratorLabelEl) {
+        dom.agentGeneratorLabelEl.textContent = `${generatorCount}`;
+      }
+    }
     if (dom.agentMaterialPillEl) {
       dom.agentMaterialPillEl.classList.toggle("hidden", !showResources);
     }
@@ -120,9 +127,16 @@ export function createAgentService({ config, state, dom, time, ui }) {
     if (dom.agentEnergyLabelEl) {
       dom.agentEnergyLabelEl.textContent = `${energyCur} / ${energyMax}`;
     }
-    if (dom.agentEnergyBarFillEl) {
-      const energyPct = energyMax > 0 ? Math.min(100, (energyCur / energyMax) * 100) : 0;
-      dom.agentEnergyBarFillEl.style.width = `${energyPct}%`;
+    if (dom.agentEnergyBlocksEl) {
+      const maxBlocks = Math.min(5, Math.max(1, energyMax || 1));
+      const filledBlocks = Math.min(maxBlocks, Math.max(0, energyCur || 0));
+      const blocks = [];
+      for (let i = 0; i < maxBlocks; i += 1) {
+        blocks.push(
+          `<span class="energy-block${i < filledBlocks ? " energy-block--filled" : ""}"></span>`
+        );
+      }
+      dom.agentEnergyBlocksEl.innerHTML = blocks.join("");
     }
     if (dom.agentMaterialLabelEl) {
       const materialCur = agentState.stats.material_current ?? 0;
@@ -133,6 +147,10 @@ export function createAgentService({ config, state, dom, time, ui }) {
       const dataCur = agentState.stats.data_current ?? 0;
       const dataMax = agentState.stats.data_max ?? 100;
       dom.agentDataLabelEl.textContent = `${dataCur} / ${dataMax}`;
+    }
+    if (dom.agentCreditsLabelEl) {
+      const money = agentState.inventory?.money ?? 0;
+      dom.agentCreditsLabelEl.textContent = `${money} $`;
     }
   }
 
@@ -261,6 +279,7 @@ export function createAgentService({ config, state, dom, time, ui }) {
           data_current: data.agent.data_current ?? 0,
           data_max: data.agent.data_max ?? 100,
         };
+        agentState.inventory = data.agent.inventory || {};
         agentState.currentCityId = data.agent.current_city_id ?? null;
         agentState.currentCityName = data.agent.current_city_name ?? null;
         agentState.serverKnownCityId = agentState.currentCityId;

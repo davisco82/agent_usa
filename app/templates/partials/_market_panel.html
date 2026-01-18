@@ -10,8 +10,7 @@
   <div class="flex items-center justify-between gap-4">
     <div>
       <p class="text-[11px] uppercase tracking-[0.3em] text-emerald-300/80">Trh</p>
-      <h3 class="text-lg font-semibold text-slate-50">Distribuční uzel</h3>
-      <p class="text-sm text-slate-300">Přehled zásob, poptávky a sousedních linek.</p>
+      <h3 class="text-lg font-semibold text-slate-50">Přehled zásob</h3>
     </div>
     <span class="text-3xl" aria-hidden="true">🛒</span>
   </div>
@@ -38,6 +37,29 @@
   </section>
 
   <section class="space-y-3">
+    <div>
+      <p class="text-[11px] uppercase tracking-[0.3em] text-slate-400">Dostupné zásoby</p>
+      <h4 class="text-base font-semibold text-slate-100">Nabídka</h4>
+    </div>
+    <div class="overflow-x-auto rounded-2xl border border-white/10 bg-slate-950/40">
+      <table class="w-full text-sm text-slate-200">
+        <thead class="text-[11px] uppercase tracking-[0.3em] text-slate-400">
+          <tr>
+            <th class="text-left px-4 py-3">Položka</th>
+            <th class="text-left px-4 py-3">Cena</th>
+            <th class="text-left px-4 py-3">Koupit</th>
+          </tr>
+        </thead>
+        <tbody id="marketStockList">
+          <tr>
+            <td colspan="3" class="px-4 py-3 text-slate-300">Zásoby nejsou k dispozici.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="space-y-3 hidden">
     <div>
       <p class="text-[11px] uppercase tracking-[0.3em] text-slate-400">Tržní tipy</p>
       <h4 class="text-base font-semibold text-slate-100">Možné kroky</h4>

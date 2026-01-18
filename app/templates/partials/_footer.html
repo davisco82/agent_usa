@@ -66,11 +66,15 @@
         </button>
       </div>
       <div class="footer-resources">
+        <div id="agentGeneratorPill" class="resource-pill resource-pill--generator hidden">
+          <span class="resource-pill__icon">
+            <img src="/static/assets/items/energy_generator.webp" alt="Energy Generator" />
+          </span>
+          <span class="resource-pill__value" id="agentGeneratorLabel">0</span>
+        </div>
         <div id="agentEnergyMeter" class="energy-meter hidden">
           <div class="energy-meter__label">Energie</div>
-          <div class="energy-meter__bar">
-            <div id="agentEnergyBarFill" class="energy-meter__bar-fill"></div>
-          </div>
+          <div class="energy-meter__blocks" id="agentEnergyBlocks"></div>
           <div class="energy-meter__value" id="agentEnergyLabel">0 / 100</div>
         </div>
         <div id="agentDataPill" class="resource-pill resource-pill--data hidden">
@@ -80,10 +84,6 @@
         <div id="agentMaterialPill" class="resource-pill resource-pill--material hidden">
           <span class="resource-pill__icon">🧱</span>
           <span class="resource-pill__value" id="agentMaterialLabel">0 / 100</span>
-        </div>
-        <div class="resource-pill resource-pill--credits">
-          <span class="resource-pill__icon">💰</span>
-          <span class="resource-pill__value" id="agentCreditsLabel">0</span>
         </div>
       </div>
     </div>

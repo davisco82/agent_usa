@@ -215,10 +215,14 @@ def resolve_template_for_agent(
     *,
     agent_city: Optional[City] = None,
     rng: Optional[random.Random] = None,
+    shared_replacements: Optional[Dict[str, Any]] = None,
 ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     generator = rng or random
     replacements: Dict[str, Any] = {}
     for key, cfg in template.get("dynamic_placeholders", {}).items():
+        if shared_replacements is not None and key in shared_replacements:
+            replacements[key] = shared_replacements[key]
+            continue
         value = _resolve_placeholder_value(
             cfg,
             agent_region_code,
@@ -228,6 +232,8 @@ def resolve_template_for_agent(
         )
         if value is not None:
             replacements[key] = value
+            if shared_replacements is not None:
+                shared_replacements[key] = value
     resolved = build_template_from_placeholders(template, replacements)
     return resolved, replacements
 
@@ -321,7 +327,7 @@ AGENT_TASK_TEMPLATES = [
             
         ),
         "objectives": [
-            "Navštiv centrálu ve městě {hq_city} a přihlas se k operaci. (10 XP)",
+            "Navštiv centrálu ve městě {hq_city} a přihlas se k operaci. (10 XP, +250 $)",
             "Prověř trh v {hq_city} a zjisti dostupnost Energy Generatorů. (10 XP)",
         ],
         "reward": "20 XP",
@@ -330,6 +336,7 @@ AGENT_TASK_TEMPLATES = [
         "eta": "24 hodin",
         "progress": 0.0,
         "objective_rewards": [10, 10],
+        "objective_rewards_money": [250, 0],
         "objective_triggers": [
             {"type": "visit_city", "city_name": "{hq_city}"},
             {"type": "story_dialog", "panel": "market"},
@@ -383,14 +390,14 @@ AGENT_TASK_TEMPLATES = [
     {
         "id": "mission-equipment-02",
         "title": "Zdroj energie: generátor a nabití modulu",
-        "location": "{hq_city} → {generator_city} – Trh & dílna",
+        "location": "{hq_city} → {market_lead_city} – Trh & dílna",
         "summary": (
-            "Rezervace z trhu tě zavádí do města {generator_city}. "
+            "Rezervace z trhu tě zavádí do města {market_lead_city}. "
             "Získej Energy Generator, sežeň spotřební materiál a v místní dílně "
             "poprvé nabij Energy Modul."
         ),
         "description": (
-            "Informace od Stevea Hatcheta potvrdily, že v {generator_city} je stále k dispozici "
+            "Informace od Stevea Hatcheta potvrdily, že v {market_lead_city} je stále k dispozici "
             "funkční Energy Generator. Bez něj není možné vyrábět energii.\n\n"
             "Po jeho získání musíš zajistit spotřební materiál — palivo potřebné "
             "k samotné výrobě energie. Materiál lze získat průzkumem města "
@@ -400,7 +407,7 @@ AGENT_TASK_TEMPLATES = [
             "Teprve poté budeš připraven vyrazit do zasažené oblasti."
         ),
         "objectives": [
-            "Cestuj do města {generator_city}. (10 XP)",
+            "Cestuj do města {market_lead_city}. (10 XP)",
             "Na trhu získej rezervovaný Energy Generator. (10 XP)",
             "Proveď průzkum města a získej spotřební materiál (+10 MATERIAL). (10 XP)",
             "V místní dílně vyrob energii a nabij Energy Modul. (20 XP)",
@@ -412,7 +419,7 @@ AGENT_TASK_TEMPLATES = [
         "progress": 0.0,
         "objective_rewards": [10, 10, 10, 20],
         "objective_triggers": [
-            {"type": "visit_city", "city_name": "{generator_city}"},
+            {"type": "visit_city", "city_name": "{market_lead_city}"},
             {"type": "buy_item", "item": "energy_generator"},
             {"type": "gain_material", "amount": 10},
             {"type": "charge_item", "item": "energy_module"},
@@ -422,7 +429,7 @@ AGENT_TASK_TEMPLATES = [
                 "source": "agent_city",
                 "use_all_regions": True,
             },
-            "generator_city": {
+            "market_lead_city": {
                 "importance_max": 3,
                 "connected_to_placeholder": "hq_city",
                 "exclude_agent_city": True,
@@ -497,6 +504,7 @@ def get_agent_tasks(
     """
     random_generator = rng or random
     resolved_tasks: List[Dict[str, Any]] = []
+    shared_replacements: Dict[str, Any] = {}
 
     for template in AGENT_TASK_TEMPLATES:
         resolved_task, _ = resolve_template_for_agent(
@@ -504,6 +512,7 @@ def get_agent_tasks(
             agent_region_code=agent_region_code,
             agent_city=agent_city,
             rng=random_generator,
+            shared_replacements=shared_replacements,
         )
         resolved_tasks.append(resolved_task)
 

@@ -302,10 +302,32 @@ def complete_objective_step(agent: Agent, task_id: str, objective_index: int) ->
     if all_completed:
         active.status = "completed"
 
+    trigger = (template.get("objective_triggers") or [None] * len(objectives))[objective_index]
+    money_rewards = template.get("objective_rewards_money") or []
+    money_awarded = 0
+    if objective_index < len(money_rewards):
+        try:
+            money_awarded = int(money_rewards[objective_index] or 0)
+        except (TypeError, ValueError):
+            money_awarded = 0
+    if money_awarded:
+        inventory = Agent.normalize_inventory(agent.inventory)
+        inventory["money"] = (inventory.get("money") or 0) + money_awarded
+        agent.inventory = inventory
+
+    if isinstance(trigger, dict) and trigger.get("type") == "buy_item" and trigger.get("item") == "energy_generator":
+        inventory = Agent.normalize_inventory(agent.inventory)
+        inventory["money"] = max(0, (inventory.get("money") or 0) - 500)
+        inventory["energy_generator"] = max(1, inventory.get("energy_generator") or 0)
+        agent.inventory = inventory
+
     db.session.commit()
 
     payload = serialize_active_task(active)
-    return {"ok": True, "task": payload}
+    response = {"ok": True, "task": payload}
+    if money_awarded:
+        response["money_awarded"] = money_awarded
+    return response
 
 
 def _active_tasks_for_agent(agent: Agent) -> List[ActiveTask]:

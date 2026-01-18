@@ -692,6 +692,68 @@ export function createUiService({ config, state, dom, time, map, travel, tasks, 
     if (dom.marketStatusLabelEl) {
       dom.marketStatusLabelEl.textContent = tierInfo.status;
     }
+    if (dom.marketStockListEl) {
+      const generatorTask = state.tasks.list.find((task) => task.id === "mission-equipment-02");
+      const generatorCity = generatorTask?.objective_triggers?.find(
+        (trigger) => trigger.type === "visit_city"
+      )?.city_name;
+      const isInGeneratorCity =
+        !!referenceCity &&
+        !!generatorCity &&
+        referenceCity.name &&
+        referenceCity.name.toLowerCase() === String(generatorCity).toLowerCase();
+      const buyIndex = generatorTask?.objective_triggers?.findIndex(
+        (trigger) => trigger.type === "buy_item" && trigger.item === "energy_generator"
+      );
+      const isBought =
+        generatorTask && typeof buyIndex === "number" && buyIndex >= 0
+          ? !!generatorTask.completed_objectives?.[buyIndex]
+          : false;
+
+      dom.marketStockListEl.innerHTML = "";
+      if (generatorTask && isInGeneratorCity && !isBought) {
+        const row = document.createElement("tr");
+        const itemTd = document.createElement("td");
+        itemTd.className = "px-4 py-3";
+        itemTd.innerHTML = `
+          <div class="flex items-center gap-3">
+            <img src="/static/assets/items/energy_generator.webp" alt="Energy Generator" class="h-10 w-10 rounded-lg border border-white/10 object-cover" />
+            <div>
+              <div class="font-semibold text-slate-100">Energy Generator</div>
+              <div class="text-[10px] uppercase tracking-[0.2em] text-slate-400">1 ks</div>
+            </div>
+          </div>
+        `;
+        const priceTd = document.createElement("td");
+        priceTd.className = "px-4 py-3 text-amber-200 font-semibold";
+        priceTd.textContent = "500 $";
+        const actionTd = document.createElement("td");
+        actionTd.className = "px-4 py-3";
+        const buyBtn = document.createElement("button");
+        buyBtn.className =
+          "inline-flex items-center justify-center rounded-md px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] border border-emerald-400/60 text-emerald-100 bg-emerald-900/40 hover:bg-emerald-800/60 transition";
+        buyBtn.textContent = "Koupit";
+        buyBtn.disabled = !generatorTask || buyIndex === undefined || buyIndex === null || buyIndex < 0;
+        if (generatorTask && typeof buyIndex === "number" && buyIndex >= 0) {
+          buyBtn.addEventListener("click", () => {
+            tasks.completeTaskObjective(generatorTask.id, buyIndex);
+          });
+        }
+        actionTd.appendChild(buyBtn);
+        row.appendChild(itemTd);
+        row.appendChild(priceTd);
+        row.appendChild(actionTd);
+        dom.marketStockListEl.appendChild(row);
+      } else {
+        const row = document.createElement("tr");
+        const td = document.createElement("td");
+        td.colSpan = 3;
+        td.className = "px-4 py-3 text-slate-300";
+        td.textContent = "Zásoby nejsou k dispozici.";
+        row.appendChild(td);
+        dom.marketStockListEl.appendChild(row);
+      }
+    }
     if (dom.marketTipsListEl) {
       const tips = buildMarketTips(referenceCity);
       dom.marketTipsListEl.innerHTML = "";

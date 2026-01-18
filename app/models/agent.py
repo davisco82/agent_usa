@@ -2,6 +2,15 @@
 from app.extensions import db
 from app.domain.agent.level_config import AGENT_LEVELS
 
+DEFAULT_INVENTORY = {
+    "energy_generator": 0,
+    "energy_module": 0,
+    "energy": 0,
+    "materials": 0,
+    "data": 0,
+    "money": 0,
+}
+
 
 
 class Agent(db.Model):
@@ -29,6 +38,7 @@ class Agent(db.Model):
 
     codename = db.Column(db.String(100), unique=True)
     credits = db.Column(db.Integer, nullable=False, default=0)
+    inventory = db.Column(db.JSON, nullable=False, default=lambda: DEFAULT_INVENTORY.copy())
     infection_level = db.Column(db.Integer, nullable=False, default=0)  # 0-100 škála závažnosti
     last_action_at = db.Column(db.DateTime)
 
@@ -48,6 +58,13 @@ class Agent(db.Model):
 
     def __repr__(self):
         return f"<Agent id={self.id} level={self.level} xp={self.xp}>"
+
+    @staticmethod
+    def normalize_inventory(value):
+        inventory = DEFAULT_INVENTORY.copy()
+        if isinstance(value, dict):
+            inventory.update(value)
+        return inventory
     
     def get_level_config(self, level: int):
         """Vrátí config pro daný level (nebo None, pokud neexistuje)."""
@@ -94,8 +111,13 @@ class Agent(db.Model):
             # uprav max energii podle configu
             self.energy_max = cfg["energy_max"]
 
-            # při level-upu můžeš doplnit energii na max (MVP varianta)
-            self.energy_current = self.energy_max
+            # energii necháváme prázdnou; nabíjí se až později
 
             if self.level >= 2 and self.material_current < 10:
                 self.material_current = 10
+
+            inventory = self.normalize_inventory(self.inventory)
+            for item in cfg.get("unlock_items", []):
+                if item.get("type") == "credits" and item.get("amount"):
+                    inventory["money"] = inventory.get("money", 0) + int(item["amount"])
+            self.inventory = inventory
