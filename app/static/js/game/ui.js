@@ -71,6 +71,9 @@ export function createUiService({ config, state, dom, time, map, travel, tasks, 
     if (active !== "info" && dom.cityInfoPanel) {
       dom.cityInfoPanel.classList.add("hidden");
     }
+    if (active !== "hq" && dom.hqPanelEl) {
+      dom.hqPanelEl.classList.add("hidden");
+    }
     if (active !== "lab" && dom.labPanelEl) {
       dom.labPanelEl.classList.add("hidden");
     }
@@ -94,6 +97,10 @@ export function createUiService({ config, state, dom, time, map, travel, tasks, 
 
   function isLabPanelVisible() {
     return dom.labPanelEl && !dom.labPanelEl.classList.contains("hidden");
+  }
+
+  function isHqPanelVisible() {
+    return dom.hqPanelEl && !dom.hqPanelEl.classList.contains("hidden");
   }
 
   function isMarketPanelVisible() {
@@ -198,9 +205,19 @@ export function createUiService({ config, state, dom, time, map, travel, tasks, 
 
   function updateHqAvailability(city) {
     if (!dom.hqBtn) return;
-    const allowed = isUnlocked("hq") && !!city && (city.importance === 1 || city.importance === 2);
+    const allowed =
+      isUnlocked("hq") &&
+      !!city &&
+      agentState.hqCityId !== null &&
+      Number(city.id) === Number(agentState.hqCityId);
     dom.hqBtn.classList.toggle("hidden", !allowed);
     dom.hqBtn.setAttribute("aria-disabled", allowed ? "false" : "true");
+    if (!allowed && dom.hqPanelEl) {
+      dom.hqPanelEl.classList.add("hidden");
+    }
+    if (!allowed && uiState.activeFooterButton === "hq") {
+      setActiveFooterButton(null);
+    }
   }
 
   function renderLabPanel() {
@@ -559,6 +576,7 @@ export function createUiService({ config, state, dom, time, map, travel, tasks, 
       dom.cityInfoPopulationEl.textContent = "Počet obyvatel: -";
       dom.cityInfoDescEl.textContent = "Přesuň se do města pro detailní přehled.";
       renderCityInfoMap(null);
+      updateCityMaterialInfo(null);
       return;
     }
 
@@ -581,6 +599,9 @@ export function createUiService({ config, state, dom, time, map, travel, tasks, 
       : "Počet obyvatel: -";
     dom.cityInfoDescEl.textContent = city.description || "Chybí popis pro toto město.";
     renderCityInfoMap(city);
+    void loadCityMaterials(city).then(() => {
+      updateCityMaterialInfo(city);
+    });
   }
 
   function showCityInfoPanel(show) {
@@ -592,6 +613,9 @@ export function createUiService({ config, state, dom, time, map, travel, tasks, 
       tasks.showTaskDetailPanel(false);
       if (dom.labPanelEl) {
         dom.labPanelEl.classList.add("hidden");
+      }
+      if (dom.hqPanelEl) {
+        dom.hqPanelEl.classList.add("hidden");
       }
       if (dom.workshopPanelEl) {
         dom.workshopPanelEl.classList.add("hidden");
@@ -679,7 +703,118 @@ export function createUiService({ config, state, dom, time, map, travel, tasks, 
     return tips;
   }
 
-  function renderMarketPanel(city) {
+  async function loadCityMaterials(city) {
+    if (!city || !city.id || agentState.stats.level < 2) return null;
+    try {
+      const res = await fetch(`/api/cities/${city.id}/materials`);
+      if (!res.ok) return null;
+      const data = await res.json();
+      if (uiState.materialByCity) {
+        uiState.materialByCity.set(city.id, data);
+      }
+      return data;
+    } catch (err) {
+      console.warn("Failed to load city materials:", err);
+      return null;
+    }
+  }
+
+  function maybeCompleteMaterialObjective() {
+    const materialCur = agentState.stats.material_current ?? 0;
+    state.tasks.list.forEach((task) => {
+      const triggers = task?.objective_triggers || [];
+      triggers.forEach((trigger, index) => {
+        if (!trigger || trigger.type !== "gain_material") return;
+        const required = Number(trigger.amount || 0);
+        const already = task.completed_objectives?.[index];
+        if (!already && materialCur >= required) {
+          tasks.completeTaskObjective(task.id, index);
+        }
+      });
+    });
+  }
+
+  async function collectCityMaterial(city) {
+    if (!city || !city.id) return;
+    try {
+      const res = await fetch(`/api/cities/${city.id}/materials/collect`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.agent) {
+        agentState.stats.material_current = data.agent.material_current ?? agentState.stats.material_current;
+        agentState.stats.material_max = data.agent.material_max ?? agentState.stats.material_max;
+      }
+      if (data.city_materials && uiState.materialByCity) {
+        uiState.materialByCity.set(city.id, data.city_materials);
+      }
+      agent.updateAgentHeader();
+      maybeCompleteMaterialObjective();
+      renderCityInfo();
+      renderMarketPanel(city);
+    } catch (err) {
+      console.warn("Failed to collect material:", err);
+    }
+  }
+
+  async function buyCityMaterial(city) {
+    if (!city || !city.id) return;
+    try {
+      const res = await fetch(`/api/cities/${city.id}/materials/buy`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ quantity: 1 }),
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.agent) {
+        agentState.stats.material_current = data.agent.material_current ?? agentState.stats.material_current;
+        agentState.stats.material_max = data.agent.material_max ?? agentState.stats.material_max;
+        if (data.agent.money !== undefined) {
+          agentState.inventory = agentState.inventory || {};
+          agentState.inventory.money = data.agent.money;
+        }
+      }
+      if (data.city_materials && uiState.materialByCity) {
+        uiState.materialByCity.set(city.id, data.city_materials);
+      }
+      agent.updateAgentHeader();
+      maybeCompleteMaterialObjective();
+      renderMarketPanel(city);
+      renderCityInfo();
+    } catch (err) {
+      console.warn("Failed to buy material:", err);
+    }
+  }
+
+  function updateCityMaterialInfo(city) {
+    if (!dom.cityInfoMaterialRowEl) return;
+    const shouldShow = !!city && agentState.stats.level >= 2;
+    dom.cityInfoMaterialRowEl.classList.toggle("hidden", !shouldShow);
+    if (!shouldShow) return;
+
+    const cached = uiState.materialByCity ? uiState.materialByCity.get(city.id) : null;
+    const materialCur = agentState.stats.material_current ?? 0;
+    const materialMax = agentState.stats.material_max ?? 0;
+    const infoQty = cached?.info_qty ?? 0;
+
+    if (dom.cityInfoMaterialValueEl) {
+      dom.cityInfoMaterialValueEl.textContent =
+        infoQty > 0 ? `K dispozici: ${infoQty} ks` : "Dnes není materiál k dispozici.";
+    }
+    if (dom.cityInfoMaterialStatusEl) {
+      dom.cityInfoMaterialStatusEl.textContent = `Stav: ${materialCur} / ${materialMax}`;
+    }
+    if (dom.cityInfoMaterialCollectBtn) {
+      const capacity = Math.max(0, materialMax - materialCur);
+      dom.cityInfoMaterialCollectBtn.disabled = infoQty <= 0 || capacity <= 0;
+      dom.cityInfoMaterialCollectBtn.onclick = () => collectCityMaterial(city);
+    }
+  }
+
+  async function renderMarketPanel(city) {
     if (!dom.marketPanelEl) return;
     const referenceCity = city || map.getCityAt(agentState.position.x, agentState.position.y);
     const tierInfo = describeMarketTier(referenceCity);
@@ -693,6 +828,7 @@ export function createUiService({ config, state, dom, time, map, travel, tasks, 
       dom.marketStatusLabelEl.textContent = tierInfo.status;
     }
     if (dom.marketStockListEl) {
+      const materialState = await loadCityMaterials(referenceCity);
       const generatorTask = state.tasks.list.find((task) => task.id === "mission-equipment-02");
       const generatorCity = generatorTask?.objective_triggers?.find(
         (trigger) => trigger.type === "visit_city"
@@ -711,6 +847,7 @@ export function createUiService({ config, state, dom, time, map, travel, tasks, 
           : false;
 
       dom.marketStockListEl.innerHTML = "";
+      let hasRows = false;
       if (generatorTask && isInGeneratorCity && !isBought) {
         const row = document.createElement("tr");
         const itemTd = document.createElement("td");
@@ -744,7 +881,52 @@ export function createUiService({ config, state, dom, time, map, travel, tasks, 
         row.appendChild(priceTd);
         row.appendChild(actionTd);
         dom.marketStockListEl.appendChild(row);
-      } else {
+        hasRows = true;
+      }
+
+      if (agentState.stats.level >= 2 && materialState) {
+        const materialQty = materialState.market_qty ?? 0;
+        const materialPrice = materialState.market_price ?? null;
+        if (materialQty > 0 && materialPrice) {
+          const row = document.createElement("tr");
+          const itemTd = document.createElement("td");
+          itemTd.className = "px-4 py-3";
+          itemTd.innerHTML = `
+            <div class="flex items-center gap-3">
+              <div class="h-10 w-10 rounded-lg border border-white/10 bg-amber-300/10 flex items-center justify-center text-amber-200 text-lg">🧱</div>
+              <div>
+                <div class="font-semibold text-slate-100">Spotřební materiál</div>
+                <div class="text-[10px] uppercase tracking-[0.2em] text-slate-400">${materialQty} ks</div>
+              </div>
+            </div>
+          `;
+          const priceTd = document.createElement("td");
+          priceTd.className = "px-4 py-3 text-amber-200 font-semibold";
+          priceTd.textContent = `${materialPrice} $`;
+          const actionTd = document.createElement("td");
+          actionTd.className = "px-4 py-3";
+          const buyBtn = document.createElement("button");
+          buyBtn.className =
+            "inline-flex items-center justify-center rounded-md px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] border border-emerald-400/60 text-emerald-100 bg-emerald-900/40 hover:bg-emerald-800/60 transition";
+          buyBtn.textContent = "Koupit";
+          const materialCur = agentState.stats.material_current ?? 0;
+          const materialMax = agentState.stats.material_max ?? 0;
+          const capacity = Math.max(0, materialMax - materialCur);
+          const money = agentState.inventory?.money ?? 0;
+          buyBtn.disabled = capacity <= 0 || money < materialPrice;
+          buyBtn.addEventListener("click", () => {
+            buyCityMaterial(referenceCity);
+          });
+          actionTd.appendChild(buyBtn);
+          row.appendChild(itemTd);
+          row.appendChild(priceTd);
+          row.appendChild(actionTd);
+          dom.marketStockListEl.appendChild(row);
+          hasRows = true;
+        }
+      }
+
+      if (!hasRows) {
         const row = document.createElement("tr");
         const td = document.createElement("td");
         td.colSpan = 3;
@@ -778,12 +960,38 @@ export function createUiService({ config, state, dom, time, map, travel, tasks, 
       hideCityInfoPanel();
       showTimetablePanel(false);
       tasks.showTaskDetailPanel(false);
+      if (dom.hqPanelEl) {
+        dom.hqPanelEl.classList.add("hidden");
+      }
       showWorkshopPanel(false);
       showMarketPanel(false);
       loadLabPanelData();
       tasks.notifyTaskLocationChange();
       tasks.loadStoryDialogs(true);
       tasks.maybeShowStoryOverlay("lab");
+    } else {
+      maybeShowCityImage(map.getCityAt(agentState.position.x, agentState.position.y));
+    }
+  }
+
+  function showHqPanel(show) {
+    if (!dom.hqPanelEl) return;
+    const shouldShow = !!show;
+    const allowed = !dom.hqBtn || !dom.hqBtn.classList.contains("hidden");
+    if (shouldShow && !allowed) {
+      return;
+    }
+    dom.hqPanelEl.classList.toggle("hidden", !shouldShow);
+    if (shouldShow) {
+      hideCityInfoPanel();
+      showTimetablePanel(false);
+      tasks.showTaskDetailPanel(false);
+      showLabPanel(false);
+      showWorkshopPanel(false);
+      showMarketPanel(false);
+      tasks.notifyTaskLocationChange();
+      tasks.loadStoryDialogs(true);
+      tasks.maybeShowStoryOverlay("hq");
     } else {
       maybeShowCityImage(map.getCityAt(agentState.position.x, agentState.position.y));
     }
@@ -802,6 +1010,9 @@ export function createUiService({ config, state, dom, time, map, travel, tasks, 
       showTimetablePanel(false);
       tasks.showTaskDetailPanel(false);
       showLabPanel(false);
+      if (dom.hqPanelEl) {
+        dom.hqPanelEl.classList.add("hidden");
+      }
       showMarketPanel(false);
     } else {
       maybeShowCityImage(map.getCityAt(agentState.position.x, agentState.position.y));
@@ -822,6 +1033,9 @@ export function createUiService({ config, state, dom, time, map, travel, tasks, 
       tasks.showTaskDetailPanel(false);
       if (dom.labPanelEl) {
         dom.labPanelEl.classList.add("hidden");
+      }
+      if (dom.hqPanelEl) {
+        dom.hqPanelEl.classList.add("hidden");
       }
       if (dom.workshopPanelEl) {
         dom.workshopPanelEl.classList.add("hidden");
@@ -1647,6 +1861,7 @@ export function createUiService({ config, state, dom, time, map, travel, tasks, 
         tasks.showTaskDetailPanel(false);
         hideCityInfoPanel();
         showLabPanel(false);
+        showHqPanel(false);
         showWorkshopPanel(false);
         maybeShowCityImage(map.getCityAt(agentState.position.x, agentState.position.y));
         setActiveFooterButton("hub");
@@ -1675,6 +1890,19 @@ export function createUiService({ config, state, dom, time, map, travel, tasks, 
         } else {
           showLabPanel(true);
           setActiveFooterButton("lab");
+        }
+      });
+    }
+    if (dom.hqBtn) {
+      dom.hqBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        const isVisible = dom.hqPanelEl && !dom.hqPanelEl.classList.contains("hidden");
+        if (uiState.activeFooterButton === "hq" && isVisible) {
+          showHqPanel(false);
+          setActiveFooterButton(null);
+        } else {
+          showHqPanel(true);
+          setActiveFooterButton("hq");
         }
       });
     }
@@ -1708,6 +1936,13 @@ export function createUiService({ config, state, dom, time, map, travel, tasks, 
       dom.closeLabPanelBtn.addEventListener("click", (e) => {
         e.preventDefault();
         showLabPanel(false);
+        setActiveFooterButton(null);
+      });
+    }
+    if (dom.closeHqPanelBtn) {
+      dom.closeHqPanelBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        showHqPanel(false);
         setActiveFooterButton(null);
       });
     }
@@ -1801,6 +2036,7 @@ export function createUiService({ config, state, dom, time, map, travel, tasks, 
     showTimetablePanel,
     hideAllPanelsExcept,
     isLabPanelVisible,
+    isHqPanelVisible,
     isMarketPanelVisible,
     applySkyGradientForMinutes,
     getCurrentCitySnapshot,
@@ -1817,6 +2053,7 @@ export function createUiService({ config, state, dom, time, map, travel, tasks, 
     loadLabPanelData,
     renderMarketPanel,
     showLabPanel,
+    showHqPanel,
     showWorkshopPanel,
     showMarketPanel,
     maybeShowCityImage,

@@ -22,6 +22,7 @@ class Agent(db.Model):
 
     current_city_id = db.Column(db.Integer, db.ForeignKey("cities.id"), nullable=True)
     last_city_id = db.Column(db.Integer, db.ForeignKey("cities.id"), nullable=True)
+    hq_city_id = db.Column(db.Integer, db.ForeignKey("cities.id"), nullable=True)
 
     energy_current = db.Column(db.Integer, nullable=False, default=0)
     energy_max = db.Column(db.Integer, nullable=False, default=100)
@@ -55,6 +56,7 @@ class Agent(db.Model):
 
     current_city = db.relationship("City", foreign_keys=[current_city_id])
     last_city = db.relationship("City", foreign_keys=[last_city_id])
+    hq_city = db.relationship("City", foreign_keys=[hq_city_id])
 
     def __repr__(self):
         return f"<Agent id={self.id} level={self.level} xp={self.xp}>"

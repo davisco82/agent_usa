@@ -389,40 +389,36 @@ AGENT_TASK_TEMPLATES = [
 
     {
         "id": "mission-equipment-02",
-        "title": "Zdroj energie: generátor a nabití modulu",
-        "location": "{hq_city} → {market_lead_city} – Trh & dílna",
+        "title": "Zdroj energie: generátor a materiál",
+        "location": "{hq_city} → {market_lead_city} – Trh & Infocentrum",
         "summary": (
             "Rezervace z trhu tě zavádí do města {market_lead_city}. "
-            "Získej Energy Generator, sežeň spotřební materiál a v místní dílně "
-            "poprvé nabij Energy Modul."
+            "Získej Energy Generator a nasbírej dostatek spotřebního materiálu "
+            "pro výrobu energie."
         ),
         "description": (
             "Informace od Stevea Hatcheta potvrdily, že v {market_lead_city} je stále k dispozici "
             "funkční Energy Generator. Bez něj není možné vyrábět energii.\n\n"
             "Po jeho získání musíš zajistit spotřební materiál — palivo potřebné "
             "k samotné výrobě energie. Materiál lze získat průzkumem města "
-            "nebo rozebráním nefunkční infrastruktury.\n\n"
-            "Jakmile máš generátor i materiál, zamiř do místní dílny. "
-            "Zde můžeš energii vyrobit a poprvé nabít svůj Energy Modul. "
-            "Teprve poté budeš připraven vyrazit do zasažené oblasti."
+            "v Infocentru nebo rozebráním nefunkční infrastruktury.\n\n"
+            "Jakmile máš generátor i materiál, budeš připraven pokračovat v další části operace."
         ),
         "objectives": [
             "Cestuj do města {market_lead_city}. (10 XP)",
             "Na trhu získej rezervovaný Energy Generator. (10 XP)",
-            "Proveď průzkum města a získej spotřební materiál (+10 MATERIAL). (10 XP)",
-            "V místní dílně vyrob energii a nabij Energy Modul. (20 XP)",
+            "Nasbírej dostatek spotřebního materiálu pro výrobu energie (+10 MATERIAL). (10 XP)",
         ],
-        "reward": "60 XP, Energy Modul (nabito)",
+        "reward": "40 XP",
         "status": "Čeká na dokončení",
         "priority": "Vysoká",
-        "eta": "36 hodin",
+        "eta": "24 hodin",
         "progress": 0.0,
-        "objective_rewards": [10, 10, 10, 20],
+        "objective_rewards": [10, 10, 10],
         "objective_triggers": [
             {"type": "visit_city", "city_name": "{market_lead_city}"},
             {"type": "buy_item", "item": "energy_generator"},
             {"type": "gain_material", "amount": 10},
-            {"type": "charge_item", "item": "energy_module"},
         ],
         "dynamic_placeholders": {
             "hq_city": {
@@ -433,6 +429,103 @@ AGENT_TASK_TEMPLATES = [
                 "importance_max": 3,
                 "connected_to_placeholder": "hq_city",
                 "exclude_agent_city": True,
+                "use_all_regions": True,
+            },
+        },
+    },
+
+    {
+        "id": "mission-equipment-03",
+        "title": "První modul: pobočka centrály a dílna",
+        "location": "{hq_city} → {workshop_city} → {hq_city}",
+        "summary": (
+            "Na centrále si vyzvedni prázdný Energy Modul. V dílně ho pomocí generátoru "
+            "a 5 jednotek materiálu nabij a vrať se zpět na centrálu pro kontakt s Dr. Rookem."
+        ),
+        "description": (
+            "V pobočce centrály je k dispozici prázdný Energy Modul, který je nutný "
+            "pro přenos vyrobené energie.\n\n"
+            "S modulem v ruce se vydej do nejbližší dílny. K výrobě budeš potřebovat "
+            "Energy Generator, prázdný modul a minimálně 5 jednotek spotřebního materiálu. "
+            "Po výrobě energii ulož do modulu a připrav se k návratu.\n\n"
+            "Nakonec se vrať na centrálu a zavolej Dr. Rookovi. Po telefonu ti sdělí, "
+            "kam máš modul s energií přivézt pro první měření."
+        ),
+        "objectives": [
+            "Cestuj na centrálu do města {hq_city}. (10 XP)",
+            "Na pobočce centrály vyzvedni prázdný Energy Modul. (10 XP)",
+            "Cestuj do města {workshop_city} a najdi dílnu. (10 XP)",
+            "V dílně vyrob energii a nabij Energy Modul (spotřeba 5 materiálů). (20 XP)",
+            "Vrať se na centrálu a zavolej Dr. Rookovi. (15 XP)",
+        ],
+        "reward": "65 XP",
+        "status": "Čeká na dokončení",
+        "priority": "Vysoká",
+        "eta": "36 hodin",
+        "progress": 0.0,
+        "objective_rewards": [10, 10, 10, 20, 15],
+        "objective_triggers": [
+            {"type": "visit_city", "city_name": "{hq_city}"},
+            {"type": "story_dialog", "panel": "hq"},
+            {"type": "visit_city", "city_name": "{workshop_city}"},
+            {"type": "charge_item", "item": "energy_module"},
+            {"type": "story_dialog", "panel": "hq"},
+        ],
+        "story_dialogs": [
+            {
+                "panel": "hq",
+                "objective_index": 1,
+                "requires_completed_indices": [0],
+                "requires_agent_in_city_placeholder": "hq_city",
+                "button_label": "Vyzvednout modul",
+                "title": "Pobočka centrály: výdej modulu",
+                "body": (
+                    "„Váš Energy Modul je připraven, agente,“ hlásí operátor centrály. "
+                    "„Je prázdný a zabezpečený pro převoz. Jakmile ho nabijete, ozvěte se nám.“"
+                ),
+                "confirm_label": "Převzít modul",
+                "character": {
+                    "name": "Operátor centrály",
+                    "role": "Výdej vybavení",
+                    "image_url": "/static/assets/figures/agent_usa.png",
+                },
+            },
+            {
+                "panel": "hq",
+                "objective_index": 4,
+                "requires_completed_indices": [0, 1, 2, 3],
+                "requires_agent_in_city_placeholder": "hq_city",
+                "button_label": "Zavolat Dr. Rookovi",
+                "title": "Telefonát s Dr. Rookem",
+                "body": (
+                    "„Výborně, agente. Modul je nabitý?“ ozve se Dr. Rook do telefonu.\n\n"
+                    "„Přivezte ho do města {target_city}. Tam provedeme první měření. "
+                    "Nesmíme ztrácet čas — okno stability je krátké.“"
+                ),
+                "confirm_label": "Rozumím, vyrážím",
+                "character": {
+                    "name": "Dr. Elias Rook",
+                    "role": "Vedoucí biometrického programu",
+                    "image_url": "/static/assets/figures/dr_rook.webp",
+                },
+            },
+        ],
+        "dynamic_placeholders": {
+            "hq_city": {
+                "source": "agent_city",
+                "use_all_regions": True,
+            },
+            "workshop_city": {
+                "importance_min": 2,
+                "importance_max": 3,
+                "connected_to_placeholder": "hq_city",
+                "exclude_agent_city": True,
+                "use_all_regions": True,
+                "avoid_duplicates_of": ["hq_city"],
+            },
+            "target_city": {
+                "importance_min": 1,
+                "importance_max": 2,
                 "use_all_regions": True,
             },
         },

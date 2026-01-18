@@ -21,6 +21,16 @@ export function createTasksService({ state, dom, time, agent, map, ui }) {
       activeDialog: null,
       activeKey: null,
     },
+    hq: {
+      buttonEl: null,
+      defaultButtonLabel: null,
+      get isVisible() {
+        return ui.isHqPanelVisible();
+      },
+      overlayDismissed: false,
+      activeDialog: null,
+      activeKey: null,
+    },
     market: {
       buttonEl: null,
       defaultButtonLabel: null,
@@ -759,6 +769,7 @@ export function createTasksService({ state, dom, time, agent, map, ui }) {
 
   function renderStoryDialogs() {
     updateStoryDialogForPanel("lab");
+    updateStoryDialogForPanel("hq");
     updateStoryDialogForPanel("market");
   }
 

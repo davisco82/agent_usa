@@ -41,6 +41,8 @@ def _serialize_agent(agent: Agent | None) -> Dict[str, Any]:
             "material_current": 0,
             "material_max": material_max,
             "inventory": Agent.normalize_inventory({}),
+            "hq_city_id": None,
+            "hq_city_name": None,
             "current_city_id": None,
             "current_city_name": None,
         }
@@ -60,6 +62,8 @@ def _serialize_agent(agent: Agent | None) -> Dict[str, Any]:
         "material_current": agent.material_current,
         "material_max": material_max,
         "inventory": Agent.normalize_inventory(agent.inventory),
+        "hq_city_id": agent.hq_city_id,
+        "hq_city_name": agent.hq_city.name if agent.hq_city else None,
         "current_city_id": agent.current_city_id,
         "current_city_name": agent.current_city.name if agent.current_city else None,
     }
@@ -204,6 +208,7 @@ def api_agent_reset():
     agent.data_max = data_max
     agent.material_current = 0
     agent.material_max = material_max
+    agent.hq_city_id = None
     agent.credits = 0
     agent.inventory = Agent.normalize_inventory({})
     agent.infection_level = 0

@@ -13,6 +13,7 @@ import random
 from app.extensions import db
 from app.models.active_task import ActiveTask
 from app.models.agent import Agent
+from app.models.city import City
 from app.domain.agent.task_config import (
     AGENT_TASK_TEMPLATES,
     resolve_template_for_agent,
@@ -86,6 +87,18 @@ def assign_task(
         raise ValueError(f"Task template '{task_id}' not found")
 
     region_code = _agent_region_code(agent)
+    if placeholders is None and task_id == "mission-equipment-02":
+        prior = ActiveTask.query.filter_by(agent_id=agent.id, task_id="mission-equipment-01").first()
+        prior_placeholders = (prior.objective_state or {}).get("placeholders") if prior else None
+        if isinstance(prior_placeholders, dict):
+            carried = {
+                key: prior_placeholders.get(key)
+                for key in ("hq_city", "market_lead_city")
+                if prior_placeholders.get(key)
+            }
+            if carried:
+                placeholders = carried
+
     if placeholders is None:
         _, resolved_placeholders = resolve_template_for_agent(
             template,
@@ -94,6 +107,13 @@ def assign_task(
             rng=rng or random,
         )
         placeholders = resolved_placeholders
+
+    if isinstance(placeholders, dict) and placeholders.get("hq_city") and not agent.hq_city_id:
+        hq_name = placeholders.get("hq_city")
+        hq_city = City.query.filter(City.name.ilike(str(hq_name))).first()
+        if hq_city:
+            agent.hq_city_id = hq_city.id
+            agent.hq_city = hq_city
 
     # připrav stav objektivů
     objectives = template.get("objectives", [])

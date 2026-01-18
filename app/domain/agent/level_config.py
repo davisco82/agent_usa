@@ -3,7 +3,7 @@
 AGENT_LEVELS = [
     # level, xp_needed_from_previous_level, energy_max, popis odemčení
     {"level": 1,  "xp_required":   0, "energy_max": 0, "material_max": 0, "data_max": 0, "unlock": "Základní cestování mezi městy."},
-    {"level": 2,  "xp_required":  50, "energy_max": 1, "material_max": 5, "data_max": 5, "unlock": "Energie a materiály jsou nyní dostupné. Dílna je nově k dispozici ve vybraných městech.",
+    {"level": 2,  "xp_required":  50, "energy_max": 1, "material_max": 5, "data_max": 0, "unlock": "Energie a materiály jsou nyní dostupné. V Infocentru lze nově objevovat materiál. Dílna je nově k dispozici ve vybraných městech.",
      "unlock_items": [
          {"type": "energy", "description": "Základ 1"},
          {"type": "materials", "description": "Základ 0"},

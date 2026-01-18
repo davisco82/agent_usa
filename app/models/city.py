@@ -22,4 +22,9 @@ class City(db.Model):
     grid_y = db.Column(db.Integer)
     population = db.Column(db.Integer)
 
+    material_info_qty = db.Column(db.Integer, nullable=False, default=0)
+    market_material_qty = db.Column(db.Integer, nullable=False, default=0)
+    market_material_price = db.Column(db.Integer)
+    material_refreshed_at = db.Column(db.DateTime)
+
     region = db.relationship("Region", back_populates="cities")

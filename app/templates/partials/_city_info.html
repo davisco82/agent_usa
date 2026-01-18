@@ -21,7 +21,20 @@
         Přepni na město a ukážeme ti detaily.
       </p>
       <div id="cityInfoDetails" class="city-info-details space-y-3 text-base text-slate-200">
-        <!-- Budoucí doplňující informace -->
+        <div id="cityInfoMaterialRow" class="city-info-material hidden">
+          <div class="city-info-material__copy">
+            <p class="city-info-material__label">Materiál v Infocentru</p>
+            <p id="cityInfoMaterialValue" class="city-info-material__value">-</p>
+            <p id="cityInfoMaterialStatus" class="city-info-material__status">-</p>
+          </div>
+          <button
+            id="cityInfoMaterialCollectBtn"
+            type="button"
+            class="city-info-material__btn"
+          >
+            Seber
+          </button>
+        </div>
       </div>
     </div>
     <div
